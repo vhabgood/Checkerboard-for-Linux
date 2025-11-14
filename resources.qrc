@@ -1,0 +1,48 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource prefix="/sounds">
+    <file>sounds/move.wav</file>
+    <file>sounds/win.wav</file>
+    <file>sounds/loss.wav</file>
+    <file>sounds/draw.wav</file>
+    <file>sounds/capture.wav</file>
+    <file>sounds/invalid_move.wav</file>
+</qresource>
+<qresource prefix="/sounds">
+    <file>sounds/move.wav</file>
+    <file>sounds/win.wav</file>
+    <file>sounds/loss.wav</file>
+    <file>sounds/draw.wav</file>
+    <file>sounds/capture.wav</file>
+    <file>sounds/invalid_move.wav</file>
+</qresource>
+<qresource prefix="/standard">
+    <file>bmp/standard/bk.bmp</file>
+    <file>bmp/standard/bm.bmp</file>
+    <file>bmp/standard/dark.bmp</file>
+    <file>bmp/standard/kingmask.bmp</file>
+    <file>bmp/standard/light.bmp</file>
+    <file>bmp/standard/manmask.bmp</file>
+    <file>bmp/standard/wk.bmp</file>
+    <file>bmp/standard/wm.bmp</file>
+</qresource>
+<qresource prefix="/marble">
+    <file>bmp/marble/bk.bmp</file>
+    <file>bmp/marble/bm.bmp</file>
+    <file>bmp/marble/dark.bmp</file>
+    <file>bmp/marble/kingmask.bmp</file>
+    <file>bmp/marble/light.bmp</file>
+    <file>bmp/marble/manmask.bmp</file>
+    <file>bmp/marble/wk.bmp</file>
+    <file>bmp/marble/wm.bmp</file>
+</qresource>
+<qresource prefix="/stars">
+    <file>bmp/stars/bk.bmp</file>
+    <file>bmp/stars/bm.bmp</file>
+    <file>bmp/stars/dark.bmp</file>
+    <file>bmp/stars/kingmask.bmp</file>
+    <file>bmp/stars/light.bmp</file>
+    <file>bmp/stars/manmask.bmp</file>
+    <file>bmp/stars/wk.bmp</file>
+    <file>bmp/stars/wm.bmp</file>
+</qresource>
+</RCC>

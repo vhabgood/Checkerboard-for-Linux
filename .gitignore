@@ -1,0 +1,5 @@
+app.log
+*.log
+*.o
+checkerboard_app
+gdb.bt
