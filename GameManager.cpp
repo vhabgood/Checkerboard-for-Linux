@@ -26,7 +26,7 @@ extern "C" {
 QFile GameManager::m_logFile;
 QTextStream GameManager::m_logStream;
 QMutex GameManager::m_logMutex;
-LogLevel GameManager::s_minLogLevel = LogLevel::Debug;
+LogLevel GameManager::s_minLogLevel = LogLevel::Info;
 
 void GameManager::initLogging()
 {
@@ -960,7 +960,7 @@ void GameManager::handleSquareClick(int x, int y)
                 pos currentPos;
                 boardtobitboard(&m_currentBoard, &currentPos);
                 bool can_continue_multijump = false;
-                get_legal_moves_c(&currentPos, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, &potentialMove, &can_continue_multijump);
+                get_legal_moves_c(&currentPos, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, &m_lastMove, &can_continue_multijump);
 
                 bool isJumpMove = false;
                 for (int i = 0; i < nmoves_val; ++i) {

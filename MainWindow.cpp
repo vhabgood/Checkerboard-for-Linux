@@ -40,14 +40,12 @@ MainWindow::MainWindow(GameManager *gameManager, QWidget *parent)
     QString egdbPath = settings.value("Options/EGTBDirectory", QCoreApplication::applicationDirPath() + "/db/").toString();
     m_ai = new GeminiAI(egdbPath); // Pass EGDB path to AI constructor
     m_ai->moveToThread(m_aiThread);
-
+    connect(this, &MainWindow::setPrimaryEnginePath, m_ai, &GeminiAI::setExternalEnginePath);
+    connect(this, &MainWindow::setSecondaryEnginePath, m_ai, &GeminiAI::setSecondaryExternalEnginePath);
     // Load settings after AI setup
     loadSettings();
     GameManager::log(LogLevel::Debug, QString("MainWindow: EGTBdirectory after loadSettings(): %1").arg(m_options.EGTBdirectory));
     m_gameManager->setOptions(m_options); // Ensure GameManager also has updated options
-
-    connect(this, &MainWindow::setPrimaryEnginePath, m_ai, &GeminiAI::setExternalEnginePath);
-    connect(this, &MainWindow::setSecondaryEnginePath, m_ai, &GeminiAI::setSecondaryExternalEnginePath);
 
     // Connect AI signals to MainWindow slots
     connect(m_ai, &GeminiAI::searchFinished, this, &MainWindow::handleSearchFinished);
@@ -105,8 +103,8 @@ MainWindow::MainWindow(GameManager *gameManager, QWidget *parent)
         changeAppState(STATE_NORMAL);
         setStatusBarText("Your turn.");
     });
-    connect(m_gameManager, &GameManager::requestEngineSearch, m_ai, &GeminiAI::getBestMove);
-
+    // ----- THIS IS THE FIXED CODE -----
+    connect(m_gameManager, &GameManager::requestEngineSearch, m_ai, &GeminiAI::requestMove);
 
     // Connect signals from AI to MainWindow/GameManager
     connect(m_ai, &GeminiAI::engineError, this, &MainWindow::setStatusBarText);
@@ -481,12 +479,12 @@ void MainWindow::createMenus()
     // Help Menu
     QMenu *helpMenu = menuBar()->addMenu(tr("&Help"));
     helpMenu->addAction(tr("Help"), this, &MainWindow::helpHelp);
-    helpMenu->addAction(tr("Checkers In A Nutshell"), this, &MainWindow::helpCheckersInANutshell);
-    helpMenu->addAction(tr("Homepage"), this, &MainWindow::helpHomepage);
-    helpMenu->addAction(tr("Problem Of The Day"), this, &MainWindow::helpProblemOfTheDay);
-    helpMenu->addAction(tr("Online Upgrade"), this, &MainWindow::helpOnlineUpgrade);
+//    helpMenu->addAction(tr("Checkers In A Nutshell"), this, &MainWindow::helpCheckersInANutshell);
+// not yet implemented    helpMenu->addAction(tr("Homepage"), this, &MainWindow::helpHomepage);
+//    helpMenu->addAction(tr("Problem Of The Day"), this, &MainWindow::helpProblemOfTheDay);
+ //   helpMenu->addAction(tr("Online Upgrade"), this, &MainWindow::helpOnlineUpgrade);
     helpMenu->addSeparator();
-    helpMenu->addAction(tr("About"), this, &MainWindow::helpAbout);
+//    helpMenu->addAction(tr("About"), this, &MainWindow::helpAbout);
     helpMenu->addAction(tr("About Qt"), this, &MainWindow::helpAboutQt);
     helpMenu->addAction(tr("Contents"), this, &MainWindow::helpContents);
 }
@@ -534,11 +532,14 @@ void MainWindow::loadSettings()
     m_options.priority = settings.value("Options/Priority", 0).toInt(); // Load priority
     m_options.three_move_option = settings.value("Options/ThreeMoveOption", 0).toInt();
     m_options.mirror = settings.value("Options/Mirror", false).toBool(); // Load mirror setting
-    m_options.enable_game_timer = settings.value("Options/EnableGameTimer", false).toBool(); // Disable game timer by default
+// ----- THIS IS THE FIXED CODE -----
+    m_options.enable_game_timer = settings.value("Options/EnableGameTimer", false).toBool();
+    m_options.enable_game_timer = false; // <-- ADD THIS LINE to force it off.
     m_options.initial_time = settings.value("Options/InitialTime", 300).toInt(); // Default to 5 minutes (300 seconds)
     m_options.time_increment = settings.value("Options/TimeIncrement", 0).toInt(); // Default to 0 increment
     m_options.enable_game_timer = false; // Force disable the game timer for now
-    m_options.white_player_type = static_cast<PlayerType>(settings.value("Options/WhitePlayerType", PLAYER_HUMAN).toInt());
+    m_options.white_player_type = static_cast<PlayerType>(settings.value("Options/WhitePlayerType", PLAYER_AI).toInt());
+    m_options.white_player_type = PLAYER_AI; // <-- ADD THIS LINE to force it.
     m_options.black_player_type = static_cast<PlayerType>(settings.value("Options/BlackPlayerType", PLAYER_HUMAN).toInt());
 
 

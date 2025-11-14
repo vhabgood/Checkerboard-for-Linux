@@ -17,7 +17,7 @@ do_clean() {
 }
 
 # Define paths
-PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
+PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 RESOURCE_FILES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 if [ "$1" == "clean" ]; then
@@ -127,7 +127,8 @@ done
 
 # --- Link Application ---
 echo "Linking application..."
-g++ -o "${PROJECT_ROOT}/checkerboard_app" "${APP_OBJS[@]}" "${APP_MOC_OBJS[@]}" ${QT_LIBS} -L/usr/local/lib -lrt -lstdc++
+# ----- THIS IS THE FIXED CODE -----
+g++ -o "${RESOURCE_FILES_DIR}/checkerboard_app" "${APP_OBJS[@]}" "${APP_MOC_OBJS[@]}" ${QT_LIBS} -L/usr/local/lib -lrt -lstdc++
 if [ $? -ne 0 ]; then
     echo "Application linking failed!"
     exit 1
