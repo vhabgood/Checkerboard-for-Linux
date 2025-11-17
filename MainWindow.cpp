@@ -37,8 +37,13 @@ MainWindow::MainWindow(GameManager *gameManager, QWidget *parent)
     // AI setup
     m_aiThread = new QThread(this);
     QSettings settings("Checkerboard", "Checkerboard");
-    QString egdbPath = settings.value("Options/EGTBDirectory", QCoreApplication::applicationDirPath() + "/db/").toString();
-    m_ai = new GeminiAI(egdbPath); // Pass EGDB path to AI constructor
+
+    // Force the EGTB directory to be the 'db' folder relative to the application executable
+    QString forcedEgdbPath = QCoreApplication::applicationDirPath() + "/db/";
+    strncpy(m_options.EGTBdirectory, forcedEgdbPath.toUtf8().constData(), MAX_PATH_FIXED - 1);
+    m_options.EGTBdirectory[MAX_PATH_FIXED - 1] = '\0';
+
+    m_ai = new GeminiAI(forcedEgdbPath); // Pass EGDB path to AI constructor
     m_ai->moveToThread(m_aiThread);
     connect(this, &MainWindow::setPrimaryEnginePath, m_ai, &GeminiAI::setExternalEnginePath);
     connect(this, &MainWindow::setSecondaryEnginePath, m_ai, &GeminiAI::setSecondaryExternalEnginePath);
@@ -73,9 +78,11 @@ MainWindow::MainWindow(GameManager *gameManager, QWidget *parent)
     m_blackClockLabel = new QLabel(" B: 0.0 ", this);
     m_whiteClockLabel = new QLabel(" W: 0.0 ", this);
     m_evaluationLabel = new QLabel(" Eval: 0 ", this); // Initialize evaluation label
+    m_depthLabel = new QLabel(" Depth: 0", this);
     statusBar()->addPermanentWidget(m_blackClockLabel);
     statusBar()->addPermanentWidget(m_whiteClockLabel);
     statusBar()->addPermanentWidget(m_evaluationLabel); // Add evaluation label to status bar
+    statusBar()->addPermanentWidget(m_depthLabel);
 
     // m_gameManager->setOptions(m_options); // Already called above
     m_boardWidget->setPieceSet(m_options.piece_set); // Set initial piece set
@@ -1581,7 +1588,8 @@ void MainWindow::setStatusBarText(const QString& text)
     GameManager::log(LogLevel::Info, QString("Status bar text set to: %1").arg(text));
 }
 
-void MainWindow::updateEvaluationDisplay(int score)
+void MainWindow::updateEvaluationDisplay(int score, int depth)
 {
     m_evaluationLabel->setText(QString(" Eval: %1 ").arg(score));
+    m_depthLabel->setText(QString(" Depth: %1 ").arg(depth));
 }

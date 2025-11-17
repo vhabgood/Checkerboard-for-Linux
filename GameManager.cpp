@@ -12,27 +12,21 @@ extern "C" {
 #include "c_logic.h" // Added for C functions like newgame, domove_c, board8toFEN, FENtoboard8
 }
 #include "checkers_c_types.h" // Direct include
-#include "checkers_c_types.h" // Direct include
-#include "checkers_c_types.h" // Direct include
-#include "checkers_c_types.h" // Direct include
-#include "checkers_c_types.h" // Direct include
-#include "checkers_c_types.h" // Direct include
-#include "checkers_c_types.h" // Direct include
-#include "checkers_c_types.h" // Direct include
-#include "checkers_c_types.h" // Direct include
-#include "checkers_c_types.h" // Direct include
+
+extern LogLevel s_minLogLevel;
 
 // Static member definitions
 QFile GameManager::m_logFile;
 QTextStream GameManager::m_logStream;
 QMutex GameManager::m_logMutex;
-LogLevel GameManager::s_minLogLevel = LogLevel::Info;
 
 void GameManager::initLogging()
 {
-    m_logFile.setFileName("app.log");
+    m_logFile.setFileName("/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/app.log");
     if (m_logFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         m_logStream.setDevice(&m_logFile);
+        // Direct write to file to test if QFile is working
+        m_logFile.write("Direct write test: Logging initialized.\n");
         log(LogLevel::Info, "Logging initialized.");
     } else {
         GameManager::log(LogLevel::Error, "Failed to open log file.");
@@ -57,6 +51,8 @@ static QString levelToString(LogLevel level) {
         default: return "UNKNOWN";
     }
 }
+
+extern LogLevel s_minLogLevel;
 
 void GameManager::log(LogLevel level, const QString& message)
 {
@@ -292,10 +288,10 @@ void GameManager::parsePdnGameString(char* game_str, PdnGameWrapper& game) {
             char* key_end = strchr(key_start, ' ');
             if (key_end) {
                 *key_end = '\0';
-                char* value_start = strchr(key_end + 1, '\"');
+                char* value_start = strchr(key_end + 1, '"');
                 if (value_start) {
                     value_start++;
-                    char* value_end = strchr(value_start, '\"');
+                    char* value_end = strchr(value_start, '"');
                     if (value_end) {
                         *value_end = '\0';
                         if (strcmp(key_start, "Event") == 0) strcpy(game.game.event, value_start);
@@ -380,10 +376,8 @@ GameManager::GameManager(QObject *parent) : QObject(parent),
 {
     GameManager::log(LogLevel::Info, "GameManager: Initializing.");
     connect(m_gameTimer, &QTimer::timeout, this, &GameManager::handleTimerTimeout);
-
-    // Initialize game state
-    newGame(GT_ENGLISH);
 }
+
 
 GameManager::~GameManager()
 {
@@ -768,6 +762,7 @@ void GameManager::savePdnGame(const QString &filename) {
             GameManager::log(LogLevel::Warning, QString("savePdnGame: Could not find legal move for PDN move %1-%2. Defaulting is_capture=false, jumps=0.").arg(m_currentPdnGame.moves[i].from_square).arg(m_currentPdnGame.moves[i].to_square));
         }
 
+        char move_notation[80];
         move4tonotation(&cbMove, pdn_c);
         out << pdn_c << " "; // Corrected output
 
@@ -823,7 +818,6 @@ const PdnGameWrapper& GameManager::getCurrentPdnGame() const {
 
 void GameManager::setOptions(const CBoptions& options) {
     m_options = options;
-    s_minLogLevel = m_options.min_log_level;
 }
 
 void GameManager::setCurrentBoard(const Board8x8& board) {
@@ -914,6 +908,15 @@ void GameManager::handleSquareClick(int x, int y)
     int square = coorstonumber(x, y, GT_ENGLISH);
     GameManager::log(LogLevel::Debug, QString("GameManager: Square clicked: %1").arg(square));
 
+    // Get all legal moves for the current player to determine if a capture is mandatory
+    CBmove allLegalMoves[MAXMOVES];
+    int all_nmoves = 0;
+    int all_isjump = 0;
+    pos currentPosForMandatoryCheck;
+    boardtobitboard(&m_currentBoard, &currentPosForMandatoryCheck);
+    bool dummy_can_continue_multijump_check = false;
+    get_legal_moves_c(&currentPosForMandatoryCheck, m_currentColorToMove, allLegalMoves, &all_nmoves, &all_isjump, NULL, &dummy_can_continue_multijump_check);
+
     // Get the piece at the clicked square
     int piece = m_currentBoard.board[y][x];
     bool isCurrentPlayersPiece = false;
@@ -927,6 +930,20 @@ void GameManager::handleSquareClick(int x, int y)
     if (!m_pieceSelected) {
         // No piece selected yet, try to select one
         if (isCurrentPlayersPiece) {
+            // If there are mandatory jumps, ensure the selected piece can make one
+            if (all_isjump) {
+                bool selectedPieceCanCapture = false;
+                for (int i = 0; i < all_nmoves; ++i) {
+                    if (allLegalMoves[i].from.x == x && allLegalMoves[i].from.y == y && allLegalMoves[i].is_capture) {
+                        selectedPieceCanCapture = true;
+                        break;
+                    }
+                }
+                if (!selectedPieceCanCapture) {
+                    emit gameMessage("You must select a piece that can make a capture!");
+                    return;
+                }
+            }
             m_selectedX = x;
             m_selectedY = y;
             m_pieceSelected = true;
@@ -938,52 +955,15 @@ void GameManager::handleSquareClick(int x, int y)
     } else {
         // A piece is already selected, this click is for a destination
         if (x == m_selectedX && y == m_selectedY) {
-            // Clicked the same piece again, deselect it
-            m_pieceSelected = false;
-            m_selectedX = -1;
-            m_selectedY = -1;
-            emit gameMessage("Piece deselected.");
-            emit pieceDeselected();
-        } else {
-            // If a forced capture is pending, only allow jump moves
-            if (m_forcedCapturePending) {
-                // Check if the potential move is a jump
-                CBmove potentialMove;
-                potentialMove.from.x = m_selectedX;
-                potentialMove.from.y = m_selectedY;
-                potentialMove.to.x = x;
-                potentialMove.to.y = y;
-
-                CBmove legalMoves[MAXMOVES];
-                int nmoves_val = 0;
-                int isjump_val = 0;
-                pos currentPos;
-                boardtobitboard(&m_currentBoard, &currentPos);
-                bool can_continue_multijump = false;
-                get_legal_moves_c(&currentPos, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, &m_lastMove, &can_continue_multijump);
-
-                bool isJumpMove = false;
-                for (int i = 0; i < nmoves_val; ++i) {
-                    if (legalMoves[i].from.x == potentialMove.from.x &&
-                        legalMoves[i].from.y == potentialMove.from.y &&
-                        legalMoves[i].to.x == potentialMove.to.x &&
-                        legalMoves[i].to.y == potentialMove.to.y &&
-                        legalMoves[i].is_capture) { // Check if it's a capture
-                        isJumpMove = true;
-                        break;
-                    }
-                }
-
-                if (!isJumpMove) {
-                    emit gameMessage("You must make a jump move!");
-                    // Reset selection after attempting an illegal move
-                    m_pieceSelected = false;
-                    m_selectedX = -1;
-                    m_selectedY = -1;
-                    emit pieceDeselected();
-                    return; // Do not proceed with non-jump move
-                }
+            // Clicked the same piece again, deselect it (only if not in a forced capture sequence)
+            if (!m_forcedCapturePending) {
+                m_pieceSelected = false;
+                m_selectedX = -1;
+                m_selectedY = -1;
+                emit gameMessage("Piece deselected.");
+                emit pieceDeselected();
             }
+        } else {
             // Attempt to make a move
             CBmove potentialMove;
             potentialMove.from.x = m_selectedX;
@@ -996,99 +976,103 @@ void GameManager::handleSquareClick(int x, int y)
             int isjump_val = 0;
             pos currentPos;
             boardtobitboard(&m_currentBoard, &currentPos);
-            bool dummy_can_continue_multijump = false;
-        get_legal_moves_c(&currentPos, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, NULL, &dummy_can_continue_multijump);
+            bool can_continue_multijump = false;
 
-            GameManager::log(LogLevel::Debug, QString("Legal moves generated (%1):").arg(nmoves_val));
-            for (int i = 0; i < nmoves_val; ++i) {
-                int from_sq = coorstonumber(legalMoves[i].from.x, legalMoves[i].from.y, GT_ENGLISH);
-                int to_sq = coorstonumber(legalMoves[i].to.x, legalMoves[i].to.y, GT_ENGLISH);
-                GameManager::log(LogLevel::Debug, QString("  Legal Move %1: from %2 to %3").arg(i).arg(from_sq).arg(to_sq));
+            // If a forced capture is pending, we can only make jumps with the piece that just moved.
+            // The legal move generator needs the last move to correctly identify subsequent jumps.
+            if (m_forcedCapturePending) {
+                get_legal_moves_c(&currentPos, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, &m_lastMove, &can_continue_multijump);
+            } else {
+                get_legal_moves_c(&currentPos, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, NULL, &can_continue_multijump);
             }
 
             bool moveFound = false;
-            bool isCapture = false;
+            CBmove chosenMove;
             for (int i = 0; i < nmoves_val; ++i) {
                 if (legalMoves[i].from.x == potentialMove.from.x &&
                     legalMoves[i].from.y == potentialMove.from.y &&
                     legalMoves[i].to.x == potentialMove.to.x &&
                     legalMoves[i].to.y == potentialMove.to.y) {
-                    GameManager::log(LogLevel::Debug, QString("Potential move matches legal move %1").arg(i));
-                    isCapture = makeMove(legalMoves[i]); // Use the legal move from the list (might contain capture info)
+                    chosenMove = legalMoves[i];
                     moveFound = true;
                     break;
                 }
             }
 
-                            if (moveFound) {
-                                int from_sq = coorstonumber(m_selectedX, m_selectedY, GT_ENGLISH);
-                                int to_sq = coorstonumber(x, y, GT_ENGLISH);
-                                GameManager::log(LogLevel::Debug, QString("Move made from %1 to %2").arg(from_sq).arg(to_sq));
-                                GameManager::log(LogLevel::Debug, QString("DEBUG: isCapture after makeMove: %1").arg(isCapture));
-                                GameManager::log(LogLevel::Debug, QString("DEBUG: m_forcedCapturePending before logic: %1").arg(m_forcedCapturePending));
-                                GameManager::log(LogLevel::Debug, QString("DEBUG: m_currentColorToMove before logic: %1").arg(m_currentColorToMove));
+            if (moveFound) {
+                bool isCapture = makeMove(chosenMove);
 
-                                bool current_player_can_continue_multijump = false;
-                                if (isCapture) {
-                                    pos currentPosAfterMoveForMultiJump;
-                                    boardtobitboard(&m_currentBoard, &currentPosAfterMoveForMultiJump);
-                                    CBmove legalMovesForMultiJump[MAXMOVES];
-                                    int nmoves_for_multijump = 0;
-                                    int isjump_for_multijump = 0;
-                                    get_legal_moves_c(&currentPosAfterMoveForMultiJump, m_currentColorToMove, legalMovesForMultiJump, &nmoves_for_multijump, &isjump_for_multijump, &m_lastMove, &current_player_can_continue_multijump);
-                                }
+                // Check if a promotion happened
+                bool promotionOccurred = (chosenMove.oldpiece & CB_MAN) && (chosenMove.newpiece & CB_KING);
 
-                                if (isCapture && current_player_can_continue_multijump) {
-                                    // Forced capture pending for the same player
-                                    m_forcedCapturePending = true;
-                                    emit gameMessage("Forced capture! Make your jump.");
-                                } else {
-                                    // Determine the next player's color
-                                    int nextColorToMove = (m_currentColorToMove == CB_WHITE) ? CB_BLACK : CB_WHITE;
+                if (isCapture && !promotionOccurred) {
+                    // After a capture, check if the same piece can make another jump
+                    pos posAfterMove;
+                    boardtobitboard(&m_currentBoard, &posAfterMove);
+                    CBmove multiJumpMoves[MAXMOVES];
+                    int n_multijump_moves = 0;
+                    int is_multijump = 0;
+                    bool can_continue_this_jump = false;
+                    get_legal_moves_c(&posAfterMove, m_currentColorToMove, multiJumpMoves, &n_multijump_moves, &is_multijump, &m_lastMove, &can_continue_this_jump);
 
-                                    // Check for game over conditions for the next player
-                                    pos currentPosAfterMove;
-                                    boardtobitboard(&m_currentBoard, &currentPosAfterMove);
-                                    CBmove legalMovesForNextPlayer[MAXMOVES];
-                                    int nmoves_for_next_player = 0;
-                                    int isjump_for_next_player = 0;
-                                    bool dummy_can_continue_multijump_for_next_player = false;
-                                    get_legal_moves_c(&currentPosAfterMove, nextColorToMove, legalMovesForNextPlayer, &nmoves_for_next_player, &isjump_for_next_player, NULL, &dummy_can_continue_multijump_for_next_player);
+                    if (can_continue_this_jump) {
+                        // Multi-jump is possible and mandatory.
+                        m_forcedCapturePending = true;
+                        m_pieceSelected = true; // Keep piece selected
+                        m_selectedX = x;        // Update selection to the new square
+                        m_selectedY = y;
+                        emit pieceSelected(x, y); // Highlight the piece for the next jump
+                        emit gameMessage("Forced capture! Make your next jump.");
+                        return; // End turn processing here, wait for next click
+                    }
+                }
 
-                                    bool gameOver = (nmoves_for_next_player == 0);
+                // If we reach here, the move sequence is over (either not a capture or no more multi-jumps).
+                m_forcedCapturePending = false;
+                m_pieceSelected = false;
+                m_selectedX = -1;
+                m_selectedY = -1;
+                emit pieceDeselected();
 
-                                    if (gameOver) {
-                                        // The player who just moved wins
-                                        int result = CB_WIN; // If the current player's move caused the opponent to have no moves, the current player wins.
-                                        emit gameIsOver(result);
-                                        emit gameMessage("Game Over!");
-                                        m_forcedCapturePending = false;
-                                    } else {
-                                        // Move complete, switch turns
-                                        m_currentColorToMove = nextColorToMove;
-                                        m_forcedCapturePending = false;
-                                        emit gameMessage("Move made.");
+                int nextColorToMove = (m_currentColorToMove == CB_WHITE) ? CB_BLACK : CB_WHITE;
 
-                                GameManager::log(LogLevel::Debug, QString("DEBUG: m_currentColorToMove is %1, m_engineColor is %2").arg(m_currentColorToMove).arg(m_engineColor));
-                                        if (m_currentColorToMove == m_engineColor) {
-                                            playMove();
-                                        } else {
-                                            emit humanTurn();
-                                        }
-                                    }
-                                }
-                                GameManager::log(LogLevel::Debug, QString("DEBUG: m_currentColorToMove after logic: %1").arg(m_currentColorToMove));
-                            } else {
-                                int from_sq = coorstonumber(m_selectedX, m_selectedY, GT_ENGLISH);
-                                int to_sq = coorstonumber(x, y, GT_ENGLISH);
-                                GameManager::log(LogLevel::Warning, QString("Clicked move from %1 to %2 is not in the list of legal moves.").arg(from_sq).arg(to_sq));
-                                emit gameMessage("Illegal move. Please try again.");
-                            }
-            // Reset selection after attempting a move
-            m_pieceSelected = false;
-            m_selectedX = -1;
-            m_selectedY = -1;
-            emit pieceDeselected();
+                // Check for game over
+                pos finalPos;
+                boardtobitboard(&m_currentBoard, &finalPos);
+                CBmove nextPlayerMoves[MAXMOVES];
+                int n_next_moves = 0;
+                int is_next_jump = 0;
+                bool dummy_can_continue = false;
+                get_legal_moves_c(&finalPos, nextColorToMove, nextPlayerMoves, &n_next_moves, &is_next_jump, NULL, &dummy_can_continue);
+
+                if (n_next_moves == 0) {
+                    emit gameIsOver(CB_WIN); // Current player wins
+                    emit gameMessage("Game Over!");
+                } else {
+                    // Switch turns
+                    m_currentColorToMove = nextColorToMove;
+                    emit gameMessage("Move made.");
+
+                    // Trigger AI if it's its turn
+                    if ((m_currentColorToMove == CB_WHITE && m_options.white_player_type == PLAYER_AI) ||
+                        (m_currentColorToMove == CB_BLACK && m_options.black_player_type == PLAYER_AI)) {
+                        playMove();
+                    } else {
+                        emit humanTurn();
+                    }
+                }
+
+            } else {
+                // Move was not found in the legal list
+                emit gameMessage("Illegal move. Please try again.");
+                // Do not deselect the piece if a capture is forced, to guide the user.
+                if (!m_forcedCapturePending) {
+                    m_pieceSelected = false;
+                    m_selectedX = -1;
+                    m_selectedY = -1;
+                    emit pieceDeselected();
+                }
+            }
         }
     }
 }

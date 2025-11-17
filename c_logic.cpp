@@ -12,9 +12,22 @@
 void log_c(int level, const char* message);
 #include <stdio.h> // For FILE, etc.
 
+// New file logging function
+void log_to_file(const char *format, ...) {
+    FILE *f = fopen("c_logic.log", "a");
+    if (f) {
+        va_list args;
+        va_start(args, format);
+        vfprintf(f, format, args);
+        fprintf(f, "\n"); // Add a newline
+        va_end(args);
+        fclose(f);
+    }
+}
+
 int bitcount(unsigned int n) {
     int c = 0;
-    while (n > 0) { n &= (n - 1); c++; }
+    while (n > 0) { n &= (n - 1); c++; } 
     return c;
 }
 
@@ -183,7 +196,7 @@ unsigned int CRC32tab[256] = {
     0xc5ba3bbe, 0xb2bd0b28, 0x5d681b02, 0x2a6f2b94, 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 unsigned int crc_calc(const char *buf, int len) { int i; unsigned int crc = CRCSEED; for (i = 0; i < len; ++i) crc = CRC32tab[(crc ^ buf[i]) & 0xff] ^ (crc >> 8); crc ^= XOROT; return(crc); }
-unsigned int file_crc_calc(FILE *fp) { int i; unsigned int crc = CRCSEED; int bytes_read; char buf[16384]; do { bytes_read = (int)fread(buf, 1, sizeof(buf), fp); if (bytes_read <= 0) break; for (i = 0; i < bytes_read; ++i) crc = CRC32tab[(crc ^ buf[i]) & 0xff] ^ (crc >> 8); } while (bytes_read > 0); crc ^= XOROT; return(crc); }
+unsigned int file_crc_calc(FILE *fp) { int i; unsigned int crc = CRCSEED; int bytes_read; char buf[16384]; do { bytes_read = (int)fread(buf, 1, sizeof(buf), fp); if (bytes_read <= 0) break; for (i = 0; i < bytes_read; ++i) crc = CRC32tab[(crc ^ buf[i]) & 0xff] ^ (crc >> 8); } while (bytes_read > 0); crc ^= XOROT; return(crc); } 
 int fname_crc_calc(const char *name, unsigned int *crc) { FILE *fp = fopen(name, "rb"); if (!fp) return(1); *crc = file_crc_calc(fp); fclose(fp); return(0); }
 
 // From fen.h
@@ -278,44 +291,52 @@ int PDNgametostartposition(PDNgame *game, int b[64])
 
     // no setup
         if (game->gametype == 21) {
-            for (i = 0; i < 12; i++) {
-                j = 2 * i;
-                if (i >= 4 && i < 8)
-                    j++;
-                b[j] = CB_BLACK | CB_MAN;}
-
-            for (i = 20; i < 32; i++) {
-                j = 2 * i + 1;
-                if (i >= 24 && i < 28)
-                    j--;
-                b[j] = CB_WHITE | CB_MAN;}
-        }
-        else {
-            for (i = 0; i < 12; i++) {
-                j = 2 * i + 1;
-                if (i >= 4 && i < 8)
-                    j--;
-                b[j] = CB_WHITE | CB_MAN;
+            int board[32];
+            for (int k = 0; k < 12; k++) { //black pieces
+                board[k] = (CB_BLACK | CB_MAN);
+            }
+            for (int k = 12; k < 20; k++) { //empty squares
+                board[k] = CB_EMPTY;
+            }
+            for (int k = 20; k < 32; k++) { //white pieces
+                board[k] = (CB_WHITE | CB_MAN);
             }
 
-            for (i = 20; i < 32; i++) {
-                j = 2 * i;
-                if (i >= 24 && i < 28)
-                    j++;
-                b[j] = CB_BLACK | CB_MAN;
+            for (int k = 0; k < 32; k++) {
+                int r, c;
+                numbertocoors(k + 1, &c, &r, game->gametype);
+                b8.board[r][c] = board[k];
+            }
+        } else {
+            int board[32];
+            for (int k = 0; k < 12; k++) { //white pieces
+                board[k] = (CB_WHITE | CB_MAN);
+            }
+            for (int k = 12; k < 20; k++) { //empty squares
+                board[k] = CB_EMPTY;
+            }
+            for (int k = 20; k < 32; k++) { //black pieces
+                board[k] = (CB_BLACK | CB_MAN);
+            }
+
+            for (int k = 0; k < 32; k++) {
+                int r, c;
+                numbertocoors(k + 1, &c, &r, game->gametype);
+                b8.board[r][c] = board[k];
             }
         }
+        
     }
     else {
-
         // setup
         FENtoboard8(&b8, game->FEN, &returncolor, game->gametype);
-        for (i = 0; i < 8; i++) {
-            for (j = 0; j < 8; j++) {
-                b[8 * (7 - j) + i] = b8.board[i][j];
-                if (game->gametype == 21)
-                    b[8 * (7 - j) + i] = b8.board[i][7 - j];
-            }
+    }
+
+    for (i = 0; i < 8; i++) {
+        for (j = 0; j < 8; j++) {
+            b[8 * (7 - j) + i] = b8.board[i][j];
+            if (game->gametype == 21)
+                b[8 * (7 - j) + i] = b8.board[i][7 - j];
         }
     }
 
@@ -366,7 +387,7 @@ uint32_t get_sum_squares(CBmove *move) {
 
 int get_startcolor(int gametype)
 {
-    if (gametype == GT_ITALIAN || gametype == GT_SPANISH || gametype == GT_RUSSIAN || gametype == GT_CZECH)
+    if (gametype == GT_ITALIAN || gametype == GT_SPANISH || GT_RUSSIAN || gametype == GT_CZECH) // Fixed comma
         return CB_WHITE;
     return CB_BLACK;
 }
@@ -397,40 +418,60 @@ enum PDN_RESULT string_to_pdn_result(const char *resultstr, int gametype)
 
 int get_legal_moves_c(pos *p, int color, CBmove movelist[MAXMOVES], int *nmoves, int *isjump, const CBmove *last_move, bool *can_continue_multijump)
 {
+    char fen_c[256];
+    Board8x8 b8_for_fen;
+    bitboardtoboard8(p, &b8_for_fen);
+    board8toFEN(&b8_for_fen, fen_c, color, GT_ENGLISH);
+    // log_to_file("get_legal_moves_c: ENTER. Generating moves for color %d. FEN: %s", color, fen_c);
+
     int i, j;
-    int board12[12][12];
-    Board8x8 b8;
+    // int board12[12][12]; // This needs to be removed
+    // Board8x8 b8; // This is not used after conversion to board12
     CBmove all_moves[MAXMOVES];
     int all_nmoves = 0;
     int all_isjump = 0;
 
     *can_continue_multijump = false;
 
-    bitboardtoboard8(p, &b8); // Convert pos to Board8x8
-    board8toboard12(&b8, board12);
+    // bitboardtoboard8(p, &b8); // This is not used after conversion to board12
+    // board8toboard12(&b8, board12); // This needs to be removed
 
     // Initialize nmoves to 0 before calling makemovelist
     all_nmoves = 0;
 
     // Replace cbcolor_to_getmovelistcolor directly
     int color_to_use = (color == CB_BLACK) ? -1 : 1;
-    makemovelist(color_to_use, all_moves, board12, &all_isjump, &all_nmoves);
+    makemovelist(color_to_use, all_moves, p, &all_isjump, &all_nmoves); // This call needs to be updated
 
     // Filter moves if a multi-jump is in progress
-    if (last_move != NULL && last_move->jumps > 0) {
+    if (last_move != NULL && last_move->jumps > 0 && all_isjump) {
+        // log_to_file("get_legal_moves_c: Multi-jump in progress. Last move: from %d,%d to %d,%d", last_move->from.x, last_move->from.y, last_move->to.x, last_move->to.y);
         int filtered_count = 0;
         for (i = 0; i < all_nmoves; ++i) {
+            // log_to_file("get_legal_moves_c: All move %d: from %d,%d to %d,%d, is_capture: %d, jumps: %d", i, all_moves[i].from.x, all_moves[i].from.y, all_moves[i].to.x, all_moves[i].to.y, all_moves[i].is_capture, all_moves[i].jumps);
             // Check if the move starts from the 'to' square of the last move
-            // and if it's a jump (jumps > 0)
-            if (all_moves[i].from.x == last_move->to.x + 2 && // +2 because makemovelist operates on 12x12 board
-                all_moves[i].from.y == last_move->to.y + 2 && // +2 because makemovelist operates on 12x12 board
-                all_moves[i].jumps > 0) {
+            if (all_moves[i].from.x == last_move->to.x + 2 && // +2 for 12x12 board
+                all_moves[i].from.y == last_move->to.y + 2) {
                 movelist[filtered_count++] = all_moves[i];
                 *can_continue_multijump = true;
+                // log_to_file("get_legal_moves_c: Found continuing multi-jump: from %d,%d to %d,%d", all_moves[i].from.x, all_moves[i].from.y, all_moves[i].to.x, all_moves[i].to.y);
             }
         }
-        *nmoves = filtered_count;
-        *isjump = *can_continue_multijump; // If we can continue a multijump, it's a jump
+
+        // If no continuing jumps were found, it means the multi-jump sequence has ended.
+        // In this case, we should not return an empty move list, as that would incorrectly
+        // signal a loss for the current player. Instead, we fall through to use the
+        // original unfiltered list of moves, which will correctly contain no jumps
+        // starting from the last position, and the turn will pass to the other player.
+        if (filtered_count > 0) {
+            *nmoves = filtered_count;
+            *isjump = 1; // It's a jump, and it continues
+        } else {
+            // No continuation found, so no moves are legal for the current player in this context.
+            *nmoves = 0;
+            *isjump = 0;
+            *can_continue_multijump = false;
+        }
     } else {
         // No multi-jump in progress, copy all moves
         for (i = 0; i < all_nmoves; ++i) {
@@ -438,6 +479,7 @@ int get_legal_moves_c(pos *p, int color, CBmove movelist[MAXMOVES], int *nmoves,
         }
         *nmoves = all_nmoves;
         *isjump = all_isjump;
+        *can_continue_multijump = false; // Reset for non-multijump scenarios
     }
 
     // now: do something to the coordinates, so that the moves are in a 8x8-format
@@ -503,11 +545,22 @@ int get_legal_moves_c(pos *p, int color, CBmove movelist[MAXMOVES], int *nmoves,
             }
         }
     }
+    // log_to_file("get_legal_moves_c: LEAVE. Returning %d moves.", *nmoves);
     return *nmoves;
 }
 
 void board8toboard12(const Board8x8* b, int board12[12][12])
 {
+    // log_to_file("board8toboard12: Received 8x8 board:");
+    for (int r_debug = 0; r_debug < 8; ++r_debug) {
+        char row_str[256];
+        int offset = 0;
+        for (int c_debug = 0; c_debug < 8; ++c_debug) {
+            offset += sprintf(row_str + offset, "%3d ", b->board[r_debug][c_debug]);
+        }
+        // log_to_file("Row %2d: %s", r_debug, row_str);
+    }
+
     // checkerboard uses a 8x8 board representation, the move generator a 12x12
     // this routine converts a 8x8 to a 12x12 board
     int i, j;
@@ -535,26 +588,125 @@ void board8toboard12(const Board8x8* b, int board12[12][12])
     }
 
     // Log the 12x12 board for debugging
-    log_c(LOG_LEVEL_DEBUG, "board8toboard12: Populated 12x12 board:");
-    for (int row = 0; row < 12; ++row) {
-        QString row_str;
-        for (int col = 0; col < 12; ++col) {
-            row_str += QString("%1 ").arg(board12[col][row], 3); // Print with padding
-        }
-        log_c(LOG_LEVEL_DEBUG, row_str.toUtf8().constData());
-    }
-} // This is the correct closing brace for the function.
+    // (Removed verbose logging to reduce log file size)
+}
 
-void makemovelist(int color, CBmove movelist[MAXMOVES], int board[12][12], int *isjump, int *n)
+void find_captures_recursive(int board[12][12], CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n, int color, int is_king)
 {
-    log_c(LOG_LEVEL_DEBUG, (QString("makemovelist: Called for color: %1").arg(color)).toUtf8().constData());
+    CBmove mm;
+    int end = 1;
+    int i;
+
+    if (d >= 11) { // Prevent infinite recursion / stack overflow
+        // log_to_file("find_captures_recursive: Max depth reached.");
+        // At max depth, we must add the move as is.
+        m.jumps = d;
+        movelist[*n] = m;
+        (*n)++;
+        return;
+    }
+
+    // Define movement vectors based on color
+    int fwd = (color == 1) ? 1 : -1; // White moves y+1, Black moves y-1
+
+    // Directions: 0:fwd-left, 1:fwd-right, 2:back-left, 3:back-right
+    // For white (color=1): dy = {1, 1, -1, -1}
+    // For black (color=-1): dy = {-1, -1, 1, 1}
+    int dx[] = {-1, 1, -1, 1};
+    int dy[] = {fwd, fwd, -fwd, -fwd};
+
+    int start_dir = 0;
+    int end_dir = is_king ? 4 : 2; // Men only check the first 2 (forward) directions
+
+    for (i = start_dir; i < end_dir; ++i) {
+        int jump_x = x + dx[i];
+        int jump_y = y + dy[i];
+        int land_x = x + 2 * dx[i];
+        int land_y = y + 2 * dy[i];
+
+        // Check for a valid capture in this direction
+        // An opponent piece has the opposite sign (color * opponent_color < 0)
+        if (board[jump_x][jump_y] * color < 0 && board[land_x][land_y] == MG_EMPTY) {
+            end = 0; // A potential jump was found, so this is not the end of the sequence
+            mm = m;  // Copy the current move sequence
+
+            // Update move details for this jump
+            mm.to.x = land_x;
+            mm.to.y = land_y;
+            mm.path[d + 1].x = land_x;
+            mm.path[d + 1].y = land_y;
+            mm.del[d].x = jump_x;
+            mm.del[d].y = jump_y;
+            mm.delpiece[d] = board[jump_x][jump_y];
+            mm.del[d + 1].x = -1; // Sentinel for end of captures in this path
+
+            // Determine the piece type after the move (promotion)
+            int becomes_king = 0;
+            if (!is_king) {
+                if (color == 1 && land_y == 9) becomes_king = 1; // White reaches back rank
+                if (color == -1 && land_y == 2) becomes_king = 1; // Black reaches back rank
+            }
+            int next_is_king = is_king || becomes_king;
+            int new_piece_type = next_is_king ? (color == 1 ? MG_WHITE_KING : MG_BLACK_KING) : m.oldpiece;
+            mm.newpiece = new_piece_type;
+
+
+            // Temporarily apply the move to the board
+            int captured_piece = board[jump_x][jump_y];
+            board[x][y] = MG_EMPTY;
+            board[jump_x][jump_y] = MG_EMPTY;
+            board[land_x][land_y] = new_piece_type;
+
+            // Recurse from the new position
+            find_captures_recursive(board, movelist, mm, land_x, land_y, d + 1, n, color, next_is_king);
+
+            // CRITICAL: Undo the move to restore the board for the next iteration
+            int current_piece = is_king ? (color == 1 ? MG_WHITE_KING : MG_BLACK_KING) : (color == 1 ? MG_WHITE_MAN : MG_BLACK_MAN);
+            board[x][y] = current_piece;
+            board[jump_x][jump_y] = captured_piece;
+            board[land_x][land_y] = MG_EMPTY;
+        }
+    }
+
+    // If no further jumps were found from this square (end is still 1),
+    // and this is not the starting call (d > 0), then this path is complete.
+    if (end && d > 0) {
+        m.jumps = d;
+        // The 'newpiece' field in 'm' was already set correctly by the parent call.
+        // Simply copy the completed move to the movelist.
+        movelist[*n] = m;
+        (*n)++;
+    }
+}
+
+void makemovelist(int color, CBmove movelist[MAXMOVES], pos *position, int *isjump, int *n)
+{
+    // log_to_file("makemovelist: ENTER. Called for color: %d", color);
+    // log_to_file("makemovelist: Received 12x12 board (col, row):");
+    // (Removed verbose logging to reduce log file size)
     // produces a movelist for color to move on board
-    coor wk[12], bk[12], ws[12], bs[12];
-    int nwk = 0, nbk = 0, nws = 0, nbs = 0;
-    int i, j;
-    int x, y;
+    // coor wk[12], bk[12], ws[12], bs[12]; // Removed: will iterate directly on bitboards
+    // int nwk = 0, nbk = 0, nws = 0, nbs = 0; // Removed
+    int i;
     CBmove m;
     *isjump = 0;
+
+    // Convert 12x12 board to 8x8 for FEN logging
+    // Board8x8 b8_for_fen; // Removed
+    // for (int r = 0; r < 8; ++r) { // Removed
+    //     for (int c = 0; c < 8; ++c) { // Removed
+    //         int piece12 = board[c + 2][r + 2]; // Removed
+    //         if (piece12 == MG_BLACK_MAN) b8_for_fen.board[r][c] = (CB_BLACK | CB_MAN); // Removed
+    //         else if (piece12 == MG_BLACK_KING) b8_for_fen.board[r][c] = (CB_BLACK | CB_KING); // Removed
+    //         else if (piece12 == MG_WHITE_MAN) b8_for_fen.board[r][c] = (CB_WHITE | CB_MAN); // Removed
+    //         else if (piece12 == MG_WHITE_KING) b8_for_fen.board[r][c] = (CB_WHITE | CB_KING); // Removed
+    //         else b8_for_fen.board[r][c] = CB_EMPTY; // Removed
+    //     } // Removed
+    // } // Removed
+    // char fen_c[256]; // Removed
+    // board8toFEN(&b8_for_fen, fen_c, (color == 1 ? CB_WHITE : CB_BLACK), GT_ENGLISH); // Removed
+    // log_to_file("makemovelist: FEN for current board: %s", fen_c); // Removed
+
 
     for (i = 0; i < MAXMOVES; i++) {
         movelist[i].jumps = 0;
@@ -563,871 +715,373 @@ void makemovelist(int color, CBmove movelist[MAXMOVES], int board[12][12], int *
     *n = 0;
 
 
-    // initialize list of stones
-    for (j = 2; j <= 9; j++) { // Iterate through all rows (y-coordinates)
-        for (i = 2; i <= 9; i++) { // Iterate through all columns (x-coordinates)
-            if ((i + j) % 2 == 0) { // Only consider dark squares (i+j is odd for dark squares in 0-7, but 12x12 board is shifted by 2, so i+j is even for dark squares)
-                continue;
-            }
-            if (board[i][j] == MG_EMPTY)
-                continue;
-            if (color == 1 && board[i][j] == MG_WHITE_MAN) {
-                ws[nws].x = i;
-                ws[nws].y = j;
-                nws++;
-                log_c(LOG_LEVEL_DEBUG, (QString("makemovelist: Found WHITE_MAN at 12x12 (%1,%2)").arg(i).arg(j)).toUtf8().constData());
-                continue;
-            }
+    // initialize list of stones (replaced with bitboard iteration)
+    unsigned int current_wm = position->wm;
+    unsigned int current_wk = position->wk;
+    unsigned int current_bm = position->bm;
+    unsigned int current_bk = position->bk;
 
-            if (color == 1 && board[i][j] == MG_WHITE_KING) {
-                wk[nwk].x = i;
-                wk[nwk].y = j;
-                nwk++;
-                log_c(LOG_LEVEL_DEBUG, (QString("makemovelist: Found WHITE_KING at 12x12 (%1,%2)").arg(i).arg(j)).toUtf8().constData());
-                continue;
-            }
-
-            if (color == -1 && board[i][j] == MG_BLACK_MAN) {
-                bs[nbs].x = i;
-                bs[nbs].y = j;
-                nbs++;
-                log_c(LOG_LEVEL_DEBUG, (QString("makemovelist: Found BLACK_MAN at 12x12 (%1,%2)").arg(i).arg(j)).toUtf8().constData());
-                continue;
-            }
-
-            if (color == -1 && board[i][j] == MG_BLACK_KING) {
-                bk[nbk].x = i;
-                bk[nbk].y = j;
-                nbk++;
-                log_c(LOG_LEVEL_DEBUG, (QString("makemovelist: Found BLACK_KING at 12x12 (%1,%2)").arg(i).arg(j)).toUtf8().constData());
-                continue;
-            }
-        }
-    }
-
-    log_c(LOG_LEVEL_DEBUG, (QString("makemovelist: Piece counts - White Men: %1, White Kings: %2, Black Men: %3, Black Kings: %4").arg(nws).arg(nwk).arg(nbs).arg(nbk)).toUtf8().constData());
+    int board12[12][12]; // Declare board12 here
+    Board8x8 b8;
+    bitboardtoboard8(position, &b8);
+    board8toboard12(&b8, board12);
 
     if (color == 1) { // White
-        /* search for captures with white kings*/
-        if (nwk > 0) {
-            for (i = 0; i < nwk; i++) {
-                x = wk[i].x;
-                y = wk[i].y;
-                if
-                (
-                    (board[x + 1][y + 1] < 0 && board[x + 2][y + 2] == MG_EMPTY) ||
-                    (board[x - 1][y + 1] < 0 && board[x - 2][y + 2] == MG_EMPTY) ||
-                    (board[x + 1][y - 1] < 0 && board[x + 2][y - 2] == MG_EMPTY) ||
-                    (board[x - 1][y - 1] < 0 && board[x - 2][y - 2] == MG_EMPTY)
-                ) {
-                    m.from.x = x;
-                    m.from.y = y;
-                    m.path[0].x = x;
-                    m.path[0].y = y;
-                    whitekingcapture(board, movelist, m, x, y, 0, n);
-                }
+        // Search for captures with white kings
+        unsigned int temp_wk = current_wk;
+        while (temp_wk) {
+            int bit_pos = __builtin_ctz(temp_wk); // Get index of least significant bit
+            temp_wk &= ~(1 << bit_pos); // Clear that bit
+            int x_8x8, y_8x8;
+            numbertocoors(bit_pos + 1, &x_8x8, &y_8x8, GT_ENGLISH); // Convert bit_pos to 1-32, then to 0-7 (x,y)
+            int x_12x12 = x_8x8 + 2;
+            int y_12x12 = y_8x8 + 2;
+
+            if ( (board12[x_12x12 + 1][y_12x12 + 1] < 0 && board12[x_12x12 + 2][y_12x12 + 2] == MG_EMPTY) || (board12[x_12x12 - 1][y_12x12 + 1] < 0 && board12[x_12x12 - 2][y_12x12 + 2] == MG_EMPTY) || (board12[x_12x12 + 1][y_12x12 - 1] < 0 && board12[x_12x12 + 2][y_12x12 - 2] == MG_EMPTY) || (board12[x_12x12 - 1][y_12x12 - 1] < 0 && board12[x_12x12 - 2][y_12x12 - 2] == MG_EMPTY) ) {
+                m.from.x = x_12x12;
+                m.from.y = y_12x12;
+                m.path[0].x = x_12x12;
+                m.path[0].y = y_12x12;
+                m.oldpiece = MG_WHITE_KING;
+                find_captures_recursive(board12, movelist, m, x_12x12, y_12x12, 0, n, 1, 1);
             }
         }
 
-        /* search for captures with white stones */
-        if (nws > 0) {
-            for (i = 0; i < nws; i++) {
-                x = ws[i].x;
-                y = ws[i].y;
-                if
-                (
-                    (board[x + 1][y + 1] < 0 && board[x + 2][y + 2] == MG_EMPTY) ||
-                    (board[x - 1][y + 1] < 0 && board[x - 2][y + 2] == MG_EMPTY)
-                ) {
-                    m.from.x = x;
-                    m.from.y = y;
-                    m.path[0].x = x;
-                    m.path[0].y = y;
-                    whitecapture(board, movelist, m, x, y, 0, n);
-                }
+        // Search for captures with white men
+        unsigned int temp_wm = current_wm;
+        while (temp_wm) {
+            int bit_pos = __builtin_ctz(temp_wm);
+            temp_wm &= ~(1 << bit_pos);
+            int x_8x8, y_8x8;
+            numbertocoors(bit_pos + 1, &x_8x8, &y_8x8, GT_ENGLISH);
+            int x_12x12 = x_8x8 + 2;
+            int y_12x12 = y_8x8 + 2;
+
+            if ( (board12[x_12x12 + 1][y_12x12 + 1] < 0 && board12[x_12x12 + 2][y_12x12 + 2] == MG_EMPTY) || (board12[x_12x12 - 1][y_12x12 + 1] < 0 && board12[x_12x12 - 2][y_12x12 + 2] == MG_EMPTY) ) {
+                m.from.x = x_12x12;
+                m.from.y = y_12x12;
+                m.path[0].x = x_12x12;
+                m.path[0].y = y_12x12;
+                m.oldpiece = MG_WHITE_MAN;
+                find_captures_recursive(board12, movelist, m, x_12x12, y_12x12, 0, n, 1, 0);
             }
         }
 
-        /* if there are capture moves return. */
+        // If there are capture moves return.
         if (*n > 0) {
             *isjump = 1;
+            for(i=0; i<*n; ++i) movelist[i].is_capture = true;
             return;
         }
 
-        /* search for moves with white kings */
-        if (nwk > 0) {
-            for (i = 0; i < nwk; i++) {
-                x = wk[i].x;
-                y = wk[i].y;
-                if (board[x + 1][y + 1] == MG_EMPTY) {
-                    movelist[*n].jumps = 0;
-                    movelist[*n].from.x = x;
-                    movelist[*n].from.y = y;
-                    movelist[*n].to.x = x + 1;
-                    movelist[*n].to.y = y + 1;
-                    movelist[*n].path[0].x = x;
-                    movelist[*n].path[0].y = y;
-                    movelist[*n].path[1].x = x + 1;
-                    movelist[*n].path[1].y = y + 1;
-                    movelist[*n].del[0].x = -1;
-                    movelist[*n].newpiece = MG_WHITE_KING;
-                    movelist[*n].oldpiece = MG_WHITE_KING;
-                    (*n)++;
-                }
+        // Search for moves with white kings
+        temp_wk = current_wk; // Reset temp_wk
+        while (temp_wk) {
+            int bit_pos = __builtin_ctz(temp_wk);
+            temp_wk &= ~(1 << bit_pos);
+            int x_8x8, y_8x8;
+            numbertocoors(bit_pos + 1, &x_8x8, &y_8x8, GT_ENGLISH);
+            int x_12x12 = x_8x8 + 2;
+            int y_12x12 = y_8x8 + 2;
 
-                if (board[x + 1][y - 1] == MG_EMPTY) {
-                    movelist[*n].jumps = 0;
-                    movelist[*n].from.x = x;
-                    movelist[*n].from.y = y;
-                    movelist[*n].to.x = x + 1;
-                    movelist[*n].to.y = y - 1;
-                    movelist[*n].path[0].x = x;
-                    movelist[*n].path[0].y = y;
-                    movelist[*n].path[1].x = x + 1;
-                    movelist[*n].path[1].y = y - 1;
-                    movelist[*n].del[0].x = -1;
-                    movelist[*n].newpiece = MG_WHITE_KING;
-                    movelist[*n].oldpiece = MG_WHITE_KING;
-                    (*n)++;
-                }
+            if (board12[x_12x12 + 1][y_12x12 + 1] == MG_EMPTY) {
+                movelist[*n].jumps = 0;
+                movelist[*n].from.x = x_12x12;
+                movelist[*n].from.y = y_12x12;
+                movelist[*n].to.x = x_12x12 + 1;
+                movelist[*n].to.y = y_12x12 + 1;
+                movelist[*n].path[0].x = x_12x12;
+                movelist[*n].path[0].y = y_12x12;
+                movelist[*n].path[1].x = x_12x12 + 1;
+                movelist[*n].path[1].y = y_12x12 + 1;
+                movelist[*n].del[0].x = -1;
+                movelist[*n].newpiece = MG_WHITE_KING;
+                movelist[*n].oldpiece = MG_WHITE_KING;
+                (*n)++;
+            }
 
-                if (board[x - 1][y + 1] == MG_EMPTY) {
-                    movelist[*n].jumps = 0;
-                    movelist[*n].from.x = x;
-                    movelist[*n].from.y = y;
-                    movelist[*n].to.x = x - 1;
-                    movelist[*n].to.y = y + 1;
-                    movelist[*n].path[0].x = x;
-                    movelist[*n].path[0].y = y;
-                    movelist[*n].path[1].x = x - 1;
-                    movelist[*n].path[1].y = y + 1;
-                    movelist[*n].del[0].x = -1;
-                    movelist[*n].newpiece = MG_WHITE_KING;
-                    movelist[*n].oldpiece = MG_WHITE_KING;
-                    (*n)++;
-                }
+            if (board12[x_12x12 + 1][y_12x12 - 1] == MG_EMPTY) {
+                movelist[*n].jumps = 0;
+                movelist[*n].from.x = x_12x12;
+                movelist[*n].from.y = y_12x12;
+                movelist[*n].to.x = x_12x12 + 1;
+                movelist[*n].to.y = y_12x12 - 1;
+                movelist[*n].path[0].x = x_12x12;
+                movelist[*n].path[0].y = y_12x12;
+                movelist[*n].path[1].x = x_12x12 + 1;
+                movelist[*n].path[1].y = y_12x12 - 1;
+                movelist[*n].del[0].x = -1;
+                movelist[*n].newpiece = MG_WHITE_KING;
+                movelist[*n].oldpiece = MG_WHITE_KING;
+                (*n)++;
+            }
 
-                if (board[x - 1][y - 1] == MG_EMPTY) {
-                    movelist[*n].jumps = 0;
-                    movelist[*n].from.x = x;
-                    movelist[*n].from.y = y;
-                    movelist[*n].to.x = x - 1;
-                    movelist[*n].to.y = y - 1;
-                    movelist[*n].path[0].x = x;
-                    movelist[*n].path[0].y = y;
-                    movelist[*n].path[1].x = x - 1;
-                    movelist[*n].path[1].y = y - 1;
-                    movelist[*n].del[0].x = -1;
-                    movelist[*n].newpiece = MG_WHITE_KING;
-                    movelist[*n].oldpiece = MG_WHITE_KING;
-                    (*n)++;
-                }
+            if (board12[x_12x12 - 1][y_12x12 + 1] == MG_EMPTY) {
+                movelist[*n].jumps = 0;
+                movelist[*n].from.x = x_12x12;
+                movelist[*n].from.y = y_12x12;
+                movelist[*n].to.x = x_12x12 - 1;
+                movelist[*n].to.y = y_12x12 + 1;
+                movelist[*n].path[0].x = x_12x12;
+                movelist[*n].path[0].y = y_12x12;
+                movelist[*n].path[1].x = x_12x12 - 1;
+                movelist[*n].path[1].y = y_12x12 + 1;
+                movelist[*n].del[0].x = -1;
+                movelist[*n].newpiece = MG_WHITE_KING;
+                movelist[*n].oldpiece = MG_WHITE_KING;
+                (*n)++;
+            }
+
+            if (board12[x_12x12 - 1][y_12x12 - 1] == MG_EMPTY) {
+                movelist[*n].jumps = 0;
+                movelist[*n].from.x = x_12x12;
+                movelist[*n].from.y = y_12x12;
+                movelist[*n].to.x = x_12x12 - 1;
+                movelist[*n].to.y = y_12x12 - 1;
+                movelist[*n].path[0].x = x_12x12;
+                movelist[*n].path[0].y = y_12x12;
+                movelist[*n].path[1].x = x_12x12 - 1;
+                movelist[*n].path[1].y = y_12x12 - 1;
+                movelist[*n].del[0].x = -1;
+                movelist[*n].newpiece = MG_WHITE_KING;
+                movelist[*n].oldpiece = MG_WHITE_KING;
+                (*n)++;
             }
         }
 
-        /* search for moves with white stones */
-        if (nws > 0) {
-            for (i = 0; i < nws; i++) {
-                x = ws[i].x;
-                y = ws[i].y;
-                if (board[x + 1][y + 1] == MG_EMPTY) {
-                    movelist[*n].jumps = 0;
-                    movelist[*n].from.x = x;
-                    movelist[*n].from.y = y;
-                    movelist[*n].to.x = x + 1;
-                    movelist[*n].to.y = y + 1;
-                    movelist[*n].path[0].x = x;
-                    movelist[*n].path[0].y = y;
-                    movelist[*n].path[1].x = x + 1;
-                    movelist[*n].path[1].y = y + 1;
-                    movelist[*n].del[0].x = -1;
-                    if (y == 8) {
-                        movelist[*n].newpiece = MG_WHITE_KING;
-                    }
-                    else
-                        movelist[*n].newpiece = MG_WHITE_MAN;
-                    movelist[*n].oldpiece = MG_WHITE_MAN;
-                    (*n)++;
-                }
+        // Search for moves with white men
+        temp_wm = current_wm; // Reset temp_wm
+        while (temp_wm) {
+            int bit_pos = __builtin_ctz(temp_wm);
+            temp_wm &= ~(1 << bit_pos);
+            int x_8x8, y_8x8;
+            numbertocoors(bit_pos + 1, &x_8x8, &y_8x8, GT_ENGLISH);
+            int x_12x12 = x_8x8 + 2;
+            int y_12x12 = y_8x8 + 2;
 
-                if (board[x - 1][y + 1] == MG_EMPTY) {
-                    movelist[*n].jumps = 0;
-                    movelist[*n].from.x = x;
-                    movelist[*n].from.y = y;
-                    movelist[*n].to.x = x - 1;
-                    movelist[*n].to.y = y + 1;
-                    movelist[*n].path[0].x = x;
-                    movelist[*n].path[0].y = y;
-                    movelist[*n].path[1].x = x - 1;
-                    movelist[*n].path[1].y = y + 1;
-                    movelist[*n].del[0].x = -1;
-                    if (y == 8) {
-                        movelist[*n].newpiece = MG_WHITE_KING;
-                    }
-                    else
-                        movelist[*n].newpiece = MG_WHITE_MAN;
-                    movelist[*n].oldpiece = MG_WHITE_MAN;
-                    (*n)++;
+            if (board12[x_12x12 + 1][y_12x12 + 1] == MG_EMPTY) {
+                movelist[*n].jumps = 0;
+                movelist[*n].from.x = x_12x12;
+                movelist[*n].from.y = y_12x12;
+                movelist[*n].to.x = x_12x12 + 1;
+                movelist[*n].to.y = y_12x12 + 1;
+                movelist[*n].path[0].x = x_12x12;
+                movelist[*n].path[0].y = y_12x12;
+                movelist[*n].path[1].x = x_12x12 + 1;
+                movelist[*n].path[1].y = y_12x12 + 1;
+                movelist[*n].del[0].x = -1;
+                if (y_12x12 + 1 == 9) { // Corrected promotion check
+                    movelist[*n].newpiece = MG_WHITE_KING;
                 }
+                else
+                    movelist[*n].newpiece = MG_WHITE_MAN;
+                movelist[*n].oldpiece = MG_WHITE_MAN;
+                (*n)++;
+            }
+
+            if (board12[x_12x12 - 1][y_12x12 + 1] == MG_EMPTY) {
+                movelist[*n].jumps = 0;
+                movelist[*n].from.x = x_12x12;
+                movelist[*n].from.y = y_12x12;
+                movelist[*n].to.x = x_12x12 - 1;
+                movelist[*n].to.y = y_12x12 + 1;
+                movelist[*n].path[0].x = x_12x12;
+                movelist[*n].path[0].y = y_12x12;
+                movelist[*n].path[1].x = x_12x12 - 1;
+                movelist[*n].path[1].y = y_12x12 + 1;
+                movelist[*n].del[0].x = -1;
+                if (y_12x12 + 1 == 9) { // Corrected promotion check
+                    movelist[*n].newpiece = MG_WHITE_KING;
+                }
+                else
+                    movelist[*n].newpiece = MG_WHITE_MAN;
+                movelist[*n].oldpiece = MG_WHITE_MAN;
+                (*n)++;
             }
         }
     }
     else { // Black
-        /* search for captures with black kings*/
-        if (nbk > 0) {
-            for (i = 0; i < nbk; i++) {
-                x = bk[i].x;
-                y = bk[i].y;
-                if
-                (
-                    ((board[x + 1][y + 1] > 0) && (board[x + 1][y + 1] < MG_INVALID) && (board[x + 2][y + 2] == MG_EMPTY)) ||
-                    ((board[x - 1][y + 1] > 0) && (board[x - 1][y + 1] < MG_INVALID) && (board[x - 2][y + 2] == MG_EMPTY)) ||
-                    ((board[x + 1][y - 1] > 0) && (board[x + 1][y - 1] < MG_INVALID) && (board[x + 2][y - 2] == MG_EMPTY)) ||
-                    ((board[x - 1][y - 1] > 0) && (board[x - 1][y - 1] < MG_INVALID) && (board[x - 2][y - 2] == MG_EMPTY))
-                ) {
-                    m.from.x = x;
-                    m.from.y = y;
-                    m.path[0].x = x;
-                    m.path[0].y = y;
-                    blackkingcapture(board, movelist, m, x, y, 0, n);
-                }
+        // Search for captures with black kings
+        unsigned int temp_bk = current_bk;
+        while (temp_bk) {
+            int bit_pos = __builtin_ctz(temp_bk);
+            temp_bk &= ~(1 << bit_pos);
+            int x_8x8, y_8x8;
+            numbertocoors(bit_pos + 1, &x_8x8, &y_8x8, GT_ENGLISH);
+            int x_12x12 = x_8x8 + 2;
+            int y_12x12 = y_8x8 + 2;
+
+            if ( ((board12[x_12x12 + 1][y_12x12 + 1] > 0) && (board12[x_12x12 + 1][y_12x12 + 1] < MG_INVALID) && (board12[x_12x12 + 2][y_12x12 + 2] == MG_EMPTY)) || ((board12[x_12x12 - 1][y_12x12 + 1] > 0) && (board12[x_12x12 - 1][y_12x12 + 1] < MG_INVALID) && (board12[x_12x12 - 2][y_12x12 + 2] == MG_EMPTY)) || ((board12[x_12x12 + 1][y_12x12 - 1] > 0) && (board12[x_12x12 + 1][y_12x12 - 1] < MG_INVALID) && (board12[x_12x12 + 2][y_12x12 - 2] == MG_EMPTY)) || ((board12[x_12x12 - 1][y_12x12 - 1] > 0) && (board12[x_12x12 - 1][y_12x12 - 1] < MG_INVALID) && (board12[x_12x12 - 2][y_12x12 - 2] == MG_EMPTY)) ) {
+                m.from.x = x_12x12;
+                m.from.y = y_12x12;
+                m.path[0].x = x_12x12;
+                m.path[0].y = y_12x12;
+                m.oldpiece = MG_BLACK_KING;
+                find_captures_recursive(board12, movelist, m, x_12x12, y_12x12, 0, n, -1, 1);
             }
         }
 
-        /* search for captures with black stones */
-        if (nbs > 0) {
-            for (i = nbs - 1; i >= 0; i--) {
-                x = bs[i].x;
-                y = bs[i].y;
-                log_c(LOG_LEVEL_DEBUG, (QString("makemovelist: Checking black stone at 12x12 (%1,%2)").arg(x).arg(y)).toUtf8().constData());
-                bool cond1 = (board[x + 1][y - 1] > 0 && board[x + 2][y - 2] == MG_EMPTY);
-                bool cond2 = (board[x - 1][y - 1] > 0 && board[x - 2][y - 2] == MG_EMPTY);
-                log_c(LOG_LEVEL_DEBUG, (QString("makemovelist: Cond1: %1, Cond2: %2").arg(cond1).arg(cond2)).toUtf8().constData());
-                if
-                (
-                    cond1 || cond2
-                ) {
-                    m.from.x = x;
-                    m.from.y = y;
-                    m.path[0].x = x;
-                    m.path[0].y = y;
-                    blackcapture(board, movelist, m, x, y, 0, n);
-                }
+        // Search for captures with black men
+        unsigned int temp_bm = current_bm;
+        while (temp_bm) {
+            int bit_pos = __builtin_ctz(temp_bm);
+            temp_bm &= ~(1 << bit_pos);
+            int x_8x8, y_8x8;
+            numbertocoors(bit_pos + 1, &x_8x8, &y_8x8, GT_ENGLISH);
+            int x_12x12 = x_8x8 + 2;
+            int y_12x12 = y_8x8 + 2;
+
+            if ( (board12[x_12x12 + 1][y_12x12 - 1] > 0 && board12[x_12x12 + 2][y_12x12 - 2] == MG_EMPTY) || (board12[x_12x12 - 1][y_12x12 - 1] > 0 && board12[x_12x12 - 2][y_12x12 - 2] == MG_EMPTY) ) {
+                m.from.x = x_12x12;
+                m.from.y = y_12x12;
+                m.path[0].x = x_12x12;
+                m.path[0].y = y_12x12;
+                m.oldpiece = MG_BLACK_MAN;
+                find_captures_recursive(board12, movelist, m, x_12x12, y_12x12, 0, n, -1, 0);
             }
         }
 
-        /* if there are capture moves return. */
+        // If there are capture moves return.
         if (*n > 0) {
             *isjump = 1;
+            for(i=0; i<*n; ++i) movelist[i].is_capture = true;
             return;
         }
 
-        /* search for moves with black kings */
-        if (nbk > 0) {
-            for (i = 0; i < nbk; i++) {
-                x = bk[i].x;
-                y = bk[i].y;
-                if (board[x + 1][y + 1] == MG_EMPTY) {
-                    movelist[*n].jumps = 0;
-                    movelist[*n].from.x = x;
-                    movelist[*n].from.y = y;
-                    movelist[*n].to.x = x + 1;
-                    movelist[*n].to.y = y + 1;
-                    movelist[*n].path[0].x = x;
-                    movelist[*n].path[0].y = y;
-                    movelist[*n].path[1].x = x + 1;
-                    movelist[*n].path[1].y = y + 1;
-                    movelist[*n].del[0].x = -1;
-                    movelist[*n].newpiece = MG_BLACK_KING;
-                    movelist[*n].oldpiece = MG_BLACK_KING;
-                    (*n)++;
-                }
+        // Search for moves with black kings
+        temp_bk = current_bk; // Reset temp_bk
+        while (temp_bk) {
+            int bit_pos = __builtin_ctz(temp_bk);
+            temp_bk &= ~(1 << bit_pos);
+            int x_8x8, y_8x8;
+            numbertocoors(bit_pos + 1, &x_8x8, &y_8x8, GT_ENGLISH);
+            int x_12x12 = x_8x8 + 2;
+            int y_12x12 = y_8x8 + 2;
 
-                if (board[x + 1][y - 1] == MG_EMPTY) {
-                    movelist[*n].jumps = 0;
-                    movelist[*n].from.x = x;
-                    movelist[*n].from.y = y;
-                    movelist[*n].to.x = x + 1;
-                    movelist[*n].to.y = y - 1;
-                    movelist[*n].path[0].x = x;
-                    movelist[*n].path[0].y = y;
-                    movelist[*n].path[1].x = x + 1;
-                    movelist[*n].path[1].y = y - 1;
-                    movelist[*n].del[0].x = -1;
-                    movelist[*n].newpiece = MG_BLACK_KING;
-                    movelist[*n].oldpiece = MG_BLACK_KING;
-                    (*n)++;
-                }
+            if (board12[x_12x12 + 1][y_12x12 + 1] == MG_EMPTY) {
+                movelist[*n].jumps = 0;
+                movelist[*n].from.x = x_12x12;
+                movelist[*n].from.y = y_12x12;
+                movelist[*n].to.x = x_12x12 + 1;
+                movelist[*n].to.y = y_12x12 + 1;
+                movelist[*n].path[0].x = x_12x12;
+                movelist[*n].path[0].y = y_12x12;
+                movelist[*n].path[1].x = x_12x12 + 1;
+                movelist[*n].path[1].y = y_12x12 + 1;
+                movelist[*n].del[0].x = -1;
+                movelist[*n].newpiece = MG_BLACK_KING;
+                movelist[*n].oldpiece = MG_BLACK_KING;
+                (*n)++;
+            }
 
-                if (board[x - 1][y + 1] == MG_EMPTY) {
-                    movelist[*n].jumps = 0;
-                    movelist[*n].from.x = x;
-                    movelist[*n].from.y = y;
-                    movelist[*n].to.x = x - 1;
-                    movelist[*n].to.y = y + 1;
-                    movelist[*n].path[0].x = x;
-                    movelist[*n].path[0].y = y;
-                    movelist[*n].path[1].x = x - 1;
-                    movelist[*n].path[1].y = y + 1;
-                    movelist[*n].del[0].x = -1;
-                    movelist[*n].newpiece = MG_BLACK_KING;
-                    movelist[*n].oldpiece = MG_BLACK_KING;
-                    (*n)++;
-                }
+            if (board12[x_12x12 + 1][y_12x12 - 1] == MG_EMPTY) {
+                movelist[*n].jumps = 0;
+                movelist[*n].from.x = x_12x12;
+                movelist[*n].from.y = y_12x12;
+                movelist[*n].to.x = x_12x12 + 1;
+                movelist[*n].to.y = y_12x12 - 1;
+                movelist[*n].path[0].x = x_12x12;
+                movelist[*n].path[0].y = y_12x12;
+                movelist[*n].path[1].x = x_12x12 + 1;
+                movelist[*n].path[1].y = y_12x12 - 1;
+                movelist[*n].del[0].x = -1;
+                movelist[*n].newpiece = MG_BLACK_KING;
+                movelist[*n].oldpiece = MG_BLACK_KING;
+                (*n)++;
+            }
 
-                if (board[x - 1][y - 1] == MG_EMPTY) {
-                    movelist[*n].jumps = 0;
-                    movelist[*n].from.x = x;
-                    movelist[*n].from.y = y;
-                    movelist[*n].to.x = x - 1;
-                    movelist[*n].to.y = y - 1;
-                    movelist[*n].path[0].x = x;
-                    movelist[*n].path[0].y = y;
-                    movelist[*n].path[1].x = x - 1;
-                    movelist[*n].path[1].y = y - 1;
-                    movelist[*n].del[0].x = -1;
-                    movelist[*n].newpiece = MG_BLACK_KING;
-                    movelist[*n].oldpiece = MG_BLACK_KING;
-                    (*n)++;
-                }
+            if (board12[x_12x12 - 1][y_12x12 + 1] == MG_EMPTY) {
+                movelist[*n].jumps = 0;
+                movelist[*n].from.x = x_12x12;
+                movelist[*n].from.y = y_12x12;
+                movelist[*n].to.x = x_12x12 - 1;
+                movelist[*n].to.y = y_12x12 + 1;
+                movelist[*n].path[0].x = x_12x12;
+                movelist[*n].path[0].y = y_12x12;
+                movelist[*n].path[1].x = x_12x12 - 1;
+                movelist[*n].path[1].y = y_12x12 + 1;
+                movelist[*n].del[0].x = -1;
+                movelist[*n].newpiece = MG_BLACK_KING;
+                movelist[*n].oldpiece = MG_BLACK_KING;
+                (*n)++;
+            }
+
+            if (board12[x_12x12 - 1][y_12x12 - 1] == MG_EMPTY) {
+                movelist[*n].jumps = 0;
+                movelist[*n].from.x = x_12x12;
+                movelist[*n].from.y = y_12x12;
+                movelist[*n].to.x = x_12x12 - 1;
+                movelist[*n].to.y = y_12x12 - 1;
+                movelist[*n].path[0].x = x_12x12;
+                movelist[*n].path[0].y = y_12x12;
+                movelist[*n].path[1].x = x_12x12 - 1;
+                movelist[*n].path[1].y = y_12x12 - 1;
+                movelist[*n].del[0].x = -1;
+                movelist[*n].newpiece = MG_BLACK_KING;
+                movelist[*n].oldpiece = MG_BLACK_KING;
+                (*n)++;
             }
         }
 
-        /* search for moves with black stones */
-        if (nbs > 0) {
-            for (i = nbs - 1; i >= 0; i--) {
-                x = bs[i].x;
-                y = bs[i].y;
-                if (board[x + 1][y - 1] == MG_EMPTY) {
-                    movelist[*n].jumps = 0;
-                    movelist[*n].from.x = x;
-                    movelist[*n].from.y = y;
-                    movelist[*n].to.x = x + 1;
-                    movelist[*n].to.y = y - 1;
-                    movelist[*n].path[0].x = x;
-                    movelist[*n].path[0].y = y;
-                    movelist[*n].path[1].x = x + 1;
-                    movelist[*n].path[1].y = y - 1;
-                    movelist[*n].del[0].x = -1;
-                    if (y == 3) {
-                        movelist[*n].newpiece = MG_BLACK_KING;
-                    }
-                    else
-                        movelist[*n].newpiece = MG_BLACK_MAN;
-                    movelist[*n].oldpiece = MG_BLACK_MAN;
-                    (*n)++;
-                }
+        // Search for moves with black men
+        temp_bm = current_bm; // Reset temp_bm
+        while (temp_bm) {
+            int bit_pos = __builtin_ctz(temp_bm);
+            temp_bm &= ~(1 << bit_pos);
+            int x_8x8, y_8x8;
+            numbertocoors(bit_pos + 1, &x_8x8, &y_8x8, GT_ENGLISH);
+            int x_12x12 = x_8x8 + 2;
+            int y_12x12 = y_8x8 + 2;
 
-                if (board[x - 1][y - 1] == MG_EMPTY) {
-                    movelist[*n].jumps = 0;
-                    movelist[*n].from.x = x;
-                    movelist[*n].from.y = y;
-                    movelist[*n].to.x = x - 1;
-                    movelist[*n].to.y = y - 1;
-                    movelist[*n].path[0].x = x;
-                    movelist[*n].path[0].y = y;
-                    movelist[*n].path[1].x = x - 1;
-                    movelist[*n].path[1].y = y - 1;
-                    movelist[*n].del[0].x = -1;
-                    if (y == 3) {
-                        movelist[*n].newpiece = MG_BLACK_KING;
-                    }
-                    else
-                        movelist[*n].newpiece = MG_BLACK_MAN;
-                    movelist[*n].oldpiece = MG_BLACK_MAN;
-                    (*n)++;
+            if (board12[x_12x12 + 1][y_12x12 - 1] == MG_EMPTY) {
+                movelist[*n].jumps = 0;
+                movelist[*n].from.x = x_12x12;
+                movelist[*n].from.y = y_12x12;
+                movelist[*n].to.x = x_12x12 + 1;
+                movelist[*n].to.y = y_12x12 - 1;
+                movelist[*n].path[0].x = x_12x12;
+                movelist[*n].path[0].y = y_12x12;
+                movelist[*n].path[1].x = x_12x12 + 1;
+                movelist[*n].path[1].y = y_12x12 - 1;
+                movelist[*n].del[0].x = -1;
+                if (y_12x12 - 1 == 2) { // Corrected promotion check
+                    movelist[*n].newpiece = MG_BLACK_KING;
                 }
+                else
+                    movelist[*n].newpiece = MG_BLACK_MAN;
+                movelist[*n].oldpiece = MG_BLACK_MAN;
+                (*n)++;
+            }
+
+            if (board12[x_12x12 - 1][y_12x12 - 1] == MG_EMPTY) {
+                movelist[*n].jumps = 0;
+                movelist[*n].from.x = x_12x12;
+                movelist[*n].from.y = y_12x12;
+                movelist[*n].to.x = x_12x12 - 1;
+                movelist[*n].to.y = y_12x12 - 1;
+                movelist[*n].path[0].x = x_12x12;
+                movelist[*n].path[0].y = y_12x12;
+                movelist[*n].path[1].x = x_12x12 - 1;
+                movelist[*n].path[1].y = y_12x12 - 1;
+                movelist[*n].del[0].x = -1;
+                if (y_12x12 - 1 == 2) { // Corrected promotion check
+                    movelist[*n].newpiece = MG_BLACK_KING;
+                }
+                else
+                    movelist[*n].newpiece = MG_BLACK_MAN;
+                movelist[*n].oldpiece = MG_BLACK_MAN;
+                (*n)++;
             }
         }
     }
-}
-
-void whitecapture(int board[12][12], CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n)
-{
-    CBmove mm;
-    int end = 1;
-
-    if (d >= 11) { // Check to prevent stack overflow
-        m.jumps = d;
-        movelist[*n] = m;
-        movelist[*n].oldpiece = MG_WHITE_MAN;
-        (*n)++;
-        return;
-    }
-
-    // Try capturing diagonally up-right
-    if (board[x + 1][y + 1] < 0 && board[x + 2][y + 2] == MG_EMPTY) {
-        mm = m; // Copy current move state
-        mm.from.x = x;
-        mm.from.y = y;
-        mm.to.x = x + 2;
-        mm.to.y = y + 2;
-        mm.path[d + 1].x = x + 2;
-        mm.path[d + 1].y = y + 2;
-        mm.del[d].x = x + 1;
-        mm.del[d].y = y + 1;
-        mm.delpiece[d] = board[x + 1][y + 1]; // Store captured piece
-        mm.del[d + 1].x = -1; // Mark end of captured pieces for this path
-        mm.oldpiece = MG_WHITE_MAN;
-        mm.newpiece = (y + 2 == 9) ? MG_WHITE_KING : MG_WHITE_MAN; // Handle kinging
-        mm.is_capture = true; // Set is_capture to true for recursive calls
-
-        // Temporarily make the move on the current board
-        int original_from_piece = board[x][y];
-        int original_captured_piece = board[x + 1][y + 1];
-        board[x][y] = MG_EMPTY;
-        board[x + 1][y + 1] = MG_EMPTY;
-        board[x + 2][y + 2] = mm.newpiece;
-
-        whitecapture(board, movelist, mm, x + 2, y + 2, d + 1, n);
-        end = 0;
-
-        // Unmake the move
-        board[x][y] = original_from_piece;
-        board[x + 1][y + 1] = original_captured_piece;
-        board[x + 2][y + 2] = MG_EMPTY;
-    }
-
-    // Try capturing diagonally up-left
-    if (board[x - 1][y + 1] < 0 && board[x - 2][y + 2] == MG_EMPTY) {
-        mm = m; // Copy current move state
-        mm.from.x = x;
-        mm.from.y = y;
-        mm.to.x = x - 2;
-        mm.to.y = y + 2;
-        mm.path[d + 1].x = x - 2;
-        mm.path[d + 1].y = y + 2;
-        mm.del[d].x = x - 1;
-        mm.del[d].y = y + 1;
-        mm.delpiece[d] = board[x - 1][y + 1]; // Store captured piece
-        mm.del[d + 1].x = -1; // Mark end of captured pieces for this path
-        mm.oldpiece = MG_WHITE_MAN;
-        mm.newpiece = (y + 2 == 9) ? MG_WHITE_KING : MG_WHITE_MAN; // Handle kinging
-        mm.is_capture = true; // Set is_capture to true for recursive calls
-
-        // Temporarily make the move on the current board
-        int original_from_piece = board[x][y];
-        int original_captured_piece = board[x - 1][y + 1];
-        board[x][y] = MG_EMPTY;
-        board[x - 1][y + 1] = MG_EMPTY;
-        board[x - 2][y + 2] = mm.newpiece;
-
-        whitecapture(board, movelist, mm, x - 2, y + 2, d + 1, n);
-        end = 0;
-
-        // Unmake the move
-        board[x][y] = original_from_piece;
-        board[x - 1][y + 1] = original_captured_piece;
-        board[x - 2][y + 2] = MG_EMPTY;
-    }
-
-    if (end) {
-        m.jumps = d;
-        movelist[*n] = m;
-        movelist[*n].oldpiece = MG_WHITE_MAN;
-        movelist[*n].newpiece = (m.to.y == 9) ? MG_WHITE_KING : MG_WHITE_MAN; // Final kinging check
-        movelist[*n].is_capture = true; // Set is_capture to true
-        (*n)++;
-    }
-}
-
-void whitekingcapture(int board[12][12], CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n)
-{
-    CBmove mm;
-    int end = 1;
-
-    if (d >= 11) { // Check to prevent stack overflow
-        m.jumps = d;
-        movelist[*n] = m;
-        movelist[*n].oldpiece = MG_WHITE_KING;
-        (*n)++;
-        return;
-    }
-
-    // Try capturing diagonally up-right
-    if (board[x + 1][y + 1] < 0 && board[x + 2][y + 2] == MG_EMPTY) {
-        mm = m; // Copy current move state
-        mm.from.x = x;
-        mm.from.y = y;
-        mm.to.x = x + 2;
-        mm.to.y = y + 2;
-        mm.path[d + 1].x = x + 2;
-        mm.path[d + 1].y = y + 2;
-        mm.del[d].x = x + 1;
-        mm.del[d].y = y + 1;
-        mm.delpiece[d] = board[x + 1][y + 1]; // Store captured piece
-        mm.del[d + 1].x = -1; // Mark end of captured pieces for this path
-        mm.oldpiece = MG_WHITE_KING;
-        mm.newpiece = MG_WHITE_KING;
-        mm.is_capture = true; // Set is_capture to true for recursive calls
-
-        // Temporarily make the move on the current board
-        int original_from_piece = board[x][y];
-        int original_captured_piece = board[x + 1][y + 1];
-        board[x][y] = MG_EMPTY;
-        board[x + 1][y + 1] = MG_EMPTY;
-        board[x + 2][y + 2] = mm.newpiece;
-
-        whitekingcapture(board, movelist, mm, x + 2, y + 2, d + 1, n);
-        end = 0;
-
-        // Unmake the move
-        board[x][y] = original_from_piece;
-        board[x + 1][y + 1] = original_captured_piece;
-        board[x + 2][y + 2] = MG_EMPTY;
-    }
-
-    // Try capturing diagonally up-left
-    if (board[x - 1][y + 1] < 0 && board[x - 2][y + 2] == MG_EMPTY) {
-        mm = m; // Copy current move state
-        mm.from.x = x;
-        mm.from.y = y;
-        mm.to.x = x - 2;
-        mm.to.y = y + 2;
-        mm.path[d + 1].x = x - 2;
-        mm.path[d + 1].y = y + 2;
-        mm.del[d].x = x - 1;
-        mm.del[d].y = y + 1;
-        mm.delpiece[d] = board[x - 1][y + 1]; // Store captured piece
-        mm.del[d + 1].x = -1; // Mark end of captured pieces for this path
-        mm.oldpiece = MG_WHITE_KING;
-        mm.newpiece = MG_WHITE_KING;
-        mm.is_capture = true; // Set is_capture to true for recursive calls
-
-        // Temporarily make the move on the current board
-        int original_from_piece = board[x][y];
-        int original_captured_piece = board[x - 1][y + 1];
-        board[x][y] = MG_EMPTY;
-        board[x - 1][y + 1] = MG_EMPTY;
-        board[x - 2][y + 2] = mm.newpiece;
-
-        whitekingcapture(board, movelist, mm, x - 2, y + 2, d + 1, n);
-        end = 0;
-
-        // Unmake the move
-        board[x][y] = original_from_piece;
-        board[x - 1][y + 1] = original_captured_piece;
-        board[x - 2][y + 2] = MG_EMPTY;
-    }
-
-    // Try capturing diagonally down-right
-    if (board[x + 1][y - 1] < 0 && board[x + 2][y - 2] == MG_EMPTY) {
-        mm = m; // Copy current move state
-        mm.from.x = x;
-        mm.from.y = y;
-        mm.to.x = x + 2;
-        mm.to.y = y - 2;
-        mm.path[d + 1].x = x + 2;
-        mm.path[d + 1].y = y - 2;
-        mm.del[d].x = x + 1;
-        mm.del[d].y = y - 1;
-        mm.delpiece[d] = board[x + 1][y - 1]; // Store captured piece
-        mm.del[d + 1].x = -1; // Mark end of captured pieces for this path
-        mm.oldpiece = MG_WHITE_KING;
-        mm.newpiece = MG_WHITE_KING;
-        mm.is_capture = true; // Set is_capture to true for recursive calls
-
-        // Temporarily make the move on the current board
-        int original_from_piece = board[x][y];
-        int original_captured_piece = board[x + 1][y - 1];
-        board[x][y] = MG_EMPTY;
-        board[x + 1][y - 1] = MG_EMPTY;
-        board[x + 2][y - 2] = mm.newpiece;
-
-        whitekingcapture(board, movelist, mm, x + 2, y - 2, d + 1, n);
-        end = 0;
-
-        // Unmake the move
-        board[x][y] = original_from_piece;
-        board[x + 1][y - 1] = original_captured_piece;
-        board[x + 2][y - 2] = MG_EMPTY;
-    }
-
-    // Try capturing diagonally down-left
-    if (board[x - 1][y - 1] < 0 && board[x - 2][y - 2] == MG_EMPTY) {
-        mm = m; // Copy current move state
-        mm.from.x = x;
-        mm.from.y = y;
-        mm.to.x = x - 2;
-        mm.to.y = y - 2;
-        mm.path[d + 1].x = x - 2;
-        mm.path[d + 1].y = y - 2;
-        mm.del[d].x = x - 1;
-        mm.del[d].y = y - 1;
-        mm.delpiece[d] = board[x - 1][y - 1]; // Store captured piece
-        mm.del[d + 1].x = -1; // Mark end of captured pieces for this path
-        mm.oldpiece = MG_WHITE_KING;
-        mm.newpiece = MG_WHITE_KING;
-        mm.is_capture = true; // Set is_capture to true for recursive calls
-
-        // Temporarily make the move on the current board
-        int original_from_piece = board[x][y];
-        int original_captured_piece = board[x - 1][y - 1];
-        board[x][y] = MG_EMPTY;
-        board[x - 1][y - 1] = MG_EMPTY;
-        board[x - 2][y - 2] = mm.newpiece;
-
-        whitekingcapture(board, movelist, mm, x - 2, y - 2, d + 1, n);
-        end = 0;
-
-        // Unmake the move
-        board[x][y] = original_from_piece;
-        board[x - 1][y - 1] = original_captured_piece;
-        board[x - 2][y - 2] = MG_EMPTY;
-    }
-
-    if (end) {
-        m.jumps = d;
-        movelist[*n] = m;
-        movelist[*n].oldpiece = MG_WHITE_KING;
-        movelist[*n].newpiece = MG_WHITE_KING; // Kings remain kings
-        movelist[*n].is_capture = true; // Set is_capture to true
-        (*n)++;
-    }
-}
-
-void blackcapture(int board[12][12], CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n)
-{
-    CBmove mm;
-    int end = 1;
-
-    if (d >= 11) { // Check to prevent stack overflow
-        m.jumps = d;
-        movelist[*n] = m;
-        movelist[*n].oldpiece = MG_BLACK_MAN;
-        (*n)++;
-        return;
-    }
-
-    // Try capturing diagonally down-right
-    if (board[x + 1][y - 1] > 0 && board[x + 2][y - 2] == MG_EMPTY) {
-        mm = m; // Copy current move state
-        mm.from.x = x;
-        mm.from.y = y;
-        mm.to.x = x + 2;
-        mm.to.y = y - 2;
-        mm.path[d + 1].x = x + 2;
-        mm.path[d + 1].y = y - 2;
-        mm.del[d].x = x + 1;
-        mm.del[d].y = y - 1;
-        mm.delpiece[d] = board[x + 1][y - 1]; // Store captured piece
-        mm.del[d + 1].x = -1; // Mark end of captured pieces for this path
-        mm.oldpiece = MG_BLACK_MAN;
-        mm.newpiece = (y - 2 == 2) ? MG_BLACK_KING : MG_BLACK_MAN; // Handle kinging
-        mm.is_capture = true; // Set is_capture to true for recursive calls
-
-        // Temporarily make the move on the current board
-        int original_from_piece = board[x][y];
-        int original_captured_piece = board[x + 1][y - 1];
-        board[x][y] = MG_EMPTY;
-        board[x + 1][y - 1] = MG_EMPTY;
-        board[x + 2][y - 2] = mm.newpiece;
-
-        blackcapture(board, movelist, mm, x + 2, y - 2, d + 1, n);
-        end = 0;
-
-        // Unmake the move
-        board[x][y] = original_from_piece;
-        board[x + 1][y - 1] = original_captured_piece;
-        board[x + 2][y - 2] = MG_EMPTY;
-    }
-
-    // Try capturing diagonally down-left
-    if (board[x - 1][y - 1] > 0 && board[x - 2][y - 2] == MG_EMPTY) {
-        mm = m; // Copy current move state
-        mm.from.x = x;
-        mm.from.y = y;
-        mm.to.x = x - 2;
-        mm.to.y = y - 2;
-        mm.path[d + 1].x = x - 2;
-        mm.path[d + 1].y = y - 2;
-        mm.del[d].x = x - 1;
-        mm.del[d].y = y - 1;
-        mm.delpiece[d] = board[x - 1][y - 1]; // Store captured piece
-        mm.del[d + 1].x = -1; // Mark end of captured pieces for this path
-        mm.oldpiece = MG_BLACK_MAN;
-        mm.newpiece = (y - 2 == 2) ? MG_BLACK_KING : MG_BLACK_MAN; // Handle kinging
-        mm.is_capture = true; // Set is_capture to true for recursive calls
-
-        // Temporarily make the move on the current board
-        int original_from_piece = board[x][y];
-        int original_captured_piece = board[x - 1][y - 1];
-        board[x][y] = MG_EMPTY;
-        board[x - 1][y - 1] = MG_EMPTY;
-        board[x - 2][y - 2] = mm.newpiece;
-
-        blackcapture(board, movelist, mm, x - 2, y - 2, d + 1, n);
-        end = 0;
-
-        // Unmake the move
-        board[x][y] = original_from_piece;
-        board[x - 1][y - 1] = original_captured_piece;
-        board[x - 2][y - 2] = MG_EMPTY;
-    }
-
-    if (end) {
-        m.jumps = d;
-        movelist[*n] = m;
-        movelist[*n].oldpiece = MG_BLACK_MAN;
-        movelist[*n].newpiece = (m.to.y == 2) ? MG_BLACK_KING : MG_BLACK_MAN; // Final kinging check
-        movelist[*n].is_capture = true; // Set is_capture to true
-        (*n)++;
-    }
-}
-
-void blackkingcapture(int board[12][12], CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n)
-{
-    CBmove mm;
-    int end = 1;
-
-    if (d >= 11) { // Check to prevent stack overflow
-        m.jumps = d;
-        movelist[*n] = m;
-        movelist[*n].oldpiece = MG_BLACK_KING;
-        (*n)++;
-        return;
-    }
-
-    // Try capturing diagonally down-right
-    if (board[x + 1][y - 1] > 0 && board[x + 2][y - 2] == MG_EMPTY) {
-        mm = m; // Copy current move state
-        mm.from.x = x;
-        mm.from.y = y;
-        mm.to.x = x + 2;
-        mm.to.y = y - 2;
-        mm.path[d + 1].x = x + 2;
-        mm.path[d + 1].y = y - 2;
-        mm.del[d].x = x + 1;
-        mm.del[d].y = y - 1;
-        mm.delpiece[d] = board[x + 1][y - 1]; // Store captured piece
-        mm.del[d + 1].x = -1; // Mark end of captured pieces for this path
-        mm.oldpiece = MG_BLACK_KING;
-        mm.newpiece = MG_BLACK_KING;
-        mm.is_capture = true; // Set is_capture to true for recursive calls
-
-        // Temporarily make the move on the current board
-        int original_from_piece = board[x][y];
-        int original_captured_piece = board[x + 1][y - 1];
-        board[x][y] = MG_EMPTY;
-        board[x + 1][y - 1] = MG_EMPTY;
-        board[x + 2][y - 2] = mm.newpiece;
-
-        blackkingcapture(board, movelist, mm, x + 2, y - 2, d + 1, n);
-        end = 0;
-
-        // Unmake the move
-        board[x][y] = original_from_piece;
-        board[x + 1][y - 1] = original_captured_piece;
-        board[x + 2][y - 2] = MG_EMPTY;
-    }
-
-    // Try capturing diagonally down-left
-    if (board[x - 1][y - 1] > 0 && board[x - 2][y - 2] == MG_EMPTY) {
-        mm = m; // Copy current move state
-        mm.from.x = x;
-        mm.from.y = y;
-        mm.to.x = x - 2;
-        mm.to.y = y - 2;
-        mm.path[d + 1].x = x - 2;
-        mm.path[d + 1].y = y - 2;
-        mm.del[d].x = x - 1;
-        mm.del[d].y = y - 1;
-        mm.delpiece[d] = board[x - 1][y - 1]; // Store captured piece
-        mm.del[d + 1].x = -1; // Mark end of captured pieces for this path
-        mm.oldpiece = MG_BLACK_KING;
-        mm.newpiece = MG_BLACK_KING;
-        mm.is_capture = true; // Set is_capture to true for recursive calls
-
-        // Temporarily make the move on the current board
-        int original_from_piece = board[x][y];
-        int original_captured_piece = board[x - 1][y - 1];
-        board[x][y] = MG_EMPTY;
-        board[x - 1][y - 1] = MG_EMPTY;
-        board[x - 2][y - 2] = mm.newpiece;
-
-        blackkingcapture(board, movelist, mm, x - 2, y - 2, d + 1, n);
-        end = 0;
-
-        // Unmake the move
-        board[x][y] = original_from_piece;
-        board[x - 1][y - 1] = original_captured_piece;
-        board[x - 2][y - 2] = MG_EMPTY;
-    }
-
-    // Try capturing diagonally up-right
-    if (board[x + 1][y + 1] > 0 && board[x + 2][y + 2] == MG_EMPTY) {
-        mm = m; // Copy current move state
-        mm.from.x = x;
-        mm.from.y = y;
-        mm.to.x = x + 2;
-        mm.to.y = y + 2;
-        mm.path[d + 1].x = x + 2;
-        mm.path[d + 1].y = y + 2;
-        mm.del[d].x = x + 1;
-        mm.del[d].y = y + 1;
-        mm.delpiece[d] = board[x + 1][y + 1]; // Store captured piece
-        mm.del[d + 1].x = -1; // Mark end of captured pieces for this path
-        mm.oldpiece = MG_BLACK_KING;
-        mm.newpiece = MG_BLACK_KING;
-        mm.is_capture = true; // Set is_capture to true for recursive calls
-
-        // Temporarily make the move on the current board
-        int original_from_piece = board[x][y];
-        int original_captured_piece = board[x + 1][y + 1];
-        board[x][y] = MG_EMPTY;
-        board[x + 1][y + 1] = MG_EMPTY;
-        board[x + 2][y + 2] = mm.newpiece;
-
-        blackkingcapture(board, movelist, mm, x + 2, y + 2, d + 1, n);
-        end = 0;
-
-        // Unmake the move
-        board[x][y] = original_from_piece;
-        board[x + 1][y + 1] = original_captured_piece;
-        board[x + 2][y + 2] = MG_EMPTY;
-    }
-
-    // Try capturing diagonally up-left
-    if (board[x - 1][y + 1] > 0 && board[x - 2][y + 2] == MG_EMPTY) {
-        mm = m; // Copy current move state
-        mm.from.x = x;
-        mm.from.y = y;
-        mm.to.x = x - 2;
-        mm.to.y = y + 2;
-        mm.path[d + 1].x = x - 2;
-        mm.path[d + 1].y = y + 2;
-        mm.del[d].x = x - 1;
-        mm.del[d].y = y + 1;
-        mm.delpiece[d] = board[x - 1][y + 1]; // Store captured piece
-        mm.del[d + 1].x = -1; // Mark end of captured pieces for this path
-        mm.oldpiece = MG_BLACK_KING;
-        mm.newpiece = MG_BLACK_KING;
-        mm.is_capture = true; // Set is_capture to true for recursive calls
-
-        // Temporarily make the move on the current board
-        int original_from_piece = board[x][y];
-        int original_captured_piece = board[x - 1][y + 1];
-        board[x][y] = MG_EMPTY;
-        board[x - 1][y + 1] = MG_EMPTY;
-        board[x - 2][y + 2] = mm.newpiece;
-
-        blackkingcapture(board, movelist, mm, x - 2, y + 2, d + 1, n);
-        end = 0;
-
-        // Unmake the move
-        board[x][y] = original_from_piece;
-        board[x - 1][y + 1] = original_captured_piece;
-        board[x - 2][y + 2] = MG_EMPTY;
-    }
-
-    if (end) {
-        m.jumps = d;
-        movelist[*n] = m;
-        movelist[*n].oldpiece = MG_BLACK_KING;
-        movelist[*n].newpiece = MG_BLACK_KING; // Kings remain kings
-        movelist[*n].is_capture = true; // Set is_capture to true
-        (*n)++;
-    }
+    // log_to_file("makemovelist: LEAVE. Found %d moves. isjump: %d", *n, *isjump);
+    // for (i = 0; i < *n; ++i) {
+    //     char move_notation[80];
+    //     move4tonotation(&movelist[i], move_notation);
+    //     log_to_file("makemovelist: Move %d: %s (from 12x12: %d,%d to %d,%d, jumps: %d, is_capture: %d)",
+    //                 i, move_notation, movelist[i].from.x, movelist[i].from.y,
+    //                 movelist[i].to.x, movelist[i].to.y, movelist[i].jumps, movelist[i].is_capture);
+    // }
 }
 
 void move4tonotation(const CBmove *m, char s[80]) {

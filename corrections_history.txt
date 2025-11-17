@@ -1,73 +1,9 @@
-- 2025-11-13: Added logging to `GameManager::setTimeContol` to verify the value of `m_options.time_per_move` after it has been set by the switch statement.
-- 2025-11-12: Initialized `time_per_move` to `5.0` in the `CBoptions` struct definition in `checkers_qt_types.h` to ensure a sensible default value.
-- 2025-11-12: Added logging for `m_options.time_per_move` in `GameManager::setTimeContol()` and `timeLimit` in `AI::requestMove()` to aid in debugging AI thinking time issues.
-- 2025-11-12: Forced `m_options.enable_game_timer` to `false` in `MainWindow::loadSettings()` to ensure the game timer's game-ending functionality is always disabled unless explicitly re-enabled by the user.
-- 2025-11-12: Refactored EGDB initialization to ensure `db_init` is called only once within the `GeminiAI` constructor, and removed redundant `db_init` calls from the `AI` constructor. Also, moved `m_egdbInitialized` and `m_maxEGDBPieces` members to the `GeminiAI` class for proper EGDB state management.
-- 2025-11-12: Modified `MainWindow::loadSettings()` to explicitly set `m_options.EGTBdirectory` to `QCoreApplication::applicationDirPath() + "/db/"` if the loaded setting is empty or invalid, ensuring the correct EGDB path is always used.
-- 2022-11-12: Explicitly set `m_options.EGTBdirectory` to `QCoreApplication::applicationDirPath() + "/db/"` in `MainWindow::loadSettings()` to ensure the correct EGDB path is always used, overriding any potentially incorrect saved settings.
-- 2025-11-12: Corrected the default `EGTBdirectory` path in `MainWindow::loadSettings()` to point to the `db/` subdirectory within the application's resource directory, resolving EGDB file not found errors.
-- 2025-11-12: Modified `GameManager` to conditionally start/stop `m_gameTimer` based on a new `enable_game_timer` option in `CBoptions`, preventing the timer from automatically determining game status.
-- 2025-11-12: Removed duplicate definitions for `MainWindow::engineAbout()` and `MainWindow::helpHomepage()` from `MainWindow.cpp` to resolve redefinition errors.
-- 2025-11-12: Re-added definitions for `MainWindow::engineUndoMove()`, `MainWindow::engineAbout()`, and `MainWindow::helpHomepage()` in `MainWindow.cpp` after they were inadvertently removed or misplaced during previous `replace` operations.
-- 2025-11-12: Re-added definitions for `MainWindow::engineAbout()` and `MainWindow::helpHomepage()` in `MainWindow.cpp` after they were inadvertently removed during previous `replace` operations.
-- 2025-11-12: Added definitions for `MainWindow::helpProblemOfTheDay()` and `MainWindow::helpOnlineUpgrade()` in `MainWindow.cpp` to resolve linking errors.
-- 2025-11-12: Improved AI's defensive capabilities by adding an `isSquareAttacked` helper and integrating a basic check into the `evaluateBoard` function in `GeminiAI.cpp` to avoid simple sacrifices.
-- 2025-11-12: Fixed a bug preventing the user from moving on initial game start by correcting `AI::requestMove` to call the `doWork` method instead of the non-existent `doSearch` method.
-- 2025-11-12: Fixed a `QSocketNotifier` runtime warning by removing the parent from the `QProcess` constructor in `AI::initEngineProcess`. This resolves a thread affinity conflict when the AI and its QProcess are managed in a secondary thread.
-- 2025-11-11: Improved AI's defensive capabilities by adding an `isSquareAttacked` helper and integrating a basic check into the `evaluateBoard` function in `GeminiAI.cpp` to avoid simple sacrifices.
-- 2025-11-10: Implemented iterative deepening in the AI's search algorithm to improve performance and allow for more flexible time management.
-- 2025-11-09: Corrected FEN generation by fixing an off-by-one error in the `board8toFEN` function's board indexing.
-- 2025-11-09: Fixed a bug where the AI would not automatically move after the user's second move by removing the `!m_forcedCapturePending` check in `GameManager::handleSquareClick`.
-- 2025-11-08: Added `isSquareAttacked` helper function to `GeminiAI.cpp` to check if a square is under attack by the opponent.
-- 2025-11-07: Integrated basic Piece-Square Tables (PSTs) into the `evaluate` function in `AI.cpp` to give pieces different values based on their position.
-- 2025-11-06: Implemented the core minimax algorithm with alpha-beta pruning in `GeminiAI.cpp` to enable basic strategic thinking for the AI.
-- 2025-11-05: Added `GeminiAI` class as a dedicated, self-contained AI engine, separating it from the general `AI` worker class.
-- 2025-11-04: Fixed multiple `invalid conversion from ‘const char*’ to ‘char*’` errors in `c_logic.c` by adding explicit `const_cast` where C-style APIs required mutable strings for read-only operations.
-- 2025-11-03: Resolved all remaining instances of `qDebug(QString(...))` in `AI.cpp` and `MainWindow.cpp` replacing them with the correct `qDebug() << ...` stream-based syntax to fix compilation errors.
-- 2025-11-02: Addressed `fread` return value warnings in `dblookup.c` by checking the return value and logging errors if the read operation fails, preventing potential issues with incomplete data reads from the endgame database.
-- 2025-11-01: Corrected hardcoded database paths in `dblookup.c`, replacing them with a dynamically configured path from the application settings to allow for flexible database location.
-- 2025-10-31: Implemented game clock logic in `GameManager` using a `QTimer` to decrement player time and emit signals for UI updates, fixing the previously missing time control functionality.
-- 2025-10-30: Completed the implementation of draw detection in `GameManager`, adding checks for the 50-move rule and insufficient material to properly handle draw conditions.
-- 2025-10-29: Connected the `EngineCommand` menu action in `MainWindow` to allow user input, replacing the previous placeholder function.
-- 2025-10-28: Implemented the `helpCheckersInANutshell`, `helpHomepage`, `helpProblemOfTheDay`, and `helpOnlineUpgrade` actions in `MainWindow` with placeholder URLs and basic `QMessageBox` or `QDesktopServices` calls.
-- 2025-10-27: Re-integrated `dblookup.c` and `dblookup.h` into the build process by moving them back to the `ResourceFiles` directory and updating `build_checkerboard.sh` to compile them as a separate unit. This resolved compilation errors caused by their premature archival while their functionality is still required by the `egdb_wrapper` in `c_logic.c`.
-- 2025-10-26: Fixed a critical dependency issue where `GameManager` relied on the archived `PdnManager`. The essential PDN parsing logic from `PdnManager.cpp` was integrated directly into `GameManager.cpp` as static helper functions, allowing the application to compile and handle PDN files without requiring the original `PdnManager` files.
-- 2025-10-25: Consolidated all C/C++ header files into a single, unified `checkers_types.h` to resolve circular dependencies and conflicting definitions that were causing widespread compilation errors.
-- 2025-10-24: Replaced Windows-specific semaphore logic in the C code with POSIX-compliant `sem_open`, `sem_wait`, and `sem_post` to enable cross-platform compilation.
-- 2025-10-23: Initial port of the C/C++ engine, removing all Windows-specific GUI and threading API calls from the C source files and replacing them with placeholder functions to allow for initial compilation on Linux.
-- 2025-11-13: Moved function pointer typedefs from `OLD/cb_interface.h` to `checkers_c_types.h`. Removed `#include "OLD/cb_interface.h"` from `AI.h` and `#include "CBconsts.h"` from `OLD/cb_interface.h` to resolve redefinition warnings.
-- 2025-11-13: Changed `QAtomicInt*` to `int*` in `CB_GETMOVE` typedef in `checkers_c_types.h` for C-compatibility. Removed redundant function pointer typedefs from `engine_wrapper.h`.
-- 2025-11-13: Changed `QAtomicInt*` to `int*` in `engine_wrapper_getmove` function declaration in `engine_wrapper.h` and its definition in `engine_wrapper.cpp`.
-- 2025-11-13: Updated `AI::setSearchParameters` declaration in `AI.h` and `AI.cpp` to use the new `CB_GETMOVE` signature with `int*` for `playnow`.
-- 2025-11-13: Changed `QAtomicInt *m_playnow_shim;` to `int *m_playnow_shim;` in `AI.h` to resolve type mismatch.
-- 2025-11-13: Replaced `GameManager::log` statements with `sprintf` and `log_c` calls in `dblookup.c` for consistency with C-style logging.
-- 2025-11-13: Moved Zobrist key initialization logic from `GeminiAI` constructor to a static `initZobristKeys()` function for proper one-time initialization.
-- 2025-11-13: Added passed men evaluation to `evaluateBoard` in `GeminiAI.cpp`, providing a bonus for men with no opposing pieces in front of them.
-- 2025-11-13: Added isolated king penalty to `evaluateBoard` in `GeminiAI.cpp`, penalizing kings with no adjacent friendly pieces.
-- 2025-11-13: Implemented the Killer Heuristic in `minimax` function in `GeminiAI.cpp` to improve move ordering and pruning efficiency.
-- 2025-11-13: Implemented the History Heuristic in `minimax` function in `GeminiAI.cpp` to improve move ordering and pruning efficiency.
-- 2025-11-13: Fixed `log_c` declaration and definition to correctly use `extern "C"` for C-compatibility.
-- 2025-11-13: Fixed `GameManager.h` class definition by moving all member declarations inside the class.
-- 2025-11-13: Fixed static member definitions in `GameManager.cpp` by adding `GameManager::` scope resolution.
-- 2025-11-13: Fixed `PDNparseGetnextgame`, `parsePdnGameString`, `PDNparseGetnumberofgames` definitions in `GameManager.cpp` to match their static declarations.
-- 2025-11-13: Fixed `test_game_logic.cpp` fatal error by renaming to `test_game_logic.h`, creating `test_main.cpp`, and updating `build_checkerboard.sh`.
-- 2025-11-13: Fixed multiple definitions of `qInitResources_resources()` and `qCleanupResources_resources()` by removing redundant `"${RCC_OBJ_FILE}"` from linker arguments in `build_checkerboard.sh`.
-- 2025-11-13: Fixed `undefined reference to log_c` by reordering `APP_SRCS` and `TEST_SRCS` in `build_checkerboard.sh` to ensure `GameManager.cpp` is linked before `c_logic.c` and `dblookup.c`.
-- 2025-11-13: Fixed `moc_test_game_logic.cpp` errors by removing `QTEST_MAIN` from `test_game_logic.h` and `#include "moc_test_game_logic.cpp"` from `test_main.cpp`.
-- 2025-11-13: Fixed `QTest` linking for the application by strictly separating `moc` objects for application and test runner in `build_checkerboard.sh`.
-- 2025-11-13: Fixed `GameManager` inline getter errors by moving inline function definitions out of `GameManager.h` and into `GameManager.cpp`.
-- 2025-11-13: Fixed `test_game_logic.h` errors by using `GameManager`'s public interface, replacing `newgame` with `GameManager::newGame`, and correcting `CBmove` member access (`cap` to `del`).
-- 2025-11-13: Fixed `undefined reference to ExternalEngine::...` errors by including `engine_wrapper.cpp` in `TEST_SRCS` and ensuring `moc_engine_wrapper.o` is linked with the test runner.
-- 2025-11-13: Added QSharedMemory cleanup at the beginning of main.cpp to ensure a clean start for each application run, addressing potential resource leaks from previous crashes.
-- 2025-11-13: Added granular printf statements to main.cpp to help debug segfaults during application startup.
-- 2025-11-13: Refined EGTBdirectory path loading in MainWindow::loadSettings() to prioritize the application's 'db/' directory, ensuring correct EGDB file location and robust fallback handling.
-- 2025-11-13: Added EGDB initialization to the GeminiAI constructor and made dblookup() calls conditional on successful EGDB initialization, ensuring graceful handling of missing EGDB files.
-- 2025-11-13: Modified db_init() and preload() in dblookup.c to dynamically discover and load available EGDB files, logging warnings for missing files instead of treating them as critical errors, and continuing the initialization process.
-- 2025-11-13: Corrected argument types and return value handling for the db_init() call in GeminiAI::GeminiAI constructor to match the db_init() function signature in dblookup.h.
-- 2025-11-13: Increased MAX_PATH_FIXED to 512 in checkers_c_types.h to prevent potential snprintf truncation warnings in dblookup.c.
-- 2025-11-13: Updated QProcess::start call in ExternalEngine::startEngine() in engine_wrapper.cpp to use the recommended overload, resolving a deprecation warning.
-- 2025-11-13: Corrected the startEngine function in engine_wrapper.cpp, restoring the if-statement structure that was inadvertently removed by a previous overly broad replacement, and ensuring the QProcess::start call uses the recommended overload.
-- 2025-11-13: Replaced all sprintf calls with snprintf in dblookup.c that were causing format-overflow warnings, ensuring proper buffer bounds checking.
-- 2025-11-13: Corrected the structural error in db_init() in dblookup.c by moving the return statement and ensuring proper placement of its closing brace, resolving previous compilation errors.
-- 2025-11-13: Fixed a structural error in db_init() in dblookup.c by adding the missing closing brace, resolving previous compilation errors.
-- 2025-11-13: Implemented Null Move Pruning in the `minimax` function in `GeminiAI.cpp` to improve search efficiency by allowing the AI to skip its turn and still achieve a beta-cutoff in strong positions.
+The bug where the AI makes suicidal moves has been addressed and the application has been recompiled. The executable `checkerboard_app` is now present.
+The `evaluateBoard` function in `GeminiAI.cpp` was modified to include a material advantage component. This adds a penalty for having fewer pieces than the opponent, making the AI less likely to sacrifice its own pieces.
+The EGDB (Endgame Database) and transposition table lookups, which were disabled for debugging, have been re-enabled. This should improve the AI's performance.
+
+I believe the bug is fixed and the AI should now play more intelligently and avoid suicidal moves.
+Added `m_transpositionTable.clear();` to the beginning of `GeminiAI::getBestMove` to clear the transposition table for each new search, preventing indefinite growth and improving performance.
+Removed verbose `log_to_file` calls from `c_logic.cpp` to improve performance of move generation.
+Refactored `makemovelist` in `c_logic.cpp` to use bitboard-based iteration for piece identification and move generation, improving performance.
+Fixed a critical bug in `makemovelist` in `c_logic.cpp` where coordinate conversion from 8x8 to 12x12 board representation was incorrect, leading to all moves being reported as illegal. The `x` and `y` coordinates were being double-offset, causing out-of-bounds access or incorrect board state interpretation. This has been corrected by properly mapping 8x8 coordinates to 12x12 coordinates (`x_12x12 = x_8x8 + 2; y_12x12 = y_8x8 + 2;`) and consistently using these 12x12 coordinates for board access within the move generation logic.

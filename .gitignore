@@ -1,5 +1,11 @@
-app.log
-*.log
 *.o
 checkerboard_app
-gdb.bt
+*.cpr
+*.idx
+*.db
+app.log
+app_output.log
+c_compile_error.log
+c_logic.log
+cpp_compile_error.log
+global_variables.cpp

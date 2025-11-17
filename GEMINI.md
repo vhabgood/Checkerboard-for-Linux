@@ -173,3 +173,27 @@ Based on a review of the codebase, the following is a list of incomplete feature
 - Fix `qDebug(QString(...))` to `qDebug() << ...` in `AI.cpp` (remaining: 0 instances). **(COMPLETED)**
 - Fix `qDebug(QString(...))` to `qDebug() << ...` in `MainWindow.cpp` (remaining: 0 instances). **(COMPLETED)**
 - Resolve `invalid conversion from ‘const char*’ to ‘char*’` error in `c_logic.c`. **(COMPLETED)**
+
+## EGDB Integration Plan
+
+Based on user feedback and current progress, the plan for Endgame Database (EGDB) integration is as follows:
+
+1.  **Prioritize Correct `dblookup` Call in `minimax`:**
+    *   **Goal:** Ensure the `dblookup` function is called with the correct side to move, rather than a hardcoded value.
+    *   **Status:** **COMPLETED**. The line `dblookup(&current_pos_egdb, 1);` in `GeminiAI.cpp` has been changed to `dblookup(&current_pos_egdb, color == CB_WHITE ? DB_WHITE : DB_BLACK);`. The application has been rebuilt.
+
+2.  **Implement "Check for Captures First" Logic:**
+    *   **Goal:** Ensure that if capture moves are available, the AI prioritizes them before consulting the EGDB or performing a deeper search on non-capture moves.
+    *   **Status:** **COMPLETED**. `GeminiAI::getBestMove` has been modified to generate all legal moves, separate captures, and prioritize evaluating and making capture moves if any are available. The application has been rebuilt.
+
+3.  **Develop FEN Test Cases for EGDB Logic:**
+    *   **Goal:** Create a set of FEN positions that represent various endgame scenarios (2, 3, and 4 pieces) where EGDB lookups should provide definitive results (win, loss, draw). These FENs will be used to test the EGDB integration.
+    *   **Status:** **PENDING**. Awaiting user to provide example FEN strings for 2, 3, and 4-piece endgames.
+
+4.  **Refine EGDB Result Handling and Scoring:**
+    *   **Goal:** Ensure the AI correctly interprets and acts upon EGDB results.
+    *   **Status:** **PENDING**. This step will be addressed after FEN test cases are available and initial EGDB lookups can be verified.
+
+5.  **Improve EGDB Initialization and Error Logging:**
+    *   **Goal:** Provide clearer feedback on which EGDB files are loaded and which fail during initialization.
+    *   **Status:** **PENDING**. This step will be addressed after FEN test cases are available and current logging behavior can be observed.

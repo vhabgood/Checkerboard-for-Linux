@@ -66,7 +66,7 @@ protected:
 public slots:
     void changeAppState(AppState newState);
     void setStatusBarText(const QString& text);
-    void updateEvaluationDisplay(int score); // New slot to update the evaluation display
+    void updateEvaluationDisplay(int score, int depth); // New slot to update the evaluation display
 
 private slots:
     void handleSearchFinished(bool moveFound, bool aborted, const CBmove& bestMove, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime);
@@ -217,6 +217,7 @@ private:
     QLabel *m_blackClockLabel;
     QLabel *m_whiteClockLabel;
     QLabel *m_evaluationLabel; // New QLabel for displaying AI evaluation
+    QLabel *m_depthLabel;
     QSettings settings;
     QTimer *m_uiUpdateTimer;
     bool m_pieceSelected;

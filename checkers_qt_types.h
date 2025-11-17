@@ -36,6 +36,8 @@ enum LogLevel {
 };
 Q_DECLARE_METATYPE(LogLevel)
 
+extern LogLevel s_minLogLevel;
+
 // Define PlayerType enum for configuring AI vs. Human or AI vs. AI
 enum PlayerType {
     PLAYER_HUMAN,
@@ -49,14 +51,13 @@ struct CBoptions {
     bool highlight;
     bool invert_board;
     bool show_coordinates;
-    double time_per_move = 5.0; // Added for AI time control, initialized to 5.0 seconds
+    double time_per_move;
     int gametype;
     QString engine_path;
-    QString secondary_engine_path; // New member for secondary engine path
-    QString engine_name; // New member for engine name
-    QString engine_options; // New member for engine options
+    QString secondary_engine_path;
+    QString engine_name;
+    QString engine_options;
     QString book_path;
-    // Added members from OptionsDialog.cpp
     char userdirectory[MAX_PATH_FIXED];
     char matchdirectory[MAX_PATH_FIXED];
     char EGTBdirectory[MAX_PATH_FIXED];
@@ -72,15 +73,55 @@ struct CBoptions {
     bool op_crossboard;
     bool op_mailplay;
     bool op_barred;
-    int priority; // New member for engine process priority
-    Language language; // New member for language setting
-    int current_engine; // 0 for none, 1 for primary, 2 for secondary
-    QString piece_set; // New member for selected piece set
-    int three_move_option; // New member for 3-move game options
-    LogLevel min_log_level; // New member for minimum log level
-    bool enable_game_timer; // New member to enable/disable the game timer
-    int white_player_type; // New member to define white player type (Human/AI)
-    int black_player_type; // New member to define black player type (Human/AI)
+    int priority;
+    Language language;
+    int current_engine;
+    QString piece_set;
+    int three_move_option;
+    LogLevel min_log_level;
+    bool enable_game_timer;
+    int white_player_type;
+    int black_player_type;
+
+    // Default constructor
+    CBoptions() :
+        sound(true),
+        highlight(true),
+        invert_board(false),
+        show_coordinates(true),
+        time_per_move(2.0),
+        gametype(GT_ENGLISH),
+        engine_path(""),
+        secondary_engine_path(""),
+        engine_name(""),
+        engine_options(""),
+        book_path(""),
+        level(LEVEL_5S),
+        exact_time(false),
+        use_incremental_time(false),
+        initial_time(0),
+        time_increment(0),
+        invert(false),
+        numbers(false),
+        mirror(false),
+        userbook(false),
+        op_crossboard(false),
+        op_mailplay(false),
+        op_barred(false),
+        priority(0),
+        language(LANG_ENGLISH),
+        current_engine(0),
+        piece_set("standard"),
+        three_move_option(0),
+        min_log_level(LogLevel::Info),
+        enable_game_timer(false),
+        white_player_type(PLAYER_HUMAN),
+        black_player_type(PLAYER_HUMAN)
+    {
+        memset(userdirectory, 0, sizeof(userdirectory));
+        memset(matchdirectory, 0, sizeof(matchdirectory));
+        memset(EGTBdirectory, 0, sizeof(EGTBdirectory));
+    }
 };
 
 // C++ wrapper for PDNgame

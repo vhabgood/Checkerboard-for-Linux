@@ -27,6 +27,9 @@ fi
 
 # Force recompilation of c_logic.cpp
 rm -f "${RESOURCE_FILES_DIR}/c_logic.cpp.o"
+rm -f "${RESOURCE_FILES_DIR}/GameManager.o"
+rm -f "${RESOURCE_FILES_DIR}/MainWindow.o"
+rm -f "${RESOURCE_FILES_DIR}/main.o"
 
 # Set PKG_CONFIG_PATH for Qt5
 export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
@@ -45,10 +48,10 @@ INCLUDE_DIRS=(
 INCLUDE_FLAGS="$(printf -- "-I%s " "${INCLUDE_DIRS[@]}")"
 
 # All source files for the main application
-APP_SRCS=("${RESOURCE_FILES_DIR}/main.cpp" "${RESOURCE_FILES_DIR}/MainWindow.cpp" "${RESOURCE_FILES_DIR}/GameManager.cpp" "${RESOURCE_FILES_DIR}/c_logic.cpp" "${RESOURCE_FILES_DIR}/dblookup.c" "${RESOURCE_FILES_DIR}/BoardWidget.cpp" "${RESOURCE_FILES_DIR}/engine_wrapper.cpp" "${RESOURCE_FILES_DIR}/GameDatabaseDialog.cpp" "${RESOURCE_FILES_DIR}/FindPositionDialog.cpp" "${RESOURCE_FILES_DIR}/FindCRDialog.cpp" "${RESOURCE_FILES_DIR}/EngineSelectDialog.cpp" "${RESOURCE_FILES_DIR}/EngineOptionsDialog.cpp" "${RESOURCE_FILES_DIR}/PieceSetDialog.cpp" "${RESOURCE_FILES_DIR}/PriorityDialog.cpp" "${RESOURCE_FILES_DIR}/ThreeMoveOptionsDialog.cpp" "${RESOURCE_FILES_DIR}/DirectoriesDialog.cpp" "${RESOURCE_FILES_DIR}/UserBookDialog.cpp" "${RESOURCE_FILES_DIR}/GeminiAI.cpp")
+APP_SRCS=("${RESOURCE_FILES_DIR}/main.cpp" "${RESOURCE_FILES_DIR}/MainWindow.cpp" "${RESOURCE_FILES_DIR}/GameManager.cpp" "${RESOURCE_FILES_DIR}/c_logic.cpp" "${RESOURCE_FILES_DIR}/dblookup.c" "${RESOURCE_FILES_DIR}/BoardWidget.cpp" "${RESOURCE_FILES_DIR}/engine_wrapper.cpp" "${RESOURCE_FILES_DIR}/GameDatabaseDialog.cpp" "${RESOURCE_FILES_DIR}/FindPositionDialog.cpp" "${RESOURCE_FILES_DIR}/FindCRDialog.cpp" "${RESOURCE_FILES_DIR}/EngineSelectDialog.cpp" "${RESOURCE_FILES_DIR}/EngineOptionsDialog.cpp" "${RESOURCE_FILES_DIR}/PieceSetDialog.cpp" "${RESOURCE_FILES_DIR}/PriorityDialog.cpp" "${RESOURCE_FILES_DIR}/ThreeMoveOptionsDialog.cpp" "${RESOURCE_FILES_DIR}/DirectoriesDialog.cpp" "${RESOURCE_FILES_DIR}/UserBookDialog.cpp" "${RESOURCE_FILES_DIR}/GeminiAI.cpp" "${RESOURCE_FILES_DIR}/global_variables.cpp")
 
 # All source files for the test application
-TEST_SRCS=("${RESOURCE_FILES_DIR}/test_main.cpp" "${RESOURCE_FILES_DIR}/GameManager.cpp" "${RESOURCE_FILES_DIR}/c_logic.cpp" "${RESOURCE_FILES_DIR}/dblookup.c" "${RESOURCE_FILES_DIR}/GeminiAI.cpp" "${RESOURCE_FILES_DIR}/engine_wrapper.cpp")
+TEST_SRCS=("${RESOURCE_FILES_DIR}/test_main.cpp" "${RESOURCE_FILES_DIR}/GameManager.cpp" "${RESOURCE_FILES_DIR}/c_logic.cpp" "${RESOURCE_FILES_DIR}/dblookup.c" "${RESOURCE_FILES_DIR}/GeminiAI.cpp" "${RESOURCE_FILES_DIR}/engine_wrapper.cpp" "${RESOURCE_FILES_DIR}/global_variables.cpp")
 
 # Object files for the main application
 APP_OBJS=()

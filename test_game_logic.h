@@ -13,6 +13,8 @@
 #include "checkers_c_types.h" // Direct include
 #include "checkers_c_types.h" // Direct include
 
+extern LogLevel s_minLogLevel;
+
 class TestGameLogic : public QObject
 {
     Q_OBJECT

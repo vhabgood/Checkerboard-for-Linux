@@ -22,8 +22,8 @@ QT_BEGIN_MOC_NAMESPACE
 QT_WARNING_PUSH
 QT_WARNING_DISABLE_DEPRECATED
 struct qt_meta_stringdata_MainWindow_t {
-    QByteArrayData data[135];
-    char stringdata0[1734];
+    QByteArrayData data[136];
+    char stringdata0[1740];
 };
 #define QT_MOC_LITERAL(idx, ofs, len) \
     Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
@@ -44,143 +44,144 @@ QT_MOC_LITERAL(8, 94, 16), // "setStatusBarText"
 QT_MOC_LITERAL(9, 111, 4), // "text"
 QT_MOC_LITERAL(10, 116, 23), // "updateEvaluationDisplay"
 QT_MOC_LITERAL(11, 140, 5), // "score"
-QT_MOC_LITERAL(12, 146, 20), // "handleSearchFinished"
-QT_MOC_LITERAL(13, 167, 9), // "moveFound"
-QT_MOC_LITERAL(14, 177, 7), // "aborted"
-QT_MOC_LITERAL(15, 185, 6), // "CBmove"
-QT_MOC_LITERAL(16, 192, 8), // "bestMove"
-QT_MOC_LITERAL(17, 201, 10), // "statusText"
-QT_MOC_LITERAL(18, 212, 10), // "gameResult"
-QT_MOC_LITERAL(19, 223, 11), // "pdnMoveText"
-QT_MOC_LITERAL(20, 235, 11), // "elapsedTime"
-QT_MOC_LITERAL(21, 247, 7), // "newGame"
-QT_MOC_LITERAL(22, 255, 15), // "exitApplication"
-QT_MOC_LITERAL(23, 271, 9), // "game3Move"
-QT_MOC_LITERAL(24, 281, 8), // "gameLoad"
-QT_MOC_LITERAL(25, 290, 8), // "gameSave"
-QT_MOC_LITERAL(26, 299, 8), // "gameInfo"
-QT_MOC_LITERAL(27, 308, 11), // "gameAnalyze"
-QT_MOC_LITERAL(28, 320, 8), // "gameCopy"
-QT_MOC_LITERAL(29, 329, 9), // "gamePaste"
-QT_MOC_LITERAL(30, 339, 12), // "gameDatabase"
-QT_MOC_LITERAL(31, 352, 8), // "gameFind"
-QT_MOC_LITERAL(32, 361, 10), // "gameFindCR"
-QT_MOC_LITERAL(33, 372, 13), // "gameFindTheme"
-QT_MOC_LITERAL(34, 386, 14), // "gameSaveAsHtml"
-QT_MOC_LITERAL(35, 401, 11), // "gameDiagram"
-QT_MOC_LITERAL(36, 413, 14), // "gameFindPlayer"
-QT_MOC_LITERAL(37, 428, 18), // "gameFenToClipboard"
-QT_MOC_LITERAL(38, 447, 20), // "gameFenFromClipboard"
-QT_MOC_LITERAL(39, 468, 18), // "gameSelectUserBook"
-QT_MOC_LITERAL(40, 487, 12), // "gameReSearch"
-QT_MOC_LITERAL(41, 500, 12), // "gameLoadNext"
-QT_MOC_LITERAL(42, 513, 16), // "gameLoadPrevious"
-QT_MOC_LITERAL(43, 530, 14), // "gameAnalyzePdn"
-QT_MOC_LITERAL(44, 545, 17), // "gameSampleDiagram"
-QT_MOC_LITERAL(45, 563, 9), // "movesPlay"
-QT_MOC_LITERAL(46, 573, 9), // "movesBack"
-QT_MOC_LITERAL(47, 583, 12), // "movesForward"
-QT_MOC_LITERAL(48, 596, 12), // "movesBackAll"
-QT_MOC_LITERAL(49, 609, 15), // "movesForwardAll"
-QT_MOC_LITERAL(50, 625, 12), // "movesComment"
-QT_MOC_LITERAL(51, 638, 15), // "interruptEngine"
-QT_MOC_LITERAL(52, 654, 11), // "abortEngine"
-QT_MOC_LITERAL(53, 666, 10), // "levelExact"
-QT_MOC_LITERAL(54, 677, 12), // "levelInstant"
-QT_MOC_LITERAL(55, 690, 8), // "level01S"
-QT_MOC_LITERAL(56, 699, 8), // "level02S"
-QT_MOC_LITERAL(57, 708, 8), // "level05S"
-QT_MOC_LITERAL(58, 717, 7), // "level1S"
-QT_MOC_LITERAL(59, 725, 7), // "level2S"
-QT_MOC_LITERAL(60, 733, 7), // "level5S"
-QT_MOC_LITERAL(61, 741, 8), // "level10S"
-QT_MOC_LITERAL(62, 750, 8), // "level15S"
-QT_MOC_LITERAL(63, 759, 8), // "level30S"
-QT_MOC_LITERAL(64, 768, 7), // "level1M"
-QT_MOC_LITERAL(65, 776, 7), // "level2M"
-QT_MOC_LITERAL(66, 784, 7), // "level5M"
-QT_MOC_LITERAL(67, 792, 8), // "level15M"
-QT_MOC_LITERAL(68, 801, 8), // "level30M"
-QT_MOC_LITERAL(69, 810, 13), // "levelInfinite"
-QT_MOC_LITERAL(70, 824, 14), // "levelIncrement"
-QT_MOC_LITERAL(71, 839, 12), // "levelAddTime"
-QT_MOC_LITERAL(72, 852, 17), // "levelSubtractTime"
-QT_MOC_LITERAL(73, 870, 8), // "pieceSet"
-QT_MOC_LITERAL(74, 879, 16), // "optionsHighlight"
-QT_MOC_LITERAL(75, 896, 12), // "optionsSound"
-QT_MOC_LITERAL(76, 909, 15), // "optionsPriority"
-QT_MOC_LITERAL(77, 925, 12), // "options3Move"
-QT_MOC_LITERAL(78, 938, 18), // "optionsDirectories"
-QT_MOC_LITERAL(79, 957, 15), // "optionsUserBook"
-QT_MOC_LITERAL(80, 973, 22), // "optionsLanguageEnglish"
-QT_MOC_LITERAL(81, 996, 22), // "optionsLanguageEspanol"
-QT_MOC_LITERAL(82, 1019, 23), // "optionsLanguageItaliano"
-QT_MOC_LITERAL(83, 1043, 22), // "optionsLanguageDeutsch"
-QT_MOC_LITERAL(84, 1066, 23), // "optionsLanguageFrancais"
-QT_MOC_LITERAL(85, 1090, 13), // "displayInvert"
-QT_MOC_LITERAL(86, 1104, 14), // "displayNumbers"
-QT_MOC_LITERAL(87, 1119, 13), // "displayMirror"
-QT_MOC_LITERAL(88, 1133, 8), // "cmNormal"
-QT_MOC_LITERAL(89, 1142, 10), // "cmAnalysis"
-QT_MOC_LITERAL(90, 1153, 10), // "gotoNormal"
-QT_MOC_LITERAL(91, 1164, 10), // "cmAutoplay"
-QT_MOC_LITERAL(92, 1175, 9), // "cm2Player"
-QT_MOC_LITERAL(93, 1185, 14), // "engineVsEngine"
-QT_MOC_LITERAL(94, 1200, 17), // "colorBoardNumbers"
-QT_MOC_LITERAL(95, 1218, 14), // "colorHighlight"
-QT_MOC_LITERAL(96, 1233, 12), // "bookModeView"
-QT_MOC_LITERAL(97, 1246, 11), // "bookModeAdd"
-QT_MOC_LITERAL(98, 1258, 14), // "bookModeDelete"
-QT_MOC_LITERAL(99, 1273, 12), // "engineSelect"
-QT_MOC_LITERAL(100, 1286, 11), // "engineAbout"
-QT_MOC_LITERAL(101, 1298, 10), // "engineHelp"
-QT_MOC_LITERAL(102, 1309, 13), // "engineOptions"
-QT_MOC_LITERAL(103, 1323, 13), // "engineAnalyze"
-QT_MOC_LITERAL(104, 1337, 14), // "engineInfinite"
-QT_MOC_LITERAL(105, 1352, 12), // "engineResign"
-QT_MOC_LITERAL(106, 1365, 10), // "engineDraw"
-QT_MOC_LITERAL(107, 1376, 14), // "engineUndoMove"
-QT_MOC_LITERAL(108, 1391, 12), // "enginePonder"
-QT_MOC_LITERAL(109, 1404, 13), // "cmEngineMatch"
-QT_MOC_LITERAL(110, 1418, 12), // "cmAddComment"
-QT_MOC_LITERAL(111, 1431, 10), // "engineEval"
-QT_MOC_LITERAL(112, 1442, 15), // "cmEngineCommand"
-QT_MOC_LITERAL(113, 1458, 12), // "cmRunTestSet"
-QT_MOC_LITERAL(114, 1471, 10), // "cmHandicap"
-QT_MOC_LITERAL(115, 1482, 9), // "setupMode"
-QT_MOC_LITERAL(116, 1492, 10), // "setupClear"
-QT_MOC_LITERAL(117, 1503, 10), // "setupBlack"
-QT_MOC_LITERAL(118, 1514, 10), // "setupWhite"
-QT_MOC_LITERAL(119, 1525, 7), // "setupCc"
-QT_MOC_LITERAL(120, 1533, 8), // "helpHelp"
-QT_MOC_LITERAL(121, 1542, 9), // "helpAbout"
-QT_MOC_LITERAL(122, 1552, 23), // "helpCheckersInANutshell"
-QT_MOC_LITERAL(123, 1576, 12), // "helpHomepage"
-QT_MOC_LITERAL(124, 1589, 19), // "helpProblemOfTheDay"
-QT_MOC_LITERAL(125, 1609, 17), // "helpOnlineUpgrade"
-QT_MOC_LITERAL(126, 1627, 11), // "helpAboutQt"
-QT_MOC_LITERAL(127, 1639, 12), // "helpContents"
-QT_MOC_LITERAL(128, 1652, 18), // "handleBoardUpdated"
-QT_MOC_LITERAL(129, 1671, 8), // "Board8x8"
-QT_MOC_LITERAL(130, 1680, 5), // "board"
-QT_MOC_LITERAL(131, 1686, 17), // "handleGameMessage"
-QT_MOC_LITERAL(132, 1704, 7), // "message"
-QT_MOC_LITERAL(133, 1712, 14), // "handleGameOver"
-QT_MOC_LITERAL(134, 1727, 6) // "result"
+QT_MOC_LITERAL(12, 146, 5), // "depth"
+QT_MOC_LITERAL(13, 152, 20), // "handleSearchFinished"
+QT_MOC_LITERAL(14, 173, 9), // "moveFound"
+QT_MOC_LITERAL(15, 183, 7), // "aborted"
+QT_MOC_LITERAL(16, 191, 6), // "CBmove"
+QT_MOC_LITERAL(17, 198, 8), // "bestMove"
+QT_MOC_LITERAL(18, 207, 10), // "statusText"
+QT_MOC_LITERAL(19, 218, 10), // "gameResult"
+QT_MOC_LITERAL(20, 229, 11), // "pdnMoveText"
+QT_MOC_LITERAL(21, 241, 11), // "elapsedTime"
+QT_MOC_LITERAL(22, 253, 7), // "newGame"
+QT_MOC_LITERAL(23, 261, 15), // "exitApplication"
+QT_MOC_LITERAL(24, 277, 9), // "game3Move"
+QT_MOC_LITERAL(25, 287, 8), // "gameLoad"
+QT_MOC_LITERAL(26, 296, 8), // "gameSave"
+QT_MOC_LITERAL(27, 305, 8), // "gameInfo"
+QT_MOC_LITERAL(28, 314, 11), // "gameAnalyze"
+QT_MOC_LITERAL(29, 326, 8), // "gameCopy"
+QT_MOC_LITERAL(30, 335, 9), // "gamePaste"
+QT_MOC_LITERAL(31, 345, 12), // "gameDatabase"
+QT_MOC_LITERAL(32, 358, 8), // "gameFind"
+QT_MOC_LITERAL(33, 367, 10), // "gameFindCR"
+QT_MOC_LITERAL(34, 378, 13), // "gameFindTheme"
+QT_MOC_LITERAL(35, 392, 14), // "gameSaveAsHtml"
+QT_MOC_LITERAL(36, 407, 11), // "gameDiagram"
+QT_MOC_LITERAL(37, 419, 14), // "gameFindPlayer"
+QT_MOC_LITERAL(38, 434, 18), // "gameFenToClipboard"
+QT_MOC_LITERAL(39, 453, 20), // "gameFenFromClipboard"
+QT_MOC_LITERAL(40, 474, 18), // "gameSelectUserBook"
+QT_MOC_LITERAL(41, 493, 12), // "gameReSearch"
+QT_MOC_LITERAL(42, 506, 12), // "gameLoadNext"
+QT_MOC_LITERAL(43, 519, 16), // "gameLoadPrevious"
+QT_MOC_LITERAL(44, 536, 14), // "gameAnalyzePdn"
+QT_MOC_LITERAL(45, 551, 17), // "gameSampleDiagram"
+QT_MOC_LITERAL(46, 569, 9), // "movesPlay"
+QT_MOC_LITERAL(47, 579, 9), // "movesBack"
+QT_MOC_LITERAL(48, 589, 12), // "movesForward"
+QT_MOC_LITERAL(49, 602, 12), // "movesBackAll"
+QT_MOC_LITERAL(50, 615, 15), // "movesForwardAll"
+QT_MOC_LITERAL(51, 631, 12), // "movesComment"
+QT_MOC_LITERAL(52, 644, 15), // "interruptEngine"
+QT_MOC_LITERAL(53, 660, 11), // "abortEngine"
+QT_MOC_LITERAL(54, 672, 10), // "levelExact"
+QT_MOC_LITERAL(55, 683, 12), // "levelInstant"
+QT_MOC_LITERAL(56, 696, 8), // "level01S"
+QT_MOC_LITERAL(57, 705, 8), // "level02S"
+QT_MOC_LITERAL(58, 714, 8), // "level05S"
+QT_MOC_LITERAL(59, 723, 7), // "level1S"
+QT_MOC_LITERAL(60, 731, 7), // "level2S"
+QT_MOC_LITERAL(61, 739, 7), // "level5S"
+QT_MOC_LITERAL(62, 747, 8), // "level10S"
+QT_MOC_LITERAL(63, 756, 8), // "level15S"
+QT_MOC_LITERAL(64, 765, 8), // "level30S"
+QT_MOC_LITERAL(65, 774, 7), // "level1M"
+QT_MOC_LITERAL(66, 782, 7), // "level2M"
+QT_MOC_LITERAL(67, 790, 7), // "level5M"
+QT_MOC_LITERAL(68, 798, 8), // "level15M"
+QT_MOC_LITERAL(69, 807, 8), // "level30M"
+QT_MOC_LITERAL(70, 816, 13), // "levelInfinite"
+QT_MOC_LITERAL(71, 830, 14), // "levelIncrement"
+QT_MOC_LITERAL(72, 845, 12), // "levelAddTime"
+QT_MOC_LITERAL(73, 858, 17), // "levelSubtractTime"
+QT_MOC_LITERAL(74, 876, 8), // "pieceSet"
+QT_MOC_LITERAL(75, 885, 16), // "optionsHighlight"
+QT_MOC_LITERAL(76, 902, 12), // "optionsSound"
+QT_MOC_LITERAL(77, 915, 15), // "optionsPriority"
+QT_MOC_LITERAL(78, 931, 12), // "options3Move"
+QT_MOC_LITERAL(79, 944, 18), // "optionsDirectories"
+QT_MOC_LITERAL(80, 963, 15), // "optionsUserBook"
+QT_MOC_LITERAL(81, 979, 22), // "optionsLanguageEnglish"
+QT_MOC_LITERAL(82, 1002, 22), // "optionsLanguageEspanol"
+QT_MOC_LITERAL(83, 1025, 23), // "optionsLanguageItaliano"
+QT_MOC_LITERAL(84, 1049, 22), // "optionsLanguageDeutsch"
+QT_MOC_LITERAL(85, 1072, 23), // "optionsLanguageFrancais"
+QT_MOC_LITERAL(86, 1096, 13), // "displayInvert"
+QT_MOC_LITERAL(87, 1110, 14), // "displayNumbers"
+QT_MOC_LITERAL(88, 1125, 13), // "displayMirror"
+QT_MOC_LITERAL(89, 1139, 8), // "cmNormal"
+QT_MOC_LITERAL(90, 1148, 10), // "cmAnalysis"
+QT_MOC_LITERAL(91, 1159, 10), // "gotoNormal"
+QT_MOC_LITERAL(92, 1170, 10), // "cmAutoplay"
+QT_MOC_LITERAL(93, 1181, 9), // "cm2Player"
+QT_MOC_LITERAL(94, 1191, 14), // "engineVsEngine"
+QT_MOC_LITERAL(95, 1206, 17), // "colorBoardNumbers"
+QT_MOC_LITERAL(96, 1224, 14), // "colorHighlight"
+QT_MOC_LITERAL(97, 1239, 12), // "bookModeView"
+QT_MOC_LITERAL(98, 1252, 11), // "bookModeAdd"
+QT_MOC_LITERAL(99, 1264, 14), // "bookModeDelete"
+QT_MOC_LITERAL(100, 1279, 12), // "engineSelect"
+QT_MOC_LITERAL(101, 1292, 11), // "engineAbout"
+QT_MOC_LITERAL(102, 1304, 10), // "engineHelp"
+QT_MOC_LITERAL(103, 1315, 13), // "engineOptions"
+QT_MOC_LITERAL(104, 1329, 13), // "engineAnalyze"
+QT_MOC_LITERAL(105, 1343, 14), // "engineInfinite"
+QT_MOC_LITERAL(106, 1358, 12), // "engineResign"
+QT_MOC_LITERAL(107, 1371, 10), // "engineDraw"
+QT_MOC_LITERAL(108, 1382, 14), // "engineUndoMove"
+QT_MOC_LITERAL(109, 1397, 12), // "enginePonder"
+QT_MOC_LITERAL(110, 1410, 13), // "cmEngineMatch"
+QT_MOC_LITERAL(111, 1424, 12), // "cmAddComment"
+QT_MOC_LITERAL(112, 1437, 10), // "engineEval"
+QT_MOC_LITERAL(113, 1448, 15), // "cmEngineCommand"
+QT_MOC_LITERAL(114, 1464, 12), // "cmRunTestSet"
+QT_MOC_LITERAL(115, 1477, 10), // "cmHandicap"
+QT_MOC_LITERAL(116, 1488, 9), // "setupMode"
+QT_MOC_LITERAL(117, 1498, 10), // "setupClear"
+QT_MOC_LITERAL(118, 1509, 10), // "setupBlack"
+QT_MOC_LITERAL(119, 1520, 10), // "setupWhite"
+QT_MOC_LITERAL(120, 1531, 7), // "setupCc"
+QT_MOC_LITERAL(121, 1539, 8), // "helpHelp"
+QT_MOC_LITERAL(122, 1548, 9), // "helpAbout"
+QT_MOC_LITERAL(123, 1558, 23), // "helpCheckersInANutshell"
+QT_MOC_LITERAL(124, 1582, 12), // "helpHomepage"
+QT_MOC_LITERAL(125, 1595, 19), // "helpProblemOfTheDay"
+QT_MOC_LITERAL(126, 1615, 17), // "helpOnlineUpgrade"
+QT_MOC_LITERAL(127, 1633, 11), // "helpAboutQt"
+QT_MOC_LITERAL(128, 1645, 12), // "helpContents"
+QT_MOC_LITERAL(129, 1658, 18), // "handleBoardUpdated"
+QT_MOC_LITERAL(130, 1677, 8), // "Board8x8"
+QT_MOC_LITERAL(131, 1686, 5), // "board"
+QT_MOC_LITERAL(132, 1692, 17), // "handleGameMessage"
+QT_MOC_LITERAL(133, 1710, 7), // "message"
+QT_MOC_LITERAL(134, 1718, 14), // "handleGameOver"
+QT_MOC_LITERAL(135, 1733, 6) // "result"
 
     },
     "MainWindow\0setPrimaryEnginePath\0\0path\0"
     "setSecondaryEnginePath\0changeAppState\0"
     "AppState\0newState\0setStatusBarText\0"
     "text\0updateEvaluationDisplay\0score\0"
-    "handleSearchFinished\0moveFound\0aborted\0"
-    "CBmove\0bestMove\0statusText\0gameResult\0"
-    "pdnMoveText\0elapsedTime\0newGame\0"
-    "exitApplication\0game3Move\0gameLoad\0"
-    "gameSave\0gameInfo\0gameAnalyze\0gameCopy\0"
-    "gamePaste\0gameDatabase\0gameFind\0"
-    "gameFindCR\0gameFindTheme\0gameSaveAsHtml\0"
-    "gameDiagram\0gameFindPlayer\0"
+    "depth\0handleSearchFinished\0moveFound\0"
+    "aborted\0CBmove\0bestMove\0statusText\0"
+    "gameResult\0pdnMoveText\0elapsedTime\0"
+    "newGame\0exitApplication\0game3Move\0"
+    "gameLoad\0gameSave\0gameInfo\0gameAnalyze\0"
+    "gameCopy\0gamePaste\0gameDatabase\0"
+    "gameFind\0gameFindCR\0gameFindTheme\0"
+    "gameSaveAsHtml\0gameDiagram\0gameFindPlayer\0"
     "gameFenToClipboard\0gameFenFromClipboard\0"
     "gameSelectUserBook\0gameReSearch\0"
     "gameLoadNext\0gameLoadPrevious\0"
@@ -239,118 +240,118 @@ static const uint qt_meta_data_MainWindow[] = {
  // slots: name, argc, parameters, tag, flags
        5,    1,  600,    2, 0x0a /* Public */,
        8,    1,  603,    2, 0x0a /* Public */,
-      10,    1,  606,    2, 0x0a /* Public */,
-      12,    7,  609,    2, 0x08 /* Private */,
-      21,    0,  624,    2, 0x08 /* Private */,
-      22,    0,  625,    2, 0x08 /* Private */,
-      23,    0,  626,    2, 0x08 /* Private */,
-      24,    0,  627,    2, 0x08 /* Private */,
-      25,    0,  628,    2, 0x08 /* Private */,
-      26,    0,  629,    2, 0x08 /* Private */,
-      27,    0,  630,    2, 0x08 /* Private */,
-      28,    0,  631,    2, 0x08 /* Private */,
-      29,    0,  632,    2, 0x08 /* Private */,
-      30,    0,  633,    2, 0x08 /* Private */,
-      31,    0,  634,    2, 0x08 /* Private */,
-      32,    0,  635,    2, 0x08 /* Private */,
-      33,    0,  636,    2, 0x08 /* Private */,
-      34,    0,  637,    2, 0x08 /* Private */,
-      35,    0,  638,    2, 0x08 /* Private */,
-      36,    0,  639,    2, 0x08 /* Private */,
-      37,    0,  640,    2, 0x08 /* Private */,
-      38,    0,  641,    2, 0x08 /* Private */,
-      39,    0,  642,    2, 0x08 /* Private */,
-      40,    0,  643,    2, 0x08 /* Private */,
-      41,    0,  644,    2, 0x08 /* Private */,
-      42,    0,  645,    2, 0x08 /* Private */,
-      43,    0,  646,    2, 0x08 /* Private */,
-      44,    0,  647,    2, 0x08 /* Private */,
-      45,    0,  648,    2, 0x08 /* Private */,
-      46,    0,  649,    2, 0x08 /* Private */,
-      47,    0,  650,    2, 0x08 /* Private */,
-      48,    0,  651,    2, 0x08 /* Private */,
-      49,    0,  652,    2, 0x08 /* Private */,
-      50,    0,  653,    2, 0x08 /* Private */,
-      51,    0,  654,    2, 0x08 /* Private */,
-      52,    0,  655,    2, 0x08 /* Private */,
-      53,    0,  656,    2, 0x08 /* Private */,
-      54,    0,  657,    2, 0x08 /* Private */,
-      55,    0,  658,    2, 0x08 /* Private */,
-      56,    0,  659,    2, 0x08 /* Private */,
-      57,    0,  660,    2, 0x08 /* Private */,
-      58,    0,  661,    2, 0x08 /* Private */,
-      59,    0,  662,    2, 0x08 /* Private */,
-      60,    0,  663,    2, 0x08 /* Private */,
-      61,    0,  664,    2, 0x08 /* Private */,
-      62,    0,  665,    2, 0x08 /* Private */,
-      63,    0,  666,    2, 0x08 /* Private */,
-      64,    0,  667,    2, 0x08 /* Private */,
-      65,    0,  668,    2, 0x08 /* Private */,
-      66,    0,  669,    2, 0x08 /* Private */,
-      67,    0,  670,    2, 0x08 /* Private */,
-      68,    0,  671,    2, 0x08 /* Private */,
-      69,    0,  672,    2, 0x08 /* Private */,
-      70,    0,  673,    2, 0x08 /* Private */,
-      71,    0,  674,    2, 0x08 /* Private */,
-      72,    0,  675,    2, 0x08 /* Private */,
-      73,    0,  676,    2, 0x08 /* Private */,
-      74,    0,  677,    2, 0x08 /* Private */,
-      75,    0,  678,    2, 0x08 /* Private */,
-      76,    0,  679,    2, 0x08 /* Private */,
-      77,    0,  680,    2, 0x08 /* Private */,
-      78,    0,  681,    2, 0x08 /* Private */,
-      79,    0,  682,    2, 0x08 /* Private */,
-      80,    0,  683,    2, 0x08 /* Private */,
-      81,    0,  684,    2, 0x08 /* Private */,
-      82,    0,  685,    2, 0x08 /* Private */,
-      83,    0,  686,    2, 0x08 /* Private */,
-      84,    0,  687,    2, 0x08 /* Private */,
-      85,    0,  688,    2, 0x08 /* Private */,
-      86,    0,  689,    2, 0x08 /* Private */,
-      87,    0,  690,    2, 0x08 /* Private */,
-      88,    0,  691,    2, 0x08 /* Private */,
-      89,    0,  692,    2, 0x08 /* Private */,
-      90,    0,  693,    2, 0x08 /* Private */,
-      91,    0,  694,    2, 0x08 /* Private */,
-      92,    0,  695,    2, 0x08 /* Private */,
-      93,    0,  696,    2, 0x08 /* Private */,
-      94,    0,  697,    2, 0x08 /* Private */,
-      95,    0,  698,    2, 0x08 /* Private */,
-      96,    0,  699,    2, 0x08 /* Private */,
-      97,    0,  700,    2, 0x08 /* Private */,
-      98,    0,  701,    2, 0x08 /* Private */,
-      99,    0,  702,    2, 0x08 /* Private */,
-     100,    0,  703,    2, 0x08 /* Private */,
-     101,    0,  704,    2, 0x08 /* Private */,
-     102,    0,  705,    2, 0x08 /* Private */,
-     103,    0,  706,    2, 0x08 /* Private */,
-     104,    0,  707,    2, 0x08 /* Private */,
-     105,    0,  708,    2, 0x08 /* Private */,
-     106,    0,  709,    2, 0x08 /* Private */,
-     107,    0,  710,    2, 0x08 /* Private */,
-     108,    0,  711,    2, 0x08 /* Private */,
-     109,    0,  712,    2, 0x08 /* Private */,
-     110,    0,  713,    2, 0x08 /* Private */,
-     111,    0,  714,    2, 0x08 /* Private */,
-     112,    0,  715,    2, 0x08 /* Private */,
-     113,    0,  716,    2, 0x08 /* Private */,
-     114,    0,  717,    2, 0x08 /* Private */,
-     115,    0,  718,    2, 0x08 /* Private */,
-     116,    0,  719,    2, 0x08 /* Private */,
-     117,    0,  720,    2, 0x08 /* Private */,
-     118,    0,  721,    2, 0x08 /* Private */,
-     119,    0,  722,    2, 0x08 /* Private */,
-     120,    0,  723,    2, 0x08 /* Private */,
-     121,    0,  724,    2, 0x08 /* Private */,
-     122,    0,  725,    2, 0x08 /* Private */,
-     123,    0,  726,    2, 0x08 /* Private */,
-     124,    0,  727,    2, 0x08 /* Private */,
-     125,    0,  728,    2, 0x08 /* Private */,
-     126,    0,  729,    2, 0x08 /* Private */,
-     127,    0,  730,    2, 0x08 /* Private */,
-     128,    1,  731,    2, 0x08 /* Private */,
-     131,    1,  734,    2, 0x08 /* Private */,
-     133,    1,  737,    2, 0x08 /* Private */,
+      10,    2,  606,    2, 0x0a /* Public */,
+      13,    7,  611,    2, 0x08 /* Private */,
+      22,    0,  626,    2, 0x08 /* Private */,
+      23,    0,  627,    2, 0x08 /* Private */,
+      24,    0,  628,    2, 0x08 /* Private */,
+      25,    0,  629,    2, 0x08 /* Private */,
+      26,    0,  630,    2, 0x08 /* Private */,
+      27,    0,  631,    2, 0x08 /* Private */,
+      28,    0,  632,    2, 0x08 /* Private */,
+      29,    0,  633,    2, 0x08 /* Private */,
+      30,    0,  634,    2, 0x08 /* Private */,
+      31,    0,  635,    2, 0x08 /* Private */,
+      32,    0,  636,    2, 0x08 /* Private */,
+      33,    0,  637,    2, 0x08 /* Private */,
+      34,    0,  638,    2, 0x08 /* Private */,
+      35,    0,  639,    2, 0x08 /* Private */,
+      36,    0,  640,    2, 0x08 /* Private */,
+      37,    0,  641,    2, 0x08 /* Private */,
+      38,    0,  642,    2, 0x08 /* Private */,
+      39,    0,  643,    2, 0x08 /* Private */,
+      40,    0,  644,    2, 0x08 /* Private */,
+      41,    0,  645,    2, 0x08 /* Private */,
+      42,    0,  646,    2, 0x08 /* Private */,
+      43,    0,  647,    2, 0x08 /* Private */,
+      44,    0,  648,    2, 0x08 /* Private */,
+      45,    0,  649,    2, 0x08 /* Private */,
+      46,    0,  650,    2, 0x08 /* Private */,
+      47,    0,  651,    2, 0x08 /* Private */,
+      48,    0,  652,    2, 0x08 /* Private */,
+      49,    0,  653,    2, 0x08 /* Private */,
+      50,    0,  654,    2, 0x08 /* Private */,
+      51,    0,  655,    2, 0x08 /* Private */,
+      52,    0,  656,    2, 0x08 /* Private */,
+      53,    0,  657,    2, 0x08 /* Private */,
+      54,    0,  658,    2, 0x08 /* Private */,
+      55,    0,  659,    2, 0x08 /* Private */,
+      56,    0,  660,    2, 0x08 /* Private */,
+      57,    0,  661,    2, 0x08 /* Private */,
+      58,    0,  662,    2, 0x08 /* Private */,
+      59,    0,  663,    2, 0x08 /* Private */,
+      60,    0,  664,    2, 0x08 /* Private */,
+      61,    0,  665,    2, 0x08 /* Private */,
+      62,    0,  666,    2, 0x08 /* Private */,
+      63,    0,  667,    2, 0x08 /* Private */,
+      64,    0,  668,    2, 0x08 /* Private */,
+      65,    0,  669,    2, 0x08 /* Private */,
+      66,    0,  670,    2, 0x08 /* Private */,
+      67,    0,  671,    2, 0x08 /* Private */,
+      68,    0,  672,    2, 0x08 /* Private */,
+      69,    0,  673,    2, 0x08 /* Private */,
+      70,    0,  674,    2, 0x08 /* Private */,
+      71,    0,  675,    2, 0x08 /* Private */,
+      72,    0,  676,    2, 0x08 /* Private */,
+      73,    0,  677,    2, 0x08 /* Private */,
+      74,    0,  678,    2, 0x08 /* Private */,
+      75,    0,  679,    2, 0x08 /* Private */,
+      76,    0,  680,    2, 0x08 /* Private */,
+      77,    0,  681,    2, 0x08 /* Private */,
+      78,    0,  682,    2, 0x08 /* Private */,
+      79,    0,  683,    2, 0x08 /* Private */,
+      80,    0,  684,    2, 0x08 /* Private */,
+      81,    0,  685,    2, 0x08 /* Private */,
+      82,    0,  686,    2, 0x08 /* Private */,
+      83,    0,  687,    2, 0x08 /* Private */,
+      84,    0,  688,    2, 0x08 /* Private */,
+      85,    0,  689,    2, 0x08 /* Private */,
+      86,    0,  690,    2, 0x08 /* Private */,
+      87,    0,  691,    2, 0x08 /* Private */,
+      88,    0,  692,    2, 0x08 /* Private */,
+      89,    0,  693,    2, 0x08 /* Private */,
+      90,    0,  694,    2, 0x08 /* Private */,
+      91,    0,  695,    2, 0x08 /* Private */,
+      92,    0,  696,    2, 0x08 /* Private */,
+      93,    0,  697,    2, 0x08 /* Private */,
+      94,    0,  698,    2, 0x08 /* Private */,
+      95,    0,  699,    2, 0x08 /* Private */,
+      96,    0,  700,    2, 0x08 /* Private */,
+      97,    0,  701,    2, 0x08 /* Private */,
+      98,    0,  702,    2, 0x08 /* Private */,
+      99,    0,  703,    2, 0x08 /* Private */,
+     100,    0,  704,    2, 0x08 /* Private */,
+     101,    0,  705,    2, 0x08 /* Private */,
+     102,    0,  706,    2, 0x08 /* Private */,
+     103,    0,  707,    2, 0x08 /* Private */,
+     104,    0,  708,    2, 0x08 /* Private */,
+     105,    0,  709,    2, 0x08 /* Private */,
+     106,    0,  710,    2, 0x08 /* Private */,
+     107,    0,  711,    2, 0x08 /* Private */,
+     108,    0,  712,    2, 0x08 /* Private */,
+     109,    0,  713,    2, 0x08 /* Private */,
+     110,    0,  714,    2, 0x08 /* Private */,
+     111,    0,  715,    2, 0x08 /* Private */,
+     112,    0,  716,    2, 0x08 /* Private */,
+     113,    0,  717,    2, 0x08 /* Private */,
+     114,    0,  718,    2, 0x08 /* Private */,
+     115,    0,  719,    2, 0x08 /* Private */,
+     116,    0,  720,    2, 0x08 /* Private */,
+     117,    0,  721,    2, 0x08 /* Private */,
+     118,    0,  722,    2, 0x08 /* Private */,
+     119,    0,  723,    2, 0x08 /* Private */,
+     120,    0,  724,    2, 0x08 /* Private */,
+     121,    0,  725,    2, 0x08 /* Private */,
+     122,    0,  726,    2, 0x08 /* Private */,
+     123,    0,  727,    2, 0x08 /* Private */,
+     124,    0,  728,    2, 0x08 /* Private */,
+     125,    0,  729,    2, 0x08 /* Private */,
+     126,    0,  730,    2, 0x08 /* Private */,
+     127,    0,  731,    2, 0x08 /* Private */,
+     128,    0,  732,    2, 0x08 /* Private */,
+     129,    1,  733,    2, 0x08 /* Private */,
+     132,    1,  736,    2, 0x08 /* Private */,
+     134,    1,  739,    2, 0x08 /* Private */,
 
  // signals: parameters
     QMetaType::Void, QMetaType::QString,    3,
@@ -359,8 +360,8 @@ static const uint qt_meta_data_MainWindow[] = {
  // slots: parameters
     QMetaType::Void, 0x80000000 | 6,    7,
     QMetaType::Void, QMetaType::QString,    9,
-    QMetaType::Void, QMetaType::Int,   11,
-    QMetaType::Void, QMetaType::Bool, QMetaType::Bool, 0x80000000 | 15, QMetaType::QString, QMetaType::Int, QMetaType::QString, QMetaType::Double,   13,   14,   16,   17,   18,   19,   20,
+    QMetaType::Void, QMetaType::Int, QMetaType::Int,   11,   12,
+    QMetaType::Void, QMetaType::Bool, QMetaType::Bool, 0x80000000 | 16, QMetaType::QString, QMetaType::Int, QMetaType::QString, QMetaType::Double,   14,   15,   17,   18,   19,   20,   21,
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
@@ -468,9 +469,9 @@ static const uint qt_meta_data_MainWindow[] = {
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
-    QMetaType::Void, 0x80000000 | 129,  130,
-    QMetaType::Void, QMetaType::QString,  132,
-    QMetaType::Void, QMetaType::Int,  134,
+    QMetaType::Void, 0x80000000 | 130,  131,
+    QMetaType::Void, QMetaType::QString,  133,
+    QMetaType::Void, QMetaType::Int,  135,
 
        0        // eod
 };
@@ -485,7 +486,7 @@ void MainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         case 1: _t->setSecondaryEnginePath((*reinterpret_cast< const QString(*)>(_a[1]))); break;
         case 2: _t->changeAppState((*reinterpret_cast< AppState(*)>(_a[1]))); break;
         case 3: _t->setStatusBarText((*reinterpret_cast< const QString(*)>(_a[1]))); break;
-        case 4: _t->updateEvaluationDisplay((*reinterpret_cast< int(*)>(_a[1]))); break;
+        case 4: _t->updateEvaluationDisplay((*reinterpret_cast< int(*)>(_a[1])),(*reinterpret_cast< int(*)>(_a[2]))); break;
         case 5: _t->handleSearchFinished((*reinterpret_cast< bool(*)>(_a[1])),(*reinterpret_cast< bool(*)>(_a[2])),(*reinterpret_cast< const CBmove(*)>(_a[3])),(*reinterpret_cast< const QString(*)>(_a[4])),(*reinterpret_cast< int(*)>(_a[5])),(*reinterpret_cast< const QString(*)>(_a[6])),(*reinterpret_cast< double(*)>(_a[7]))); break;
         case 6: _t->newGame(); break;
         case 7: _t->exitApplication(); break;

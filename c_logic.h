@@ -64,7 +64,7 @@ void start3move_c(Board8x8* board, int opening_index);
 void domove_c(const CBmove *move, Board8x8* board);
 void unmake_move_c(const CBmove *move, Board8x8* board);
 void board8toboard12(const Board8x8* b, int board12[12][12]);
-void makemovelist(int color, CBmove movelist[MAXMOVES], int board[12][12], int *isjump, int *n);
+void makemovelist(int color, CBmove movelist[MAXMOVES], pos *position, int *isjump, int *n);
 void whitecapture(int board[12][12], CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n_moves);
 void blackcapture(int board[12][12], CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n_moves);
 void whitekingcapture(int board[12][12], CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n_moves);

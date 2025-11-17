@@ -219,7 +219,7 @@ void GeminiAI::setSecondaryExternalEnginePath(const QString& path)
 
 void GeminiAI::requestMove(Board8x8 board, int colorToMove, double timeLimit)
 {
-    // GameManager::log(LogLevel::Debug, QString("GeminiAI: requestMove called. Color: %1, Time Limit: %2").arg(colorToMove).arg(timeLimit)); // Removed verbose log
+    GameManager::log(LogLevel::Debug, QString("GeminiAI: requestMove called. Color: %1, Time Limit: %2").arg(colorToMove).arg(timeLimit));
 
     if (m_useExternalEngine && m_primaryExternalEngine) {
         // Convert Board8x8 to FEN
@@ -454,8 +454,11 @@ uint64_t GeminiAI::generateZobristKey(const Board8x8& board, int colorToMove)
 CBmove GeminiAI::getBestMove(Board8x8 board, int color, double maxtime)
 {
     m_abortRequested.storeRelaxed(0); // Reset abort flag
+    m_transpositionTable.clear(); // Clear transposition table for each new search
 
-    // GameManager::log(LogLevel::Debug, QString("GeminiAI::getBestMove: Entering with maxtime: %1, color: %2").arg(maxtime).arg(color)); // Removed verbose log
+    char fen_c[256];
+    board8toFEN(&board, fen_c, color, GT_ENGLISH);
+    GameManager::log(LogLevel::Debug, QString("GeminiAI::getBestMove: Entering with maxtime: %1, color: %2, FEN: %3").arg(maxtime).arg(color == CB_WHITE ? "WHITE" : "BLACK").arg(fen_c));
 
     CBmove bestMoveRoot = {0}; // Stores the best move found by iterative deepening
     int bestValueRoot = LOSS_SCORE;
@@ -572,58 +575,61 @@ CBmove GeminiAI::getBestMove(Board8x8 board, int color, double maxtime)
         return bestMoveRoot;
     }
 
-    // Check for forced moves (jumps)
-    std::vector<CBmove> jumps;
+    // Separate captures from non-captures
+    std::vector<CBmove> captureMoves;
+    std::vector<CBmove> nonCaptureMoves;
     for (int i = 0; i < nmoves; ++i) {
         if (moves[i].is_capture) {
-            jumps.push_back(moves[i]);
+            captureMoves.push_back(moves[i]);
+        } else {
+            nonCaptureMoves.push_back(moves[i]);
         }
     }
 
-    if (jumps.size() == 1) {
-        GameManager::log(LogLevel::Info, "GeminiAI::getBestMove: Only one legal jump, returning it immediately.");
-        m_lastEvaluationScore = evaluateBoard(board, color);
+    // If there are captures, only consider those moves
+    std::vector<CBmove>* movesToConsider = &nonCaptureMoves;
+    if (!captureMoves.empty()) {
+        movesToConsider = &captureMoves;
+        GameManager::log(LogLevel::Debug, QString("GeminiAI::getBestMove: %1 capture moves available. Prioritizing captures.").arg(captureMoves.size()));
+    } else {
+        GameManager::log(LogLevel::Debug, QString("GeminiAI::getBestMove: No capture moves available. Considering %1 non-capture moves.").arg(nonCaptureMoves.size()));
+    }
+
+    // Handle immediate forced moves (single capture or single non-capture move)
+    if (movesToConsider->size() == 1) {
+        GameManager::log(LogLevel::Info, "GeminiAI::getBestMove: Only one legal move (capture or non-capture), returning it immediately.");
+        m_lastEvaluationScore = evaluateBoard(board, color); // Evaluate current board for score
         m_lastSearchDepth = 0;
-        return jumps[0];
+        return movesToConsider->at(0);
     }
 
-    if (nmoves == 1) {
-        GameManager::log(LogLevel::Info, "GeminiAI::getBestMove: Only one legal move, returning it immediately.");
-        m_lastEvaluationScore = evaluateBoard(board, color);
-        m_lastSearchDepth = 0;
-        return moves[0];
-    }
-
-    // If there are jumps, only consider those moves
-    if (!jumps.empty()) {
-        nmoves = jumps.size();
-        for (int i = 0; i < nmoves; ++i) {
-            moves[i] = jumps[i];
-        }
-    }
-
-    // Sort moves to prioritize captures (already done by the jump check, but good for non-jumps)
-    std::sort(moves, moves + nmoves, compareMoves);
-
+    // Sort moves to prioritize captures (already done by the captureMoves/nonCaptureMoves separation)
+    // For non-captures, a more advanced heuristic could be used.
+    // For now, we'll just sort them by a simple heuristic if needed, or rely on the search.
+    // std::sort(movesToConsider->begin(), movesToConsider->end(), compareMoves); // compareMoves is for CBmove array, not vector
 
         currentIterationBestValue = std::numeric_limits<int>::min();
         CBmove iterationBestMove = {0}; // Best move for this iteration
 
-        for (int i = 0; i < nmoves; ++i) {
+        for (const auto& move : *movesToConsider) {
             if (m_abortRequested.loadRelaxed()) {
                 GameManager::log(LogLevel::Info, QString("GeminiAI::getBestMove: Abort requested during move iteration at depth %1.").arg(current_depth));
                 break; // Abort if requested
             }
 
             Board8x8 nextBoard = board;
-            domove_c(&moves[i], &nextBoard); // Make the move
+            domove_c(&move, &nextBoard); // Make the move
+            char next_fen_c[256];
+            board8toFEN(&nextBoard, next_fen_c, (color == CB_WHITE) ? CB_BLACK : CB_WHITE, GT_ENGLISH);
+            GameManager::log(LogLevel::Debug, QString("GeminiAI::getBestMove: Considering move from(%1,%2) to(%3,%4). Board FEN after move: %5").arg(move.from.x).arg(move.from.y).arg(move.to.x).arg(move.to.y).arg(next_fen_c));
 
             // Call minimax with the current iteration depth
             int moveValue = -minimax(nextBoard, (color == CB_WHITE) ? CB_BLACK : CB_WHITE, current_depth - 1, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), nullptr, true);
+            GameManager::log(LogLevel::Debug, QString("GeminiAI::getBestMove: Depth %1, Move from(%2,%3) to(%4,%5), Value: %6").arg(current_depth).arg(move.from.x).arg(move.from.y).arg(move.to.x).arg(move.to.y).arg(moveValue));
 
             if (moveValue > currentIterationBestValue) {
                 currentIterationBestValue = moveValue;
-                iterationBestMove = moves[i];
+                iterationBestMove = move;
             }
         }
 
@@ -646,6 +652,7 @@ CBmove GeminiAI::getBestMove(Board8x8 board, int color, double maxtime)
 
     m_lastEvaluationScore = bestValueRoot; // Store the final evaluation score
     m_lastSearchDepth = actualSearchDepth; // Store the final search depth
+    emit evaluationReady(m_lastEvaluationScore, m_lastSearchDepth); // Emit the signal with the final results
     GameManager::log(LogLevel::Info, QString("GeminiAI::getBestMove: Final best move: from(%1,%2) to(%3,%4), score: %5, depth: %6").arg(bestMoveRoot.from.x).arg(bestMoveRoot.from.y).arg(bestMoveRoot.to.x).arg(bestMoveRoot.to.y).arg(m_lastEvaluationScore).arg(m_lastSearchDepth));
     return bestMoveRoot;
 }
@@ -653,238 +660,61 @@ CBmove GeminiAI::getBestMove(Board8x8 board, int color, double maxtime)
 int GeminiAI::evaluateBoard(const Board8x8& board, int color)
 {
     int evaluation = 0;
-    int opponentColor = (color == CB_WHITE) ? CB_BLACK : CB_WHITE;
+    int white_pieces = 0;
+    int black_pieces = 0;
 
-    int whiteMen = 0;
-    int whiteKings = 0;
-    int blackMen = 0;
-    int blackKings = 0;
-
-    CBmove legalMoves[MAXMOVES];
-    int nmovesCurrentPlayer = 0;
-    int nmovesOpponent = 0;
-    int isjump = 0;
-    pos currentPos;
-    boardtobitboard(&board, &currentPos);
-    bool dummy_can_continue_multijump = false;
-    get_legal_moves_c(&currentPos, color, legalMoves, &nmovesCurrentPlayer, &isjump, NULL, &dummy_can_continue_multijump);
-
-    // Material and PST evaluation
     for (int r = 0; r < 8; ++r) {
         for (int c = 0; c < 8; ++c) {
             int piece = board.board[r][c];
-            int pieceValue = 0;
+            if (piece == CB_EMPTY) continue;
 
-            switch (piece) {
-                case (CB_WHITE | CB_MAN):
-                    pieceValue = 200;
-                    evaluation += pieceValue;
-                    evaluation += whiteManPST[r][c];
-                    whiteMen++;
-                    if (r == 5) evaluation += 20;
-                    if (r == 6) evaluation += 40;
-                    break;
-                case (CB_WHITE | CB_KING):
-                    pieceValue = 400;
-                    evaluation += pieceValue;
-                    evaluation += whiteKingPST[r][c];
-                    whiteKings++;
-                    break;
-                case (CB_BLACK | CB_MAN):
-                    pieceValue = 200;
-                    evaluation -= pieceValue;
-                    evaluation -= blackManPST[r][c];
-                    blackMen++;
-                    if (r == 2) evaluation -= 20;
-                    if (r == 1) evaluation -= 40;
-                    break;
-                case (CB_BLACK | CB_KING):
-                    pieceValue = 400;
-                    evaluation -= pieceValue;
-                    evaluation -= blackKingPST[r][c];
-                    blackKings++;
-                    break;
-                default:
-                    break;
-            }
+            int piece_color = (piece & CB_WHITE) ? CB_WHITE : CB_BLACK;
+            bool is_king = (piece & CB_KING);
+            int piece_value = is_king ? 400 : 200;
 
-            // Tactical considerations: Penalize undefended pieces that are attacked
-            if (piece != CB_EMPTY) {
-                int pieceColor = (piece & CB_WHITE) ? CB_WHITE : CB_BLACK;
-                if (pieceColor == color) { // Only consider current player's pieces
-                    if (isSquareAttacked(board, r, c, opponentColor)) {
-                        bool isDefended = false;
-                        
-                        // New defense check: See if a recapture is possible
-                        CBmove opponentCaptures[MAXMOVES];
-                        int nOpponentCaptures = 0;
-                        int isOpponentJump = 0;
-                        pos opponentPos;
-                        boardtobitboard(&board, &opponentPos);
-                        bool dummy_multijump = false;
-                        get_legal_moves_c(&opponentPos, opponentColor, opponentCaptures, &nOpponentCaptures, &isOpponentJump, NULL, &dummy_multijump);
-
-                        if(isOpponentJump) {
-                            for(int i = 0; i < nOpponentCaptures; ++i) {
-                                // Check if this capture move attacks our piece at (r, c)
-                                bool attacksOurPiece = false;
-                                for(int j = 0; j < opponentCaptures[i].jumps; ++j) {
-                                    int capturedPieceY = opponentCaptures[i].del[j].y - 2;
-                                    int capturedPieceX = opponentCaptures[i].del[j].x - 2;
-                                    if(capturedPieceY == r && capturedPieceX == c) {
-                                        attacksOurPiece = true;
-                                        break;
-                                    }
-                                }
-
-                                if(attacksOurPiece) {
-                                    // If the opponent makes this capture, is their piece then vulnerable?
-                                    Board8x8 boardAfterCapture = board;
-                                    domove_c(&opponentCaptures[i], &boardAfterCapture);
-                                    if(isSquareAttacked(boardAfterCapture, opponentCaptures[i].to.y - 2, opponentCaptures[i].to.x - 2, color)) {
-                                        isDefended = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-
-                        if (!isDefended) {
-                            if (pieceColor == CB_WHITE) {
-                                evaluation -= (pieceValue / 2);
-                            } else {
-                                evaluation += (pieceValue / 2);
-                            }
-                        }
-                    }
-                }
+            if (piece_color == CB_WHITE) {
+                evaluation += piece_value;
+                evaluation += is_king ? whiteKingPST[r][c] : whiteManPST[r][c];
+                white_pieces++;
+            } else {
+                evaluation -= piece_value;
+                evaluation -= is_king ? blackKingPST[r][c] : blackManPST[r][c];
+                black_pieces++;
             }
         }
     }
 
-    // Passed Men evaluation
+    // Now, check for threats separately. This is cleaner.
     for (int r = 0; r < 8; ++r) {
         for (int c = 0; c < 8; ++c) {
             int piece = board.board[r][c];
+            if (piece == CB_EMPTY) continue;
 
-            // Check for White Passed Men
-            if (piece == (CB_WHITE | CB_MAN)) {
-                bool isPassed = true;
-                // Check columns c-1, c, c+1 in front of the white man
-                for (int check_r = r + 1; check_r < 8; ++check_r) {
-                    for (int check_c_offset = -1; check_c_offset <= 1; ++check_c_offset) {
-                        int check_c = c + check_c_offset;
-                        if (check_c >= 0 && check_c < 8) {
-                            int opponent_piece = board.board[check_r][check_c];
-                            if (opponent_piece == (CB_BLACK | CB_MAN) || opponent_piece == (CB_BLACK | CB_KING)) {
-                                isPassed = false;
-                                break;
-                            }
-                        }
-                    }
-                    if (!isPassed) break;
-                }
-                if (isPassed) {
-                    evaluation += 50 + (r * 5); // Bonus for passed man, scaled by how far advanced it is
-                }
-            }
-            // Check for Black Passed Men
-            else if (piece == (CB_BLACK | CB_MAN)) {
-                bool isPassed = true;
-                // Check columns c-1, c, c+1 in front of the black man
-                for (int check_r = r - 1; check_r >= 0; --check_r) {
-                    for (int check_c_offset = -1; check_c_offset <= 1; ++check_c_offset) {
-                        int check_c = c + check_c_offset;
-                        if (check_c >= 0 && check_c < 8) {
-                            int opponent_piece = board.board[check_r][check_c];
-                            if (opponent_piece == (CB_WHITE | CB_MAN) || opponent_piece == (CB_WHITE | CB_KING)) {
-                                isPassed = false;
-                                break;
-                            }
-                        }
-                    }
-                    if (!isPassed) break;
-                }
-                if (isPassed) {
-                    evaluation -= (50 + ((7 - r) * 5)); // Penalty for opponent's passed man, scaled by how far advanced it is
+            int piece_color = (piece & CB_WHITE) ? CB_WHITE : CB_BLACK;
+            int opponent_color = (piece_color == CB_WHITE) ? CB_BLACK : CB_WHITE;
+
+            if (isSquareAttacked(board, r, c, opponent_color)) {
+                int piece_value = (piece & CB_KING) ? 400 : 200;
+                if (piece_color == CB_WHITE) {
+                    evaluation -= piece_value; // Penalty for white piece being attacked
+                } else {
+                    evaluation += piece_value; // "Bonus" for black piece being attacked (from white's perspective)
                 }
             }
         }
     }
 
-    // King Safety: Penalize isolated kings
-    for (int r = 0; r < 8; ++r) {
-        for (int c = 0; c < 8; ++c) {
-            int piece = board.board[r][c];
+    // Add a bonus for material advantage
+    int material_advantage = white_pieces - black_pieces;
+    evaluation += material_advantage * 1000;
 
-            if (piece == (CB_WHITE | CB_KING)) {
-                bool isIsolated = true;
-                // Check 4 diagonal neighbors for friendly pieces
-                int dr[] = {-1, -1, 1, 1};
-                int dc[] = {-1, 1, -1, 1};
-                for (int i = 0; i < 4; ++i) {
-                    int nr = r + dr[i];
-                    int nc = c + dc[i];
-                    if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
-                        int neighbor_piece = board.board[nr][nc];
-                        if (neighbor_piece == (CB_WHITE | CB_MAN) || neighbor_piece == (CB_WHITE | CB_KING)) {
-                            isIsolated = false;
-                            break;
-                        }
-                    }
-                }
-                if (isIsolated) {
-                    evaluation -= 30; // Penalty for isolated white king
-                }
-            } else if (piece == (CB_BLACK | CB_KING)) {
-                bool isIsolated = true;
-                // Check 4 diagonal neighbors for friendly pieces
-                int dr[] = {-1, -1, 1, 1};
-                int dc[] = {-1, 1, -1, 1};
-                for (int i = 0; i < 4; ++i) {
-                    int nr = r + dr[i];
-                    int nc = c + dc[i];
-                    if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
-                        int neighbor_piece = board.board[nr][nc];
-                        if (neighbor_piece == (CB_BLACK | CB_MAN) || neighbor_piece == (CB_BLACK | CB_KING)) {
-                            isIsolated = false;
-                            break;
-                        }
-                    }
-                }
-                if (isIsolated) {
-                    evaluation += 30; // Penalty for isolated black king (positive for black's perspective)
-                }
-            }
-        }
-    }
 
-    // Mobility
-    evaluation += nmovesCurrentPlayer * 5;
-
-    // Opponent mobility
-    get_legal_moves_c(&currentPos, opponentColor, legalMoves, &nmovesOpponent, &isjump, NULL, &dummy_can_continue_multijump);
-    evaluation -= nmovesOpponent * 5;
-
-    // Center Control
-    for (int r = 2; r <= 5; ++r) {
-        for (int c = 2; c <= 5; ++c) {
-            int piece = board.board[r][c];
-            if (piece == (CB_WHITE | CB_MAN) || piece == (CB_WHITE | CB_KING)) {
-                evaluation += 10;
-            } else if (piece == (CB_BLACK | CB_MAN) || piece == (CB_BLACK | CB_KING)) {
-                evaluation -= 10;
-            }
-        }
-    }
-
-    // Tempo/Turn Bonus
-    evaluation += 10;
+    if (white_pieces == 0) return LOSS_SCORE;
+    if (black_pieces == 0) return WIN_SCORE;
 
     if (color == CB_BLACK) {
-        evaluation = -evaluation;
+        return -evaluation;
     }
-
     return evaluation;
 }
 
@@ -910,7 +740,7 @@ int GeminiAI::minimax(Board8x8 board, int color, int depth, int alpha, int beta,
 
     if (m_egdbInitialized && totalPieces <= m_maxEGDBPieces) {
         POSITION current_pos_egdb = boardToPosition(board, color);
-        int egdb_result = dblookup(&current_pos_egdb, 1); // Use conditional lookup (cl=1)
+        int egdb_result = dblookup(&current_pos_egdb, color == CB_WHITE ? DB_WHITE : DB_BLACK);
 
         if (egdb_result != DB_UNKNOWN && egdb_result != DB_NOT_LOOKED_UP) {
             if (egdb_result == DB_WIN) {
@@ -1159,38 +989,48 @@ bool GeminiAI::hasCaptures(const Board8x8& board, int colorToMove)
 
 bool GeminiAI::isSquareAttacked(const Board8x8& board, int r, int c, int attackerColor)
 {
-    // Check for attacking men
-    int man = (attackerColor == CB_WHITE) ? (CB_WHITE | CB_MAN) : (CB_BLACK | CB_MAN);
-    int king = (attackerColor == CB_WHITE) ? (CB_WHITE | CB_KING) : (CB_BLACK | CB_KING);
-
-    // Directions for men attacks (relative to attacker)
-    // White men attack diagonally forward (rows decrease for white)
-    // Black men attack diagonally forward (rows increase for black)
-    int r_dir_man = (attackerColor == CB_WHITE) ? -1 : 1;
-
-    // Check for men attacks
-    // Check top-left diagonal for white man, bottom-left for black man
-    if (r + r_dir_man >= 0 && r + r_dir_man < 8 && c - 1 >= 0 && c - 1 < 8) {
-        if (board.board[r + r_dir_man][c - 1] == man || board.board[r + r_dir_man][c - 1] == king) {
-            return true;
-        }
-    }
-    // Check top-right diagonal for white man, bottom-right for black man
-    if (r + r_dir_man >= 0 && r + r_dir_man < 8 && c + 1 >= 0 && c + 1 < 8) {
-        if (board.board[r + r_dir_man][c + 1] == man || board.board[r + r_dir_man][c + 1] == king) {
-            return true;
-        }
-    }
-
-    // Check for king attacks (all four diagonal directions)
-    int r_dirs[] = {-1, -1, 1, 1};
-    int c_dirs[] = {-1, 1, -1, 1};
+    // Check the 4 diagonal directions for an attack
+    int dr[] = {-1, -1, 1, 1};
+    int dc[] = {-1, 1, -1, 1};
 
     for (int i = 0; i < 4; ++i) {
-        int nr = r + r_dirs[i];
-        int nc = c + c_dirs[i];
-        if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
-            if (board.board[nr][nc] == king) {
+        // Square of the potential attacker
+        int attacker_r = r + dr[i];
+        int attacker_c = c + dc[i];
+
+        // Square where the attacker would land
+        int landing_r = r - dr[i];
+        int landing_c = c - dc[i];
+
+        // Check bounds
+        if (attacker_r < 0 || attacker_r >= 8 || attacker_c < 0 || attacker_c >= 8 ||
+            landing_r < 0 || landing_r >= 8 || landing_c < 0 || landing_c >= 8) {
+            continue;
+        }
+
+        // Check if landing square is empty
+        if (board.board[landing_r][landing_c] != CB_EMPTY) {
+            continue;
+        }
+
+        int attacker_piece = board.board[attacker_r][attacker_c];
+
+        // If there's no piece, or it's the wrong color, it can't attack
+        if (attacker_piece == CB_EMPTY || (attacker_piece & attackerColor) == 0) {
+            continue;
+        }
+
+        // Now check if the piece can legally make that capture
+        if ((attacker_piece & CB_KING)) {
+            // Kings can always capture from any diagonal
+            return true;
+        } else { // It's a man
+            // White men can only capture "forward" (victim is at a higher row index)
+            if (attackerColor == CB_WHITE && dr[i] < 0) { // Attacker is at r-1, victim at r
+                return true;
+            }
+            // Black men can only capture "forward" (victim is at a lower row index)
+            if (attackerColor == CB_BLACK && dr[i] > 0) { // Attacker is at r+1, victim at r
                 return true;
             }
         }

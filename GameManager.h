@@ -117,10 +117,11 @@ private:
     double m_blackTime;
     int m_halfMoveCount; // New member for 50-move rule
     QTimer *m_gameTimer; // New member for game timer
-    static LogLevel s_minLogLevel; // New static member to store minimum log level
 
     // Logging
     static QFile m_logFile;
     static QTextStream m_logStream;
     static QMutex m_logMutex;
 };
+
+extern LogLevel s_minLogLevel;
