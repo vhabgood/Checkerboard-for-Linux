@@ -657,6 +657,18 @@ CBmove GeminiAI::getBestMove(Board8x8 board, int color, double maxtime)
     return bestMoveRoot;
 }
 
+int GeminiAI::countLegalMoves(const Board8x8& board, int color)
+{
+    CBmove legalMoves[MAXMOVES];
+    int nmoves = 0;
+    int isjump = 0;
+    pos currentPos;
+    boardtobitboard(&board, &currentPos);
+    bool dummy_can_continue_multijump = false;
+    get_legal_moves_c(&currentPos, color, legalMoves, &nmoves, &isjump, NULL, &dummy_can_continue_multijump);
+    return nmoves;
+}
+
 int GeminiAI::evaluateBoard(const Board8x8& board, int color)
 {
     int evaluation = 0;
@@ -705,8 +717,11 @@ int GeminiAI::evaluateBoard(const Board8x8& board, int color)
     }
 
     // Add a bonus for material advantage
-    int material_advantage = white_pieces - black_pieces;
-    evaluation += material_advantage * 1000;
+    // Mobility: Award points for having more legal moves
+    int whiteMobility = countLegalMoves(board, CB_WHITE);
+    int blackMobility = countLegalMoves(board, CB_BLACK);
+
+    evaluation += (whiteMobility - blackMobility) * 10; // Adjust multiplier as needed
 
 
     if (white_pieces == 0) return LOSS_SCORE;

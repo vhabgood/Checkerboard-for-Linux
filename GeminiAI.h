@@ -82,6 +82,7 @@ signals:
     void evaluationReady(int score, int depth);
 
 private:
+    int countLegalMoves(const Board8x8& board, int color);
     int evaluateBoard(const Board8x8& board, int color);
     int minimax(Board8x8 board, int color, int depth, int alpha, int beta, CBmove *bestMove, bool allowNull = true);
     int quiescenceSearch(Board8x8 board, int color, int alpha, int beta);

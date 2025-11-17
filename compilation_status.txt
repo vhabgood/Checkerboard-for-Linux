@@ -1,2 +1,2 @@
 Compilation Status: SUCCESS. All compilation and linking errors resolved.
-Fixed a critical bug in `makemovelist` in `c_logic.cpp` where coordinate conversion from 8x8 to 12x12 board representation was incorrect, leading to all moves being reported as illegal. The `x` and `y` coordinates were being double-offset, causing out-of-bounds access or incorrect board state interpretation. This has been corrected by properly mapping 8x8 coordinates to 12x12 coordinates (`x_12x12 = x_8x8 + 2; y_12x12 = y_8x8 + 2;`) and consistently using these 12x12 coordinates for board access within the move generation logic.
+Mobility factor added to AI evaluation.
