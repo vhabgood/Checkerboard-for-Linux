@@ -1,2 +1,2 @@
 Compilation Status: SUCCESS. All compilation and linking errors resolved.
-Mobility factor added to AI evaluation. Debug logging added to GameManager::handleSquareClick.
+Mobility factor added to AI evaluation. Debug logging added to GameManager::handleSquareClick and c_logic.cpp.

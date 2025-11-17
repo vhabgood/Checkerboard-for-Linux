@@ -494,6 +494,8 @@ int get_legal_moves_c(pos *p, int color, CBmove movelist[MAXMOVES], int *nmoves,
             movelist[i].del[j].x -= 2;
             movelist[i].del[j].y -= 2;
         }
+        log_to_file("get_legal_moves_c: Converted move %d: from (%d,%d) to (%d,%d)",
+                    i, movelist[i].from.x, movelist[i].from.y, movelist[i].to.x, movelist[i].to.y);
     }
 
     // and set the pieces to CB-format
