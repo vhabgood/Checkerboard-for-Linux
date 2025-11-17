@@ -986,9 +986,12 @@ void GameManager::handleSquareClick(int x, int y)
                 get_legal_moves_c(&currentPos, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, NULL, &can_continue_multijump);
             }
 
+            GameManager::log(LogLevel::Debug, QString("GameManager: Potential move from (%1,%2) to (%3,%4)").arg(potentialMove.from.x).arg(potentialMove.from.y).arg(potentialMove.to.x).arg(potentialMove.to.y));
+
             bool moveFound = false;
             CBmove chosenMove;
             for (int i = 0; i < nmoves_val; ++i) {
+                GameManager::log(LogLevel::Debug, QString("GameManager: Comparing with legal move %1: from (%2,%3) to (%4,%5)").arg(i).arg(legalMoves[i].from.x).arg(legalMoves[i].from.y).arg(legalMoves[i].to.x).arg(legalMoves[i].to.y));
                 if (legalMoves[i].from.x == potentialMove.from.x &&
                     legalMoves[i].from.y == potentialMove.from.y &&
                     legalMoves[i].to.x == potentialMove.to.x &&
