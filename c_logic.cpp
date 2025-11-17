@@ -735,7 +735,8 @@ void makemovelist(int color, CBmove movelist[MAXMOVES], pos *position, int *isju
             int bit_pos = __builtin_ctz(temp_wk); // Get index of least significant bit
             temp_wk &= ~(1 << bit_pos); // Clear that bit
             int x_8x8, y_8x8;
-            numbertocoors(bit_pos + 1, &x_8x8, &y_8x8, GT_ENGLISH); // Convert bit_pos to 1-32, then to 0-7 (x,y)
+            y_8x8 = bit_pos / 4; // row
+            x_8x8 = (bit_pos % 4) * 2 + (y_8x8 % 2 == 0 ? 1 : 0); // column
             int x_12x12 = x_8x8 + 2;
             int y_12x12 = y_8x8 + 2;
 

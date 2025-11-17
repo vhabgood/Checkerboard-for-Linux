@@ -10,3 +10,4 @@ Fixed a critical bug in `makemovelist` in `c_logic.cpp` where coordinate convers
 Implemented mobility as a factor in the AI's evaluation function (`evaluateBoard` in `GeminiAI.cpp`). The `countLegalMoves` helper function was added to determine the number of legal moves for each side, and a bonus is now awarded for having greater mobility.
 Added debug logging to `GameManager::handleSquareClick` to inspect coordinate values during move validation.
 Added debug logging to `c_logic.cpp` within `get_legal_moves_c` after coordinate conversion to verify 0-7 range.
+Fixed coordinate conversion in `makemovelist` within `c_logic.cpp` by directly converting `bit_pos` to `(x,y)` (column, row) consistent with the UI's top-left (0,0) coordinate system, resolving the y-coordinate inversion issue.
