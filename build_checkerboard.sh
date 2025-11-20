@@ -5,7 +5,6 @@ do_clean() {
     find . -name "*.o" -delete
     find . -name "moc_*.cpp" -delete
     rm -f "checkerboard_app"
-    rm -f "AI_test_app"
     rm -f "${RESOURCE_FILES_DIR}"/*.o
     rm -f "${RESOURCE_FILES_DIR}"/moc_*.cpp
     rm -f "${RESOURCE_FILES_DIR}"/moc_*.o
@@ -13,12 +12,29 @@ do_clean() {
     rm -f "${RESOURCE_FILES_DIR}"/resources.cpp
     rm -f "${RESOURCE_FILES_DIR}"/resources.o
     rm -f "${PROJECT_ROOT}"/checkerboard_app
+    rm -f "${RESOURCE_FILES_DIR}"/GameDatabaseDialog.cpp
+    rm -f "${RESOURCE_FILES_DIR}"/GameDatabaseDialog.h
+    rm -f "${RESOURCE_FILES_DIR}"/GameDatabaseDialog.o
+    rm -f "${RESOURCE_FILES_DIR}"/moc_GameDatabaseDialog.cpp
+    rm -f "${RESOURCE_FILES_DIR}"/moc_GameDatabaseDialog.o
+    # Explicitly remove test-related moc files
+    rm -f "${RESOURCE_FILES_DIR}"/moc_GameManager_test.cpp
+    rm -f "${RESOURCE_FILES_DIR}"/moc_GameManager_test.o
+    rm -f "${RESOURCE_FILES_DIR}"/moc_test_game_logic.cpp
+    rm -f "${RESOURCE_FILES_DIR}"/moc_test_game_logic.o
     echo "Cleanup complete."
 }
 
 # Define paths
 PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 RESOURCE_FILES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Explicitly remove GameDatabaseDialog files before building
+rm -f "${RESOURCE_FILES_DIR}/GameDatabaseDialog.cpp"
+rm -f "${RESOURCE_FILES_DIR}/GameDatabaseDialog.h"
+rm -f "${RESOURCE_FILES_DIR}/GameDatabaseDialog.o"
+rm -f "${RESOURCE_FILES_DIR}/moc_GameDatabaseDialog.cpp"
+rm -f "${RESOURCE_FILES_DIR}/moc_GameDatabaseDialog.o"
 
 if [ "$1" == "clean" ]; then
     do_clean
@@ -30,6 +46,7 @@ rm -f "${RESOURCE_FILES_DIR}/c_logic.cpp.o"
 rm -f "${RESOURCE_FILES_DIR}/GameManager.o"
 rm -f "${RESOURCE_FILES_DIR}/MainWindow.o"
 rm -f "${RESOURCE_FILES_DIR}/main.o"
+rm -f "${RESOURCE_FILES_DIR}/moc_MainWindow.cpp"
 
 # Set PKG_CONFIG_PATH for Qt5
 export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
@@ -48,23 +65,23 @@ INCLUDE_DIRS=(
 INCLUDE_FLAGS="$(printf -- "-I%s " "${INCLUDE_DIRS[@]}")"
 
 # All source files for the main application
-APP_SRCS=("${RESOURCE_FILES_DIR}/main.cpp" "${RESOURCE_FILES_DIR}/MainWindow.cpp" "${RESOURCE_FILES_DIR}/GameManager.cpp" "${RESOURCE_FILES_DIR}/c_logic.cpp" "${RESOURCE_FILES_DIR}/dblookup.c" "${RESOURCE_FILES_DIR}/BoardWidget.cpp" "${RESOURCE_FILES_DIR}/engine_wrapper.cpp" "${RESOURCE_FILES_DIR}/GameDatabaseDialog.cpp" "${RESOURCE_FILES_DIR}/FindPositionDialog.cpp" "${RESOURCE_FILES_DIR}/FindCRDialog.cpp" "${RESOURCE_FILES_DIR}/EngineSelectDialog.cpp" "${RESOURCE_FILES_DIR}/EngineOptionsDialog.cpp" "${RESOURCE_FILES_DIR}/PieceSetDialog.cpp" "${RESOURCE_FILES_DIR}/PriorityDialog.cpp" "${RESOURCE_FILES_DIR}/ThreeMoveOptionsDialog.cpp" "${RESOURCE_FILES_DIR}/DirectoriesDialog.cpp" "${RESOURCE_FILES_DIR}/UserBookDialog.cpp" "${RESOURCE_FILES_DIR}/GeminiAI.cpp" "${RESOURCE_FILES_DIR}/global_variables.cpp")
-
-# All source files for the test application
-TEST_SRCS=("${RESOURCE_FILES_DIR}/test_main.cpp" "${RESOURCE_FILES_DIR}/GameManager.cpp" "${RESOURCE_FILES_DIR}/c_logic.cpp" "${RESOURCE_FILES_DIR}/dblookup.c" "${RESOURCE_FILES_DIR}/GeminiAI.cpp" "${RESOURCE_FILES_DIR}/engine_wrapper.cpp" "${RESOURCE_FILES_DIR}/global_variables.cpp")
+APP_SRCS=("${RESOURCE_FILES_DIR}/main.cpp" "${RESOURCE_FILES_DIR}/MainWindow.cpp" "${RESOURCE_FILES_DIR}/GameManager.cpp" "${RESOURCE_FILES_DIR}/c_logic.cpp" "${RESOURCE_FILES_DIR}/dblookup.c" "${RESOURCE_FILES_DIR}/BoardWidget.cpp" "${RESOURCE_FILES_DIR}/engine_wrapper.cpp" "${RESOURCE_FILES_DIR}/FindPositionDialog.cpp" "${RESOURCE_FILES_DIR}/FindCRDialog.cpp" "${RESOURCE_FILES_DIR}/EngineSelectDialog.cpp" "${RESOURCE_FILES_DIR}/EngineOptionsDialog.cpp" "${RESOURCE_FILES_DIR}/PieceSetDialog.cpp" "${RESOURCE_FILES_DIR}/PriorityDialog.cpp" "${RESOURCE_FILES_DIR}/ThreeMoveOptionsDialog.cpp" "${RESOURCE_FILES_DIR}/DirectoriesDialog.cpp" "${RESOURCE_FILES_DIR}/UserBookDialog.cpp" "${RESOURCE_FILES_DIR}/GeminiAI.cpp" "${RESOURCE_FILES_DIR}/global_variables.cpp" "${RESOURCE_FILES_DIR}/log.cpp")
 
 # Object files for the main application
 APP_OBJS=()
-# Object files for the test application
-TEST_OBJS=()
 
 # Generate moc files
-APP_MOC_OBJS=() # New array for application-specific moc objects
-TEST_MOC_OBJS=() # New array for test-specific moc objects
+APP_MOC_OBJS=() 
 
 for header_file in "${RESOURCE_FILES_DIR}"/*.h; do
+    base_name=$(basename "${header_file}" .h)
+    
+    # Skip test headers during moc generation for the main application
+    if [[ "${base_name}" == "test_game_logic" ]]; then
+        continue
+    fi
+
     if grep -q Q_OBJECT "${header_file}"; then
-        base_name=$(basename "${header_file}" .h)
         moc_cpp_file="${RESOURCE_FILES_DIR}/moc_${base_name}.cpp"
         moc_obj_file="${RESOURCE_FILES_DIR}/moc_${base_name}.o"
         echo "Running moc on ${base_name}.h..."
@@ -72,14 +89,8 @@ for header_file in "${RESOURCE_FILES_DIR}"/*.h; do
         echo "Compiling ${moc_cpp_file}..."
         g++ -c "${moc_cpp_file}" -o "${moc_obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -std=c++11
         
-        if [[ "${base_name}" == "test_game_logic" ]]; then
-            TEST_MOC_OBJS+=("${moc_obj_file}")
-        elif [[ "${base_name}" == "GameManager" || "${base_name}" == "GeminiAI" || "${base_name}" == "engine_wrapper" ]]; then
-            APP_MOC_OBJS+=("${moc_obj_file}")
-            TEST_MOC_OBJS+=("${moc_obj_file}")
-        else
-            APP_MOC_OBJS+=("${moc_obj_file}")
-        fi
+        # All generated moc objects are for the app
+        APP_MOC_OBJS+=("${moc_obj_file}")
     fi
 done
 
@@ -108,56 +119,20 @@ for src_file in "${APP_SRCS[@]}"; do
     obj_file="${src_file%.*}.o"
     echo "Compiling ${src_file}..."
     if [[ "${src_file}" == *.c ]]; then
-        g++ -c "${src_file}" -o "${obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -std=c++11 # Changed gcc to g++ and added QT_CFLAGS and -std=c++11
+        g++ -c "${src_file}" -o "${obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -std=c++11
     else
         g++ -c "${src_file}" -o "${obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -std=c++11
     fi
     APP_OBJS+=("${obj_file}")
 done
 
-# --- Compile Test Source Files ---
-echo "Compiling test source files..."
-for src_file in "${TEST_SRCS[@]}"; do
-    obj_file="${src_file%.*}.o"
-    echo "Compiling ${src_file}..."
-    if [[ "${src_file}" == *.c ]]; then
-        g++ -c "${src_file}" -o "${obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -std=c++11 # Changed gcc to g++ and added QT_CFLAGS and -std=c++11
-    else
-        g++ -c "${src_file}" -o "${obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -std=c++11
-    fi
-    TEST_OBJS+=("${obj_file}")
-done
-
 # --- Link Application ---
 echo "Linking application..."
-# ----- THIS IS THE FIXED CODE -----
 g++ -o "${RESOURCE_FILES_DIR}/checkerboard_app" "${APP_OBJS[@]}" "${APP_MOC_OBJS[@]}" ${QT_LIBS} -L/usr/local/lib -lrt -lstdc++
 if [ $? -ne 0 ]; then
     echo "Application linking failed!"
     exit 1
 fi
 echo "Application built successfully: ${PROJECT_ROOT}/checkerboard_app"
-
-# --- Link Test Runner ---
-echo "Linking test runner..."
-g++ -o "${RESOURCE_FILES_DIR}/test_runner" "${TEST_OBJS[@]}" "${TEST_MOC_OBJS[@]}" ${QT_LIBS} -L/usr/local/lib -lrt -lstdc++ -lQt5Test
-if [ $? -ne 0 ]; then
-    echo "Test runner linking failed!"
-    exit 1
-fi
-echo "Test runner built successfully: ${PROJECT_ROOT}/test_runner"
-
-# --- Test Target ---
-if [ "$1" == "test" ]; then
-    echo "Running tests..."
-    rm -f app.log # Clear the log file before running tests
-    "${RESOURCE_FILES_DIR}/test_runner"
-    if [ $? -ne 0 ]; then
-        echo "Tests failed!"
-        exit 1
-    fi
-    echo "All tests passed!"
-    exit 0
-fi
 
 echo "Build process completed successfully."

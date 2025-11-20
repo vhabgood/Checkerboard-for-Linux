@@ -1,7 +1,8 @@
 #include "engine_wrapper.h"
-#include "GameManager.h" // For logging
+#include "GameManager.h" // For logging, if needed. Assuming GameManager logs.
 #include <QDebug>
-#include <QEventLoop>
+#include <QEventLoop> // Included in header, but explicitly here for clarity.
+#include <QRegExp> // For parsing info lines
 
 ExternalEngine::ExternalEngine(const QString& enginePath, QObject *parent)
     : QObject(parent),
@@ -21,7 +22,7 @@ ExternalEngine::ExternalEngine(const QString& enginePath, QObject *parent)
 
     m_responseTimer->setSingleShot(true);
     connect(m_responseTimer, &QTimer::timeout, this, [this]() {
-        GameManager::log(LogLevel::Warning, QString("ExternalEngine: Command timed out: %1").arg(m_lastCommand));
+        qWarning() << QString("ExternalEngine: Command timed out: %1").arg(m_lastCommand);
         if (m_eventLoop && m_eventLoop->isRunning()) {
             m_eventLoop->exit(-1); // Exit with an error code
         }
@@ -36,17 +37,17 @@ ExternalEngine::~ExternalEngine()
 bool ExternalEngine::startEngine()
 {
     if (m_enginePath.isEmpty()) {
-        GameManager::log(LogLevel::Error, "ExternalEngine: Engine path is empty. Cannot start engine.");
+        qCritical() << "ExternalEngine: Engine path is empty. Cannot start engine.";
         return false;
     }
 
     if (m_process->state() == QProcess::NotRunning) {
         m_process->start(m_enginePath, QStringList()); // Use the recommended overload
         if (!m_process->waitForStarted(5000)) { // Wait up to 5 seconds for the engine to start
-            GameManager::log(LogLevel::Error, QString("ExternalEngine: Failed to start engine: %1").arg(m_process->errorString()));
+            qCritical() << QString("ExternalEngine: Failed to start engine: %1").arg(m_process->errorString());
             return false;
         }
-        GameManager::log(LogLevel::Info, QString("ExternalEngine: Engine started: %1").arg(m_enginePath));
+        qInfo() << QString("ExternalEngine: Engine started: %1").arg(m_enginePath);
         return true;
     }
     return false;
@@ -59,14 +60,14 @@ void ExternalEngine::stopEngine()
         m_process->waitForBytesWritten(1000);
         m_process->close(); // Close the process
         m_process->waitForFinished(2000); // Wait for it to finish
-        GameManager::log(LogLevel::Info, "ExternalEngine: Engine stopped.");
+        qInfo() << "ExternalEngine: Engine stopped.";
     }
 }
 
 bool ExternalEngine::sendCommand(const QString& command, QString& reply)
 {
     if (m_process->state() != QProcess::Running) {
-        GameManager::log(LogLevel::Error, "ExternalEngine: Cannot send command, engine is not running.");
+        qCritical() << "ExternalEngine: Cannot send command, engine is not running.";
         reply = "Error: Engine not running.";
         return false;
     }
@@ -76,7 +77,7 @@ bool ExternalEngine::sendCommand(const QString& command, QString& reply)
     m_currentReply = &reply; // Set the reply buffer for this command
     m_isReady = false; // Assume not ready until confirmed
 
-    GameManager::log(LogLevel::Debug, QString("ExternalEngine: Sending command: %1").arg(command));
+    qDebug() << QString("ExternalEngine: Sending command: %1").arg(command);
     m_process->write((command + "\n").toUtf8());
     m_process->waitForBytesWritten(1000);
 
@@ -107,7 +108,7 @@ void ExternalEngine::readStandardOutput()
 {
     while (m_process->canReadLine()) {
         QString line = QString::fromUtf8(m_process->readLine()).trimmed();
-        GameManager::log(LogLevel::Debug, QString("ExternalEngine StdOut: %1").arg(line));
+        qDebug() << QString("ExternalEngine StdOut: %1").arg(line);
         emit engineOutput(line);
 
         // Buffer output for synchronous reply
@@ -128,7 +129,7 @@ void ExternalEngine::readStandardOutput()
             QStringList parts = line.split(" ");
             if (parts.size() >= 2) {
                 // TODO: Parse actual move from parts[1]
-                CBmove dummyMove = {0};
+                CBmove dummyMove = {0}; // Assuming CBmove is a defined struct
                 emit bestMoveFound(dummyMove);
             }
             m_expectingBestMove = false;
@@ -169,14 +170,14 @@ void ExternalEngine::readStandardError()
 {
     while (m_process->canReadLine()) {
         QString line = QString::fromUtf8(m_process->readLine()).trimmed();
-        GameManager::log(LogLevel::Error, QString("ExternalEngine StdErr: %1").arg(line));
+        qCritical() << QString("ExternalEngine StdErr: %1").arg(line);
         emit engineError(line);
     }
 }
 
 void ExternalEngine::processStarted()
 {
-    GameManager::log(LogLevel::Info, "ExternalEngine: Process started.");
+    qInfo() << "ExternalEngine: Process started.";
     // Send initial commands to set up the engine (e.g., "uci" or "xboard")
     // For now, let's assume a simple "uci" protocol if it's a UCI-like engine.
     // This might need to be configurable.
@@ -188,7 +189,7 @@ void ExternalEngine::processStarted()
 
 void ExternalEngine::processFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
-    GameManager::log(LogLevel::Info, QString("ExternalEngine: Process finished with exit code %1, status %2.").arg(exitCode).arg(exitStatus));
+    qInfo() << QString("ExternalEngine: Process finished with exit code %1, status %2.").arg(exitCode).arg(exitStatus);
     m_isReady = false;
     if (m_eventLoop && m_eventLoop->isRunning()) {
         m_eventLoop->exit(-1); // Indicate an error if process finishes unexpectedly
@@ -197,7 +198,7 @@ void ExternalEngine::processFinished(int exitCode, QProcess::ExitStatus exitStat
 
 void ExternalEngine::processErrorOccurred(QProcess::ProcessError error)
 {
-    GameManager::log(LogLevel::Critical, QString("ExternalEngine: Process error occurred: %1").arg(error));
+    qCritical() << QString("ExternalEngine: Process error occurred: %1").arg(error);
     m_isReady = false;
     if (m_eventLoop && m_eventLoop->isRunning()) {
         m_eventLoop->exit(-1); // Indicate an error

@@ -301,7 +301,7 @@ int db_getcachesize(void)
 	return cachesize;
 	}
 
-int dblookup(POSITION *q,int cl)
+int dblookup(pos *q,int cl)
 	{
 	// returns DB_WIN, DB_LOSS,  DB_DRAW or DB_UNKNOWN for a position in a database lookup.
 	// from a compressed database. first, this function computes the index
@@ -330,8 +330,8 @@ int dblookup(POSITION *q,int cl)
 	int n1,n2,n3;
 	int *idx;
 	unsigned char byte;
-	POSITION revpos;
-	POSITION p;
+	pos revpos;
+	pos p;
 	cprsubdb *dbpointer;
 	FILE *errorlogfp;
 	

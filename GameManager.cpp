@@ -1,3 +1,4 @@
+#include <QDebug>
 #include "GameManager.h"
 #include <QFile>
 #include <QTextStream>
@@ -16,60 +17,11 @@ extern "C" {
 extern LogLevel s_minLogLevel;
 
 // Static member definitions
-QFile GameManager::m_logFile;
-QTextStream GameManager::m_logStream;
-QMutex GameManager::m_logMutex;
 
-void GameManager::initLogging()
-{
-    m_logFile.setFileName("/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/app.log");
-    if (m_logFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        m_logStream.setDevice(&m_logFile);
-        // Direct write to file to test if QFile is working
-        m_logFile.write("Direct write test: Logging initialized.\n");
-        log(LogLevel::Info, "Logging initialized.");
-    } else {
-        GameManager::log(LogLevel::Error, "Failed to open log file.");
-    }
-}
 
-void GameManager::closeLogging()
-{
-    log(LogLevel::Info, "Logging finished.");
-    if (m_logFile.isOpen()) {
-        m_logFile.close();
-    }
-}
 
-static QString levelToString(LogLevel level) {
-    switch (level) {
-        case LogLevel::Debug: return "DEBUG";
-        case LogLevel::Info: return "INFO";
-        case LogLevel::Warning: return "WARNING";
-        case LogLevel::Error: return "ERROR";
-        case LogLevel::Critical: return "CRITICAL";
-        default: return "UNKNOWN";
-    }
-}
 
-extern LogLevel s_minLogLevel;
 
-void GameManager::log(LogLevel level, const QString& message)
-{
-    if (level < s_minLogLevel) {
-        return;
-    }
-    QMutexLocker locker(&m_logMutex);
-    if (m_logFile.isOpen()) {
-        m_logStream << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz") << " [" << levelToString(level) << "]: " << message << Qt::endl;
-    }
-}
-
-// C-compatible logging function
-extern "C" void log_c(int level, const char* message)
-{
-    GameManager::log(static_cast<LogLevel>(level), QString::fromUtf8(message));
-}
 
 static inline bool is_pdnquote(uint8_t c)
 {
@@ -242,10 +194,8 @@ static void PDNgametoPDNstring(PdnGameWrapper &game, std::string &pdnstring, con
         CBmove legalMoves[MAXMOVES];
         int nmoves_val = 0;
         int isjump_val = 0;
-        pos currentPos;
-        boardtobitboard(&tempBoard, &currentPos);
         bool dummy_can_continue_multijump = false;
-        get_legal_moves_c(&currentPos, (i % 2 == 0) ? CB_BLACK : CB_WHITE, legalMoves, &nmoves_val, &isjump_val, NULL, &dummy_can_continue_multijump);
+        get_legal_moves_c(&tempBoard, (i % 2 == 0) ? CB_BLACK : CB_WHITE, legalMoves, &nmoves_val, &isjump_val, NULL, &dummy_can_continue_multijump);
 
         bool moveFound = false;
         for (int k = 0; k < nmoves_val; ++k) {
@@ -260,7 +210,7 @@ static void PDNgametoPDNstring(PdnGameWrapper &game, std::string &pdnstring, con
             }
         }
         if (!moveFound) {
-            GameManager::log(LogLevel::Warning, QString("PDNgametoPDNstring: Could not find legal move for PDN move %1-%2. Defaulting is_capture=false, jumps=0.").arg(game.moves[i].from_square).arg(game.moves[i].to_square));
+            qWarning() << QString("PDNgametoPDNstring: Could not find legal move for PDN move %1-%2. Defaulting is_capture=false, jumps=0.").arg(game.moves[i].from_square).arg(game.moves[i].to_square);
         }
 
         char move_notation[80];
@@ -374,8 +324,9 @@ GameManager::GameManager(QObject *parent) : QObject(parent),
     m_halfMoveCount(0), // Initialize half-move count
     m_gameTimer(new QTimer(this)) // Initialize game timer
 {
-    GameManager::log(LogLevel::Info, "GameManager: Initializing.");
+    qInfo() << "GameManager: Initializing.";
     connect(m_gameTimer, &QTimer::timeout, this, &GameManager::handleTimerTimeout);
+    connect(this, &GameManager::gameIsOver, this, &GameManager::handleGameOverResult); // Connect gameIsOver to handleGameOverResult
 }
 
 
@@ -385,13 +336,14 @@ GameManager::~GameManager()
 
 void GameManager::newGame(int gameType)
 {
-    GameManager::log(LogLevel::Info, QString("GameManager: Starting new game of type %1").arg(gameType));
+    qInfo() << QString("GameManager: Starting new game of type %1").arg(gameType);
     // Call C function to set up initial board
     newgame(&m_currentBoard);
     m_currentColorToMove = CB_BLACK; // Black typically starts
     m_halfMoveCount = 0; // Reset half-move count for new game
     m_boardHistory.clear(); // Clear board history for new game
     m_boardHistory.append(getFenPosition()); // Add initial position to history
+    qDebug() << "GameManager::newGame, FEN:" << getFenPosition();
 
     // Determine m_engineColor based on options
     if (m_options.white_player_type == PLAYER_AI && m_options.black_player_type == PLAYER_AI) {
@@ -422,14 +374,16 @@ void GameManager::newGame(int gameType)
 
 bool GameManager::makeMove(const CBmove& move)
 {
-    GameManager::log(LogLevel::Debug, QString("GameManager: Making move from %1,%2 to %3,%4").arg(move.from.x).arg(move.from.y).arg(move.to.x).arg(move.to.y));
+    qDebug() << QString("GameManager: Making move from %1,%2 to %3,%4").arg(move.from.x).arg(move.from.y).arg(move.to.x).arg(move.to.y);
 
     // Check if the move is a capture or a pawn move for 50-move rule
     bool isCapture = move.jumps > 0;
     bool isPawnMove = (move.oldpiece == (CB_WHITE | CB_MAN) || move.oldpiece == (CB_BLACK | CB_MAN));
 
     // 2. Apply the move
-    domove_c(&move, &m_currentBoard);
+    Board8x8 tempBoard = m_currentBoard;
+    domove_c(&move, &tempBoard);
+    m_currentBoard = tempBoard;
     m_lastMove = move; // Update m_lastMove
 
     // If we are not at the end of the move history (i.e., some moves were undone),
@@ -467,12 +421,14 @@ bool GameManager::makeMove(const CBmove& move)
     // 4. Emit boardUpdated
     emit boardUpdated(m_currentBoard);
 
+    qDebug() << QString("GameManager: Board state after move: %1").arg(getFenPosition());
+
     return isCapture;
 }
 
 void GameManager::handleTimerTimeout()
 {
-    GameManager::log(LogLevel::Debug, "GameManager::handleTimerTimeout called.");
+    qDebug() << "GameManager::handleTimerTimeout called.";
     if (m_currentColorToMove == CB_WHITE) {
         m_whiteTime -= 1.0;
         if (m_whiteTime <= 0) {
@@ -493,13 +449,34 @@ void GameManager::handleTimerTimeout()
     emit updateClockDisplay(m_whiteTime, m_blackTime);
 }
 
+void GameManager::handleGameOverResult(int result)
+{
+    qInfo() << QString("GameManager: Game Over result received: %1").arg(result);
+    switch (result) {
+        case CB_WIN:
+            strncpy(m_currentPdnGame.game.resultstring, "1-0", sizeof(m_currentPdnGame.game.resultstring) - 1);
+            break;
+        case CB_LOSS:
+            strncpy(m_currentPdnGame.game.resultstring, "0-1", sizeof(m_currentPdnGame.game.resultstring) - 1);
+            break;
+        case CB_DRAW:
+            strncpy(m_currentPdnGame.game.resultstring, "1/2-1/2", sizeof(m_currentPdnGame.game.resultstring) - 1);
+            break;
+        default:
+            strncpy(m_currentPdnGame.game.resultstring, "*", sizeof(m_currentPdnGame.game.resultstring) - 1); // Unknown or ongoing
+            break;
+    }
+    m_currentPdnGame.game.resultstring[sizeof(m_currentPdnGame.game.resultstring) - 1] = '\0';
+    qInfo() << QString("GameManager: Updated PDN game result string to: %1").arg(m_currentPdnGame.game.resultstring);
+}
+
 void GameManager::loadPdnGame(const QString &filename)
 {
     std::vector<PdnGameWrapper> loadedGames;
 
     QFile file(filename);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        GameManager::log(LogLevel::Error, QString("Failed to open file: %1 %2").arg(filename).arg(file.errorString()));
+        qCritical() << QString("Failed to open file: %1 %2").arg(filename).arg(file.errorString());
         emit gameMessage(QString("Failed to load PDN file: %1").arg(filename));
         return;
     }
@@ -520,11 +497,11 @@ void GameManager::loadPdnGame(const QString &filename)
         parsePdnGameString(game_str, game); // Parse game_str into game object
         loadedGames.push_back(game);
     }
-    GameManager::log(LogLevel::Info, QString("GameManager: Parsed %1 games from PDN file.").arg(loadedGames.size()));
+    qInfo() << QString("GameManager: Parsed %1 games from PDN file.").arg(loadedGames.size());
 
     if (!loadedGames.empty()) {
         m_currentPdnGame = loadedGames[0]; // Load the first game
-        GameManager::log(LogLevel::Info, QString("GameManager: Loading first game: %1").arg(m_currentPdnGame.game.event));
+        qInfo() << QString("GameManager: Loading first game: %1").arg(m_currentPdnGame.game.event);
 
         // Apply starting FEN to the board
         if (strlen(m_currentPdnGame.game.FEN) > 0) {
@@ -557,10 +534,8 @@ void GameManager::loadPdnGame(const QString &filename)
             CBmove legalMoves[MAXMOVES];
             int nmoves_val = 0;
             int isjump_val = 0;
-            pos currentPos;
-            boardtobitboard(&tempBoard, &currentPos);
             bool dummy_can_continue_multijump = false;
-            get_legal_moves_c(&currentPos, currentColor, legalMoves, &nmoves_val, &isjump_val, NULL, &dummy_can_continue_multijump);
+            get_legal_moves_c(&tempBoard, currentColor, legalMoves, &nmoves_val, &isjump_val, NULL, &dummy_can_continue_multijump);
 
             bool moveFound = false;
             for (int k = 0; k < nmoves_val; ++k) {
@@ -575,7 +550,7 @@ void GameManager::loadPdnGame(const QString &filename)
                 }
             }
             if (!moveFound) {
-                GameManager::log(LogLevel::Warning, QString("loadPdnGame: Could not find legal move for PDN move %1-%2. Defaulting is_capture=false, jumps=0.").arg(pdnMove.from_square).arg(pdnMove.to_square));
+                qWarning() << QString("loadPdnGame: Could not find legal move for PDN move %1-%2. Defaulting is_capture=false, jumps=0.").arg(pdnMove.from_square).arg(pdnMove.to_square);
             }
 
             domove_c(&cbMove, &tempBoard);
@@ -588,7 +563,7 @@ void GameManager::loadPdnGame(const QString &filename)
         emit gameMessage(QString("Loaded game: %1").arg(m_currentPdnGame.game.event));
     }
     else {
-        GameManager::log(LogLevel::Error, QString("GameManager: Failed to load PDN file: %1").arg(filename));
+        qCritical() << QString("GameManager: Failed to load PDN file: %1").arg(filename);
         emit gameMessage(QString("Failed to load PDN file: %1").arg(filename));
     }
 }
@@ -598,7 +573,7 @@ int GameManager::read_match_stats_internal() {
     QString filename = emstats_filename_internal();
     QFile file(filename);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        GameManager::log(LogLevel::Error, QString("Could not open match stats file for reading: %1").arg(filename));
+        qCritical() << QString("Could not open match stats file for reading: %1").arg(filename);
         return 0;
     }
 
@@ -617,35 +592,35 @@ void GameManager::reset_match_stats_internal() {
     QString filename = emstats_filename_internal();
     QFile file(filename);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
-        GameManager::log(LogLevel::Error, QString("Could not open match stats file for resetting: %1").arg(filename));
+        qCritical() << QString("Could not open match stats file for resetting: %1").arg(filename);
         return;
     }
     file.close();
-    GameManager::log(LogLevel::Info, QString("Match stats file reset: %1").arg(filename));
+    qInfo() << QString("Match stats file reset: %1").arg(filename);
 }
 void GameManager::update_match_stats_internal(int result, int movecount, int gamenumber, emstats_t *stats) {
     QString filename = emstats_filename_internal();
     QFile file(filename);
     if (!file.open(QIODevice::Append | QIODevice::Text)) {
-        GameManager::log(LogLevel::Error, QString("Could not open match stats file for appending: %1").arg(filename));
+        qCritical() << QString("Could not open match stats file for appending: %1").arg(filename);
         return;
     }
 
     QTextStream out(&file);
     out << "GameNumber: " << gamenumber << ", Result: " << result << ", Moves: " << movecount << "\n";
     file.close();
-    GameManager::log(LogLevel::Info, QString("Match stats updated for game: %1").arg(gamenumber));
+    qInfo() << QString("Match stats updated for game: %1").arg(gamenumber);
 }
 int GameManager::num_ballots_internal() {
-     GameManager::log(LogLevel::Debug, "GameManager: num_ballots_internal called (placeholder)");
+     qDebug() << "GameManager: num_ballots_internal called (placeholder)";
      return 174; // Default 3-move count
 }
 int GameManager::game0_to_ballot0_internal(int game0) {
-     GameManager::log(LogLevel::Debug, QString("GameManager: game0_to_ballot0_internal called (placeholder) for game: %1").arg(game0));
+     qDebug() << QString("GameManager: game0_to_ballot0_internal called (placeholder) for game: %1").arg(game0);
      return game0 % this->num_ballots_internal(); // Simple placeholder: cycle through ballots
 }
 int GameManager::game0_to_match0_internal(int game0) {
-     GameManager::log(LogLevel::Debug, QString("GameManager: game0_to_match0_internal called (placeholder) for game: %1").arg(game0));
+     qDebug() << QString("GameManager: game0_to_match0_internal called (placeholder) for game: %1").arg(game0);
      return game0 / 2; // Simple placeholder: every two games is a match
 }
 QString GameManager::emstats_filename_internal() {
@@ -681,7 +656,7 @@ QString GameManager::emlog_filename_internal() {
     return appDataLocation + "/match_log.txt";
 }
 void GameManager::quick_search_both_engines_internal() {
-    GameManager::log(LogLevel::Debug, "GameManager: quick_search_both_engines_internal called.");
+    qDebug() << "GameManager: quick_search_both_engines_internal called.";
     // This would typically involve emitting signals to the AI class(es) to initiate a search.
     // For now, let's assume we want to request a move for the current board state and color.
     // The time limit here is a placeholder and should be determined by game options.
@@ -689,10 +664,10 @@ void GameManager::quick_search_both_engines_internal() {
 }
 
 void GameManager::savePdnGame(const QString &filename) {
-    GameManager::log(LogLevel::Info, QString("GameManager: Saving PDN game to: %1").arg(filename));
+    qInfo() << QString("GameManager: Saving PDN game to: %1").arg(filename);
     QFile file(filename);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        GameManager::log(LogLevel::Error, QString("GameManager: Could not open file for writing: %1 %2").arg(filename).arg(file.errorString()));
+        qCritical() << QString("GameManager: Could not open file for writing: %1 %2").arg(filename).arg(file.errorString());
         emit gameMessage(QString("Failed to save game to %1.").arg(filename));
         return;
     }
@@ -741,10 +716,8 @@ void GameManager::savePdnGame(const QString &filename) {
         CBmove legalMoves[MAXMOVES];
         int nmoves_val = 0;
         int isjump_val = 0;
-        pos currentPos;
-        boardtobitboard(&tempBoard, &currentPos);
         bool dummy_can_continue_multijump = false;
-        get_legal_moves_c(&currentPos, currentColor, legalMoves, &nmoves_val, &isjump_val, NULL, &dummy_can_continue_multijump);
+        get_legal_moves_c(&tempBoard, currentColor, legalMoves, &nmoves_val, &isjump_val, NULL, &dummy_can_continue_multijump);
 
         bool moveFound = false;
         for (int k = 0; k < nmoves_val; ++k) {
@@ -759,7 +732,7 @@ void GameManager::savePdnGame(const QString &filename) {
             }
         }
         if (!moveFound) {
-            GameManager::log(LogLevel::Warning, QString("savePdnGame: Could not find legal move for PDN move %1-%2. Defaulting is_capture=false, jumps=0.").arg(m_currentPdnGame.moves[i].from_square).arg(m_currentPdnGame.moves[i].to_square));
+            qWarning() << QString("savePdnGame: Could not find legal move for PDN move %1-%2. Defaulting is_capture=false, jumps=0.").arg(m_currentPdnGame.moves[i].from_square).arg(m_currentPdnGame.moves[i].to_square);
         }
 
         char move_notation[80];
@@ -776,32 +749,34 @@ void GameManager::savePdnGame(const QString &filename) {
 
     file.close();
     emit gameMessage(QString("Game saved to %1.").arg(filename));
-    GameManager::log(LogLevel::Info, "GameManager: PDN game saved.");
+    qInfo() << "GameManager: PDN game saved.";
 }
 
 QString GameManager::getFenPosition() {
     char fen_c[256];
     board8toFEN(&m_currentBoard, fen_c, m_currentColorToMove, GT_ENGLISH); // Assuming GT_ENGLISH for now
     QString fenString = QString::fromUtf8(fen_c);
-    GameManager::log(LogLevel::Debug, QString("GameManager: Generated FEN: %1").arg(fenString));
+    qDebug() << QString("GameManager: Generated FEN: %1").arg(fenString);
     return fenString;
 }
 
 void GameManager::loadFenPosition(const QString& fen) {
-    GameManager::log(LogLevel::Info, QString("GameManager: Loading FEN position: %1").arg(fen));
+    qInfo() << QString("GameManager: Loading FEN position: %1").arg(fen);
     int color_to_move;
-    if (FENtoboard8(&m_currentBoard, fen.toUtf8().constData(), &color_to_move, GT_ENGLISH) == 1) {
+    QByteArray ba = fen.toUtf8();
+    char* fen_copy = ba.data();
+    if (FENtoboard8(&m_currentBoard, fen_copy, &color_to_move, GT_ENGLISH) == 1) {
         m_currentColorToMove = color_to_move;
         emit boardUpdated(m_currentBoard);
         emit gameMessage("FEN position loaded successfully.");
     } else {
         emit gameMessage("Failed to load FEN position.");
-        GameManager::log(LogLevel::Error, QString("GameManager: Failed to load FEN position: %1").arg(fen));
+        qCritical() << QString("GameManager: Failed to load FEN position: %1").arg(fen);
     }
 }
 
 void GameManager::start3MoveGame(int opening_index) {
-    GameManager::log(LogLevel::Info, QString("GameManager: start3MoveGame called with opening index: %1").arg(opening_index));
+    qInfo() << QString("GameManager: start3MoveGame called with opening index: %1").arg(opening_index);
     start3move_c(&m_currentBoard, opening_index);
     m_currentColorToMove = CB_WHITE; // Assuming white always starts after 3-move opening
     emit boardUpdated(m_currentBoard);
@@ -820,6 +795,13 @@ void GameManager::setOptions(const CBoptions& options) {
     m_options = options;
 }
 
+void GameManager::setSoundEnabled(bool enabled)
+{
+    m_options.sound = enabled;
+    // No other actions needed here, as the MainWindow handles playing sounds
+    // based on this option.
+}
+
 void GameManager::setCurrentBoard(const Board8x8& board) {
     m_currentBoard = board;
     emit boardUpdated(m_currentBoard);
@@ -835,7 +817,7 @@ int GameManager::getHalfMoveCount() const { return m_halfMoveCount; }
 CBoptions GameManager::getOptions() const { return m_options; }
 
 void GameManager::clearBoard() {
-    GameManager::log(LogLevel::Info, "GameManager: Clearing board.");
+    qInfo() << "GameManager: Clearing board.";
     for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {
             m_currentBoard.board[y][x] = CB_EMPTY;
@@ -847,18 +829,18 @@ void GameManager::clearBoard() {
 }
 
 void GameManager::setPiece(int x, int y, int pieceType) {
-    GameManager::log(LogLevel::Info, QString("GameManager: Setting piece at %1,%2 to %3").arg(x).arg(y).arg(pieceType));
+    qInfo() << QString("GameManager: Setting piece at %1,%2 to %3").arg(x).arg(y).arg(pieceType);
     if (x >= 0 && x < 8 && y >= 0 && y < 8) {
         m_currentBoard.board[y][x] = pieceType;
         emit boardUpdated(m_currentBoard);
         emit gameMessage(QString("Piece set at %1,%2 to %3.").arg(x).arg(y).arg(pieceType));
     } else {
-        GameManager::log(LogLevel::Warning, QString("GameManager: Invalid coordinates for setPiece: %1,%2").arg(x).arg(y));
+        qWarning() << QString("GameManager: Invalid coordinates for setPiece: %1,%2").arg(x).arg(y);
     }
 }
 
 void GameManager::togglePieceColor(int x, int y) {
-    GameManager::log(LogLevel::Info, QString("GameManager: Toggling piece color at %1,%2").arg(x).arg(y));
+    qInfo() << QString("GameManager: Toggling piece color at %1,%2").arg(x).arg(y);
     if (x >= 0 && x < 8 && y >= 0 && y < 8) {
         int piece = m_currentBoard.board[y][x];
         if (piece == (CB_WHITE | CB_MAN)) {
@@ -876,7 +858,7 @@ void GameManager::togglePieceColor(int x, int y) {
         emit boardUpdated(m_currentBoard);
         emit gameMessage(QString("Piece color toggled at %1,%2.").arg(x).arg(y));
     } else {
-        GameManager::log(LogLevel::Warning, QString("GameManager: Invalid coordinates for togglePieceColor: %1,%2").arg(x).arg(y));
+        qWarning() << QString("GameManager: Invalid coordinates for togglePieceColor: %1,%2").arg(x).arg(y);
     }
 }
 
@@ -897,25 +879,27 @@ CBmove GameManager::getLastMove() const
 
 void GameManager::handleSquareClick(int x, int y)
 {
+    qDebug() << QString("--- handleSquareClick: Start ---");
+qDebug() << QString("Clicked on (%1, %2). Current player: %3. Piece selected: %4. Forced capture: %5")
+                                .arg(x).arg(y).arg(m_currentColorToMove).arg(m_pieceSelected).arg(m_forcedCapturePending);
+
     // If it's an AI's turn, ignore human clicks
     if ((m_currentColorToMove == CB_WHITE && m_options.white_player_type == PLAYER_AI) ||
         (m_currentColorToMove == CB_BLACK && m_options.black_player_type == PLAYER_AI)) {
-        GameManager::log(LogLevel::Debug, "GameManager: Ignoring human click during AI turn.");
+        qDebug() << "GameManager: Ignoring human click during AI turn.";
         emit gameMessage("It's the AI's turn to move.");
         return;
     }
 
     int square = coorstonumber(x, y, GT_ENGLISH);
-    GameManager::log(LogLevel::Debug, QString("GameManager: Square clicked: %1").arg(square));
+    qDebug() << QString("GameManager: Square clicked: %1").arg(square);
 
     // Get all legal moves for the current player to determine if a capture is mandatory
     CBmove allLegalMoves[MAXMOVES];
     int all_nmoves = 0;
     int all_isjump = 0;
-    pos currentPosForMandatoryCheck;
-    boardtobitboard(&m_currentBoard, &currentPosForMandatoryCheck);
     bool dummy_can_continue_multijump_check = false;
-    get_legal_moves_c(&currentPosForMandatoryCheck, m_currentColorToMove, allLegalMoves, &all_nmoves, &all_isjump, NULL, &dummy_can_continue_multijump_check);
+    get_legal_moves_c(&m_currentBoard, m_currentColorToMove, allLegalMoves, &all_nmoves, &all_isjump, NULL, &dummy_can_continue_multijump_check);
 
     // Get the piece at the clicked square
     int piece = m_currentBoard.board[y][x];
@@ -955,14 +939,12 @@ void GameManager::handleSquareClick(int x, int y)
     } else {
         // A piece is already selected, this click is for a destination
         if (x == m_selectedX && y == m_selectedY) {
-            // Clicked the same piece again, deselect it (only if not in a forced capture sequence)
-            if (!m_forcedCapturePending) {
-                m_pieceSelected = false;
-                m_selectedX = -1;
-                m_selectedY = -1;
-                emit gameMessage("Piece deselected.");
-                emit pieceDeselected();
-            }
+            // Clicked the same piece again, deselect it
+            m_pieceSelected = false;
+            m_selectedX = -1;
+            m_selectedY = -1;
+            emit gameMessage("Piece deselected.");
+            emit pieceDeselected();
         } else {
             // Attempt to make a move
             CBmove potentialMove;
@@ -974,24 +956,18 @@ void GameManager::handleSquareClick(int x, int y)
             CBmove legalMoves[MAXMOVES];
             int nmoves_val = 0;
             int isjump_val = 0;
-            pos currentPos;
-            boardtobitboard(&m_currentBoard, &currentPos);
             bool can_continue_multijump = false;
 
             // If a forced capture is pending, we can only make jumps with the piece that just moved.
             // The legal move generator needs the last move to correctly identify subsequent jumps.
-            if (m_forcedCapturePending) {
-                get_legal_moves_c(&currentPos, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, &m_lastMove, &can_continue_multijump);
-            } else {
-                get_legal_moves_c(&currentPos, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, NULL, &can_continue_multijump);
-            }
+            get_legal_moves_c(&m_currentBoard, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, NULL, &can_continue_multijump);
 
-            GameManager::log(LogLevel::Debug, QString("GameManager: Potential move from (%1,%2) to (%3,%4)").arg(potentialMove.from.x).arg(potentialMove.from.y).arg(potentialMove.to.x).arg(potentialMove.to.y));
+            qDebug() << QString("GameManager: Potential move from (%1,%2) to (%3,%4)").arg(potentialMove.from.x).arg(potentialMove.from.y).arg(potentialMove.to.x).arg(potentialMove.to.y);
 
             bool moveFound = false;
             CBmove chosenMove;
             for (int i = 0; i < nmoves_val; ++i) {
-                GameManager::log(LogLevel::Debug, QString("GameManager: Comparing with legal move %1: from (%2,%3) to (%4,%5)").arg(i).arg(legalMoves[i].from.x).arg(legalMoves[i].from.y).arg(legalMoves[i].to.x).arg(legalMoves[i].to.y));
+                qDebug() << QString("GameManager: Comparing with legal move %1: from (%2,%3) to (%4,%5)").arg(i).arg(legalMoves[i].from.x).arg(legalMoves[i].from.y).arg(legalMoves[i].to.x).arg(legalMoves[i].to.y);
                 if (legalMoves[i].from.x == potentialMove.from.x &&
                     legalMoves[i].from.y == potentialMove.from.y &&
                     legalMoves[i].to.x == potentialMove.to.x &&
@@ -1010,17 +986,14 @@ void GameManager::handleSquareClick(int x, int y)
 
                 if (isCapture && !promotionOccurred) {
                     // After a capture, check if the same piece can make another jump
-                    pos posAfterMove;
-                    boardtobitboard(&m_currentBoard, &posAfterMove);
                     CBmove multiJumpMoves[MAXMOVES];
                     int n_multijump_moves = 0;
                     int is_multijump = 0;
                     bool can_continue_this_jump = false;
-                    get_legal_moves_c(&posAfterMove, m_currentColorToMove, multiJumpMoves, &n_multijump_moves, &is_multijump, &m_lastMove, &can_continue_this_jump);
+                    get_legal_moves_c(&m_currentBoard, m_currentColorToMove, multiJumpMoves, &n_multijump_moves, &is_multijump, &chosenMove, &can_continue_this_jump);
 
                     if (can_continue_this_jump) {
                         // Multi-jump is possible and mandatory.
-                        m_forcedCapturePending = true;
                         m_pieceSelected = true; // Keep piece selected
                         m_selectedX = x;        // Update selection to the new square
                         m_selectedY = y;
@@ -1040,13 +1013,12 @@ void GameManager::handleSquareClick(int x, int y)
                 int nextColorToMove = (m_currentColorToMove == CB_WHITE) ? CB_BLACK : CB_WHITE;
 
                 // Check for game over
-                pos finalPos;
-                boardtobitboard(&m_currentBoard, &finalPos);
+                qDebug() << "GameManager: Before get_legal_moves_c for next player.";
                 CBmove nextPlayerMoves[MAXMOVES];
                 int n_next_moves = 0;
                 int is_next_jump = 0;
-                bool dummy_can_continue = false;
-                get_legal_moves_c(&finalPos, nextColorToMove, nextPlayerMoves, &n_next_moves, &is_next_jump, NULL, &dummy_can_continue);
+                get_legal_moves_c(&m_currentBoard, nextColorToMove, nextPlayerMoves, &n_next_moves, &is_next_jump, NULL, NULL);
+                qDebug() << QString("GameManager: After get_legal_moves_c for next player. n_next_moves: %1").arg(n_next_moves);
 
                 if (n_next_moves == 0) {
                     emit gameIsOver(CB_WIN); // Current player wins
@@ -1081,23 +1053,21 @@ void GameManager::handleSquareClick(int x, int y)
 }
 
 void GameManager::playMove() {
+    qDebug() << QString("--- playMove: Start ---");
     // Safeguard: Ensure it's an AI's turn based on options
     bool isWhiteAI = (m_options.white_player_type == PLAYER_AI);
     bool isBlackAI = (m_options.black_player_type == PLAYER_AI);
 
     if (!((m_currentColorToMove == CB_WHITE && isWhiteAI) || (m_currentColorToMove == CB_BLACK && isBlackAI))) {
-        GameManager::log(LogLevel::Warning, QString("GameManager: playMove() called, but it is not an AI's turn. Current color: %1, White AI: %2, Black AI: %3. Ignoring.").arg(m_currentColorToMove).arg(isWhiteAI).arg(isBlackAI));
+        qWarning() << QString("GameManager: playMove() called, but it is not an AI's turn. Current color: %1, White AI: %2, Black AI: %3. Ignoring.").arg(m_currentColorToMove).arg(isWhiteAI).arg(isBlackAI);
         return;
     }
 
     // Check if AI has any legal moves
-    pos currentPos;
-    boardtobitboard(&m_currentBoard, &currentPos);
     CBmove legalMovesForAI[MAXMOVES];
     int nmoves_for_ai = 0;
     int isjump_for_ai = 0;
-    bool dummy_can_continue_multijump_for_ai = false;
-    get_legal_moves_c(&currentPos, m_currentColorToMove, legalMovesForAI, &nmoves_for_ai, &isjump_for_ai, NULL, &dummy_can_continue_multijump_for_ai);
+    get_legal_moves_c(&m_currentBoard, m_currentColorToMove, legalMovesForAI, &nmoves_for_ai, &isjump_for_ai, NULL, NULL);
 
     if (nmoves_for_ai == 0) {
         // AI has no legal moves, human wins (or other AI wins in AI vs AI)
@@ -1113,7 +1083,7 @@ void GameManager::playMove() {
         return;
     }
 
-    GameManager::log(LogLevel::Debug, "GameManager: playMove called. Requesting AI move.");
+    qDebug() << "GameManager: playMove called. Requesting AI move.";
     // Emit a signal to the AI to request a move
     emit requestEngineSearch(m_currentBoard, m_currentColorToMove, m_options.time_per_move);
     emit gameMessage("AI is thinking...");
@@ -1128,7 +1098,7 @@ void GameManager::switchTurn()
 }
 
 void GameManager::reconstructBoardState(int move_index) {
-    GameManager::log(LogLevel::Debug, QString("Reconstructing board state to move index %1").arg(move_index));
+    qDebug() << QString("Reconstructing board state to move index %1").arg(move_index);
 
     // 1. Reset board to initial state
     newgame(&m_currentBoard);
@@ -1150,10 +1120,7 @@ void GameManager::reconstructBoardState(int move_index) {
         CBmove legalMoves[MAXMOVES];
         int nmoves_val = 0;
         int isjump_val = 0;
-        pos currentPos;
-        bool dummy_can_continue_multijump = false;
-        boardtobitboard(&m_currentBoard, &currentPos);
-        get_legal_moves_c(&currentPos, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, NULL, &dummy_can_continue_multijump);
+        get_legal_moves_c(&m_currentBoard, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, NULL, NULL);
 
         bool moveFound = false;
         for (int k = 0; k < nmoves_val; ++k) {
@@ -1167,7 +1134,7 @@ void GameManager::reconstructBoardState(int move_index) {
             }
         }
         if (!moveFound) {
-             GameManager::log(LogLevel::Warning, QString("reconstructBoardState: Could not find legal move for PDN move %1-%2. Applying as non-capture.").arg(pdnMove.from_square).arg(pdnMove.to_square));
+             qWarning() << QString("reconstructBoardState: Could not find legal move for PDN move %1-%2. Applying as non-capture.").arg(pdnMove.from_square).arg(pdnMove.to_square);
              cbMove.is_capture = 0;
              cbMove.jumps = 0;
         }
@@ -1184,7 +1151,7 @@ void GameManager::reconstructBoardState(int move_index) {
 }
 
 void GameManager::goBack() {
-    GameManager::log(LogLevel::Debug, "GameManager: goBack called.");
+    qDebug() << "GameManager: goBack called.";
     if (m_currentPdnGame.game.movesindex > 0) {
         m_currentPdnGame.game.movesindex--;
         reconstructBoardState(m_currentPdnGame.game.movesindex);
@@ -1195,7 +1162,7 @@ void GameManager::goBack() {
 }
 
 void GameManager::goForward() {
-    GameManager::log(LogLevel::Debug, "GameManager: goForward called.");
+    qDebug() << "GameManager: goForward called.";
     if (m_currentPdnGame.game.movesindex < m_currentPdnGame.moves.size()) { 
         m_currentPdnGame.game.movesindex++;
         reconstructBoardState(m_currentPdnGame.game.movesindex);
@@ -1206,42 +1173,34 @@ void GameManager::goForward() {
 }
 
 void GameManager::goBackAll() {
-    GameManager::log(LogLevel::Debug, "GameManager: goBackAll called.");
+    qDebug() << "GameManager: goBackAll called.";
     m_currentPdnGame.game.movesindex = 0;
     reconstructBoardState(m_currentPdnGame.game.movesindex);
     emit gameMessage("Moved to the beginning of the game.");
 }
 
 void GameManager::goForwardAll() {
-    GameManager::log(LogLevel::Debug, "GameManager: goForwardAll called.");
+    qDebug() << "GameManager: goForwardAll called.";
     m_currentPdnGame.game.movesindex = m_currentPdnGame.moves.size();
     reconstructBoardState(m_currentPdnGame.game.movesindex);
     emit gameMessage("Moved to the end of the game.");
 }
 
 void GameManager::sendGameHistory() {
-    GameManager::log(LogLevel::Debug, "GameManager: sendGameHistory called.");
-    // This function would typically format the game history (moves)
-    // and send it to the AI engine, possibly via a signal.
-    // For now, we'll just log the moves and send a placeholder command.
+    qDebug() << "GameManager: sendGameHistory called.";
     std::string pdn_history_str;
     PDNgametoPDNstring(m_currentPdnGame, pdn_history_str, "\n");
     QString history = QString::fromStdString(pdn_history_str);
-    GameManager::log(LogLevel::Debug, history);
+    qDebug() << history;
 
-    // Placeholder: Send a generic "gamehistory" command to the AI engine
-    // A more robust implementation would involve a specific AI command for this.
-    // QString reply;
-    // if (m_ai->sendCommand(QString("gamehistory %1").arg(history), reply)) {
-    //     emit gameMessage(QString("Game history sent to engine. Reply: %1").arg(reply));
-    // } else {
-    //     emit gameMessage("Failed to send game history to engine.");
-    // }
-    emit gameMessage("Game history sent (logged to debug and placeholder command).");
+    // Emit the PDN history as a command to the engine.
+    // The MainWindow will connect this signal to the AI's sendCommand slot.
+    emit sendEngineCommand(QString("setgamerecord %1").arg(history)); // Corrected emit statement
+    emit gameMessage("Game history sent (logged to debug and sent to engine via signal).");
 }
 
 void GameManager::detectDraws() {
-    GameManager::log(LogLevel::Debug, "GameManager: detectDraws called.");
+    qDebug() << "GameManager: detectDraws called.";
 
     // Three-fold repetition check
     QString currentFen = getFenPosition();
@@ -1297,7 +1256,7 @@ void GameManager::detectDraws() {
 }
 
 void GameManager::addComment(const QString& comment) {
-    GameManager::log(LogLevel::Debug, QString("GameManager: addComment called with: %1").arg(comment));
+    qDebug() << QString("GameManager: addComment called with: %1").arg(comment);
     if (m_currentPdnGame.game.movesindex > 0 && m_currentPdnGame.game.movesindex <= m_currentPdnGame.moves.size()) {
         // Add comment to the current move
         strncpy(m_currentPdnGame.moves[m_currentPdnGame.game.movesindex - 1].comment,
@@ -1311,7 +1270,7 @@ void GameManager::addComment(const QString& comment) {
 }
 
 void GameManager::setTimeContol(int level, bool exact_time, bool use_incremental_time, int initial_time, int time_increment) {
-    GameManager::log(LogLevel::Info, QString("GameManager: Setting time control - Level: %1, Exact Time: %2, Incremental: %3, Initial Time: %4, Increment: %5. AI Time per move set to: %6").arg(level).arg(exact_time).arg(use_incremental_time).arg(initial_time).arg(time_increment).arg(m_options.time_per_move));
+    qInfo() << QString("GameManager: Setting time control - Level: %1, Exact Time: %2, Incremental: %3, Initial Time: %4, Increment: %5. AI Time per move set to: %6").arg(level).arg(exact_time).arg(use_incremental_time).arg(initial_time).arg(time_increment).arg(m_options.time_per_move);
 
     m_options.level = level;
     m_options.exact_time = exact_time;
@@ -1340,12 +1299,12 @@ void GameManager::setTimeContol(int level, bool exact_time, bool use_incremental
         default: m_options.time_per_move = 5.0; break; // Default to 5 seconds
     }
 
-    GameManager::log(LogLevel::Info, QString("GameManager: AI Time per move set to: %1").arg(m_options.time_per_move));
+    qInfo() << QString("GameManager: AI Time per move set to: %1").arg(m_options.time_per_move);
     emit gameMessage("Time control settings updated.");
 }
 
 void GameManager::addTimeToClock(int seconds) {
-    GameManager::log(LogLevel::Debug, QString("GameManager: Adding %1 seconds to clock.").arg(seconds));
+    qDebug() << QString("GameManager: Adding %1 seconds to clock.").arg(seconds);
     if (m_currentColorToMove == CB_WHITE) {
         m_whiteTime += seconds;
     } else {
@@ -1359,7 +1318,7 @@ void GameManager::addTimeToClock(int seconds) {
 }
 
 void GameManager::subtractFromClock(int seconds) {
-    GameManager::log(LogLevel::Debug, QString("GameManager: Subtracting %1 seconds from clock.").arg(seconds));
+    qDebug() << QString("GameManager: Subtracting %1 seconds from clock.").arg(seconds);
     if (m_currentColorToMove == CB_WHITE) {
         m_whiteTime -= seconds;
         if (m_whiteTime < 0) m_whiteTime = 0;
@@ -1380,28 +1339,23 @@ void GameManager::handleEvaluationUpdate(int score, int depth)
 }
 
 bool GameManager::isLegalMove(const CBmove& move) {
-    GameManager::log(LogLevel::Debug, QString("GameManager: Checking if move from %1,%2 to %3,%4 is legal.").arg(move.from.x).arg(move.from.y).arg(move.to.x).arg(move.to.y));
-
-    pos currentPos;
-    boardtobitboard(&m_currentBoard, &currentPos);
+    qDebug() << QString("GameManager: Checking if move from %1,%2 to %3,%4 is legal.").arg(move.from.x).arg(move.from.y).arg(move.to.x).arg(move.to.y);
 
     CBmove legalMoves[MAXMOVES];
     int nmoves_val = 0;
     int isjump_val = 0;
-    bool dummy_can_continue_multijump = false;
-
-    get_legal_moves_c(&currentPos, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, NULL, &dummy_can_continue_multijump);
+    get_legal_moves_c(&m_currentBoard, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, NULL, NULL);
 
     for (int i = 0; i < nmoves_val; ++i) {
         if (legalMoves[i].from.x == move.from.x &&
             legalMoves[i].from.y == move.from.y &&
             legalMoves[i].to.x == move.to.x &&
             legalMoves[i].to.y == move.to.y) {
-            GameManager::log(LogLevel::Debug, "GameManager: Move is legal.");
+            qDebug() << "GameManager: Move is legal.";
             return true;
         }
     }
 
-    GameManager::log(LogLevel::Debug, "GameManager: Move is NOT legal.");
+    qDebug() << "GameManager: Move is NOT legal.";
     return false;
 }

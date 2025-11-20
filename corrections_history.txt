@@ -1,13 +1,31 @@
-The bug where the AI makes suicidal moves has been addressed and the application has been recompiled. The executable `checkerboard_app` is now present.
-The `evaluateBoard` function in `GeminiAI.cpp` was modified to include a material advantage component. This adds a penalty for having fewer pieces than the opponent, making the AI less likely to sacrifice its own pieces.
-The EGDB (Endgame Database) and transposition table lookups, which were disabled for debugging, have been re-enabled. This should improve the AI's performance.
-
-I believe the bug is fixed and the AI should now play more intelligently and avoid suicidal moves.
-Added `m_transpositionTable.clear();` to the beginning of `GeminiAI::getBestMove` to clear the transposition table for each new search, preventing indefinite growth and improving performance.
-Removed verbose `log_to_file` calls from `c_logic.cpp` to improve performance of move generation.
-Refactored `makemovelist` in `c_logic.cpp` to use bitboard-based iteration for piece identification and move generation, improving performance.
-Fixed a critical bug in `makemovelist` in `c_logic.cpp` where coordinate conversion from 8x8 to 12x12 board representation was incorrect, leading to all moves being reported as illegal. The `x` and `y` coordinates were being double-offset, causing out-of-bounds access or incorrect board state interpretation. This has been corrected by properly mapping 8x8 coordinates to 12x12 coordinates (`x_12x12 = x_8x8 + 2; y_12x12 = y_8x8 + 2;`) and consistently using these 12x12 coordinates for board access within the move generation logic.
-Implemented mobility as a factor in the AI's evaluation function (`evaluateBoard` in `GeminiAI.cpp`). The `countLegalMoves` helper function was added to determine the number of legal moves for each side, and a bonus is now awarded for having greater mobility.
-Added debug logging to `GameManager::handleSquareClick` to inspect coordinate values during move validation.
-Added debug logging to `c_logic.cpp` within `get_legal_moves_c` after coordinate conversion to verify 0-7 range.
-Fixed coordinate conversion in `makemovelist` within `c_logic.cpp` by directly converting `bit_pos` to `(x,y)` (column, row) consistent with the UI's top-left (0,0) coordinate system, resolving the y-coordinate inversion issue.
+- Added `extern "C" void log_c(int level, const char* message);` to `c_logic.h`.
+- Replaced all instances of `GameManager::log(` with `log_c(` in `MainWindow.cpp`, `engine_wrapper.cpp`, `GeminiAI.cpp`, and `GameManager.cpp`.
+- Removed `extern "C" void log_c(int level, const char* message);` from `GameManager.h` and `c_logic.h`.
+- Added `extern "C" void log_c(int level, const char* message);` to `checkers_types.h`.
+- Converted `QString` arguments to `const char*` using `.toUtf8().constData()` for all `log_c` calls in `MainWindow.cpp`, `engine_wrapper.cpp`, `GeminiAI.cpp`, and `GameManager.cpp`.
+- Restored the correct class definition structure in `GameManager.h`.
+- Replaced all instances of `log` with `GameManager::internalLog` in `GameManager::initLogging()` and `GameManager::closeLogging()`.
+- Replaced all `log_c(...)` calls with `qDebug() << ...` (or `qInfo()`, `qWarning()`, `qCritical()`) in `main.cpp`, `MainWindow.cpp`, `engine_wrapper.cpp`, `GeminiAI.cpp`, and `GameManager.cpp`.
+- Added missing closing brace `}` to `GameManager.h`.
+- Fixed: `MainWindow.cpp` - Resolved issues with the `loadSettings()` and `saveSettings()` bodies, ensuring correct application settings persistence. Added missing member variables (`m_optionsMutex`, `m_options`, various `QAction` pointers, `m_boardWidget`, `m_mainToolBar`, `m_ai`, `m_aiThread`, `m_blackClockLabel`, `m_whiteClockLabel`, `m_evaluationLabel`, `m_depthLabel`, `m_uiUpdateTimer`, `m_pieceSelected`, `m_currentState`, `m_isAnalyzing`, `m_isPondering`, `m_isInfiniteAnalyzing`, `m_setupPieceType`, `m_togglePieceColorMode`, `m_pdnGameHistory`, `m_currentPdnGameIndex`, and `m_engineMenu`) to `MainWindow.h`. (19/11/2025)
+- Fixed: `MainWindow.cpp` - Implemented the missing `closeEvent()` handler. (19/11/2025)
+- Fixed: `build_checkerboard.sh` - Added explicit removal of `moc_MainWindow.cpp` to force regeneration of the moc file. (19/11/2025)
+- Fixed: `MainWindow.h` - Corrected typo from `QAction_OBJECT` to `Q_OBJECT`. (19/11/2025)
+- Fixed: `MainWindow.cpp` - Corrected the `BoardWidget` constructor call to match its definition and added `setObjectName` to `m_mainToolBar`. (19/11/2025)
+- Fixed: `MainWindow.cpp` - Ensured correct initialization of board pieces on startup by implementing `QTimer::singleShot` to delay the initial `newGame` call until the event loop is running and all signal/slot connections are established. (19/11/2025)
+- Fixed: `MainWindow.cpp` - Added connection for `BoardWidget::squareClicked` signal to `GameManager::handleSquareClick` to enable mouse interactions with the board. (19/11/2025)
+- Fixed: `c_logic.cpp` - Corrected handling of `can_continue_multijump` in `get_legal_moves_c` to prevent potential seg faults by ensuring it is only dereferenced when not `NULL`. (19/11/2025)
+- Fixed: `c_logic.cpp` - Replaced unsafe `strcat` calls with `strncat` and `sprintf` with `snprintf` in `board8toFEN` to prevent buffer overflows. (19/11/2025)
+- Fixed: `c_logic.cpp` - Refactored `FENtoboard8` to use `strtok_r` for safer parsing of the color part of the FEN string and implemented explicit bounds checking and character-by-character iteration for the piece list parsing loop for enhanced safety against malformed FEN strings. (19/11/2025)
+- Fixed: `c_logic.cpp` - Added recursion depth check in `find_captures_recursive` to prevent buffer overflows in the `CBmove.del` array. (19/11/2025)
+- Fixed: `c_logic.cpp` - Wrapped `find_captures_recursive` definition in an `extern "C"` block AND added the missing `int* visited` parameter to its definition to ensure consistent declaration and definition, resolving the conflicting declaration and linker error. (19/11/2025)
+- Added: `c_logic.cpp` - Added verbose logging to `makemovelist` and `find_captures_recursive` to assist in debugging AI move generation. (19/11/2025)
+- Fixed: `log.cpp` - Changed `QIODevice::Append` to `QIODevice::Truncate` when opening `app.txt` to ensure the log file is overwritten each time the application runs. (19/11/2025)
+- Fixed: `c_logic.cpp` - Corrected color handling in `get_legal_moves_c`, `makemovelist`, and `find_captures_recursive` to use `CB_WHITE`/`CB_BLACK` constants directly instead of `1`/`-1` to resolve incorrect AI move generation. (19/11/2025)
+- Fixed: `c_logic.cpp` - Corrected `makemovelist` to properly determine `fwd` and promotion conditions for non-capture moves using `CB_WHITE`/`CB_BLACK` constants, resolving the issue where no legal moves were found for human players. (19/11/2025)
+- Added: `c_logic.cpp` - Added more granular logging to `makemovelist` to trace piece iteration, player piece identification, and non-capture move additions. (19/11/2025)
+- Added: `GameManager.cpp` - Added debug logging to check `m_currentBoard.board[4][1]` after `newgame()` and at the beginning of `handleSquareClick()`. (19/11/2025)
+- Removed all test-related files (`AI_test.cpp`, `test_game_logic.h`, `test_main.cpp`, `GameManager_test.h`, `GameManager_test.cpp`) as per user's instruction.
+- Reverted `build_checkerboard.sh` to only compile and link the main application.
+- Fixed `log.cpp` by adding `#include <QDebug>` to resolve `QDebug` related compilation errors.
+- Confirmed successful application build after all changes. (20/11/2025)

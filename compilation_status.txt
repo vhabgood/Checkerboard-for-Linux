@@ -1,2 +1,17 @@
-Compilation Status: SUCCESS. All compilation and linking errors resolved.
-Mobility factor added to AI evaluation. Debug logging added to GameManager::handleSquareClick and c_logic.cpp. Coordinate conversion in makemovelist fixed.
+Compilation Status: SUCCESS. Issues identified during codebase investigation for seg faults:
+- Investigating potential null pointer dereferences.
+- Checking for out-of-bounds array accesses.
+- Reviewing memory management for leaks or double-frees.
+- Examining areas with recent modifications for introduced bugs.
+- Specifically focusing on GameManager.cpp, AI.cpp, and c_logic.c as these are critical components.
+- Fixed potential seg fault in `c_logic.cpp` related to `can_continue_multijump` parameter in `get_legal_moves_c`.
+- Fixed buffer overflow in `c_logic.cpp`'s `board8toFEN` function by replacing `strcat` with `strncat` and `sprintf` with `snprintf`.
+- Fixed buffer overflow and improved robustness in `c_logic.cpp`'s `FENtoboard8` function by using `strtok_r` and explicit bounds checking during FEN string parsing.
+- Fixed buffer overflow in `c_logic.cpp`'s `find_captures_recursive` function by adding a recursion depth check to prevent out-of-bounds access to the `CBmove.del` array.
+- Fixed conflicting declaration error for `find_captures_recursive` in `c_logic.cpp` by adding the missing `int* visited` parameter to its definition and ensuring it is wrapped in an `extern "C"` block.
+- Added verbose logging to `makemovelist` and `find_captures_recursive` in `c_logic.cpp` to pinpoint where the AI gets stuck.
+- Fixed `log.cpp` to overwrite `app.txt` on each run by changing `QIODevice::Append` to `QIODevice::Truncate`.
+- Fixed color handling in `c_logic.cpp`'s `get_legal_moves_c`, `makemovelist`, and `find_captures_recursive` to use `CB_WHITE`/`CB_BLACK` constants directly instead of an incorrect `-1`/`1` translation, resolving incorrect AI move generation and the AI getting stuck.
+- Fixed `makemovelist` to properly determine `fwd` and promotion conditions for non-capture moves using `CB_WHITE`/`CB_BLACK` constants, resolving the issue where no legal moves were found for human players.
+- Added more granular logging to `makemovelist` to trace piece iteration, player piece identification, and non-capture move additions to further debug the move generation issue.
+- Added debug logging to `GameManager.cpp` to check `m_currentBoard.board[4][1]` after `newgame()` and at the beginning of `handleSquareClick()`.

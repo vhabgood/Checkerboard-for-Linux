@@ -6,7 +6,7 @@
 #include <unordered_map> // For transposition table
 #include "engine_wrapper.h" // Include ExternalEngine definition
 
-#define MAX_DEPTH 20 // Define the maximum search depth for iterative deepening
+
 #define WIN_SCORE 100000
 #define LOSS_SCORE -100000
 
@@ -58,6 +58,9 @@ public:
     void loadUserBook(const QString& filename);
     void saveUserBook(const QString& filename);
 
+    static const int MAX_DEPTH = 20; // Maximum search depth
+    static const int R = 2; // Reduction factor for null-move pruning
+
 public slots:
     void init();
     void requestMove(Board8x8 board, int colorToMove, double timeLimit);
@@ -72,6 +75,7 @@ public slots:
     void abortSearch();
     void setExternalEnginePath(const QString& path);
     void setSecondaryExternalEnginePath(const QString& path);
+    void setEgdbPath(const QString& path); // Add this new slot
 
 signals:
     void searchFinished(bool moveFound, bool aborted, const CBmove& bestMove, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime);
@@ -89,8 +93,11 @@ private:
     bool isKingTrapped(const Board8x8& board, int r, int c, const CBmove* legalMoves, int nmoves);
     bool hasCaptures(const Board8x8& board, int colorToMove);
     bool isSquareAttacked(const Board8x8& board, int r, int c, int attackerColor);
+    bool isPieceDefended(const Board8x8& board, int r, int c, int pieceColor);
+    bool isMoveSafe(const Board8x8& board, int color, const CBmove& move);
     static bool compareMoves(const CBmove& a, const CBmove& b);
-    POSITION boardToPosition(const Board8x8& board, int colorToMove);
+    pos boardToPosition(const Board8x8& board, int colorToMove);
+    int evaluateKingSafety(const Board8x8& board, int color);
 
     // Zobrist Hashing
     static uint64_t ZobristTable[8][8][5]; // [row][col][piece_type: empty, white_man, white_king, black_man, black_king]

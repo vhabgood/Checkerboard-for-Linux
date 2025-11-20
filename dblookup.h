@@ -17,7 +17,7 @@ extern "C" {
 //int initdblookup(char str[256]);
 int db_init(int suggestedMB, char str[256], const char* EGTBdirectory);
 int db_exit(void);
-int dblookup(POSITION *p,int cl);
+int dblookup(pos *p,int cl);
 int revert(int32 n);
 int db_getcachesize(void);
 void db_infostring(char *str);

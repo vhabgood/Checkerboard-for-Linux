@@ -1,11 +1,35 @@
-*.o
+# Binaries for the application
 checkerboard_app
-*.cpr
-*.idx
-*.db
-app.log
+test_runner
+
+# Object files
+*.o
+*.obj
+
+# Moc files (Qt's Meta-Object Compiler output)
+moc_*.cpp
+moc_*.h
+moc_*.o
+
+# UI files (Qt's User Interface Compiler output)
+ui_*.h
+
+# Log files and temporary output
+app.txt
 app_output.log
 c_compile_error.log
 c_logic.log
 cpp_compile_error.log
-global_variables.cpp
+
+# Qt resource files
+qrc_*.cpp
+qrc_*.h
+
+# ForTestingOnly folder
+forTestingOnly/
+
+# AI exclude file
+.aiexclude
+
+# Other generated files
+resources.cpp

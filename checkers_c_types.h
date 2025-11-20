@@ -24,16 +24,10 @@ typedef struct {
     unsigned int bk; // Black kings
     unsigned int wm; // White men
     unsigned int wk; // White kings
+    int color; // Side to move
 } pos;
 
-// POSITION struct for EGDB lookup (compatible with pos)
-typedef struct {
-    unsigned int bm; // Black men
-    unsigned int bk; // Black kings
-    unsigned int wm; // White men
-    unsigned int wk; // White kings
-    int color; // Side to move
-} POSITION;
+
 
 // Define int32 for compatibility (used in dblookup.c)
 typedef int int32;
@@ -62,7 +56,7 @@ extern "C" {
 #endif
     void log_c(int level, const char* message);
     void boardtobitboard(const Board8x8* board8x8, pos* position); // Added this line
-    int get_legal_moves_c(pos *p, int color, CBmove movelist[MAXMOVES], int *nmoves, int *isjump, const CBmove *last_move, bool *can_continue_multijump);
+    int get_legal_moves_c(const Board8x8* board, int color, CBmove movelist[MAXMOVES], int *nmoves, int *isjump, const CBmove *last_move, bool *can_continue_multijump);
 #ifdef __cplusplus
 }
 #endif
@@ -144,12 +138,14 @@ enum AppState {
     STATE_BOOKVIEW
 };
 
+
 // Log Levels (C-compatible)
-enum {
+enum LogLevel {
     LOG_LEVEL_DEBUG = 0,
     LOG_LEVEL_INFO = 1,
     LOG_LEVEL_WARNING = 2,
-    LOG_LEVEL_ERROR = 3
+    LOG_LEVEL_ERROR = 3,
+    LOG_LEVEL_FATAL = 4
 };
 
 enum GuiAction {

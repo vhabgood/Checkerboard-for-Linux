@@ -18,23 +18,11 @@
 Q_DECLARE_METATYPE(coor)
 Q_DECLARE_METATYPE(Board8x8)
 Q_DECLARE_METATYPE(pos)
-Q_DECLARE_METATYPE(POSITION)
 Q_DECLARE_METATYPE(CBmove)
 Q_DECLARE_METATYPE(PDNgame)
 typedef QList<int> Squarelist;
 
 // --- C++ Specific Type Definitions --- //
-
-// Define LogLevel enum for controlling logging verbosity
-enum LogLevel {
-    Debug,
-    Info,
-    Warning,
-    Error,
-    Critical,
-    Fatal
-};
-Q_DECLARE_METATYPE(LogLevel)
 
 extern LogLevel s_minLogLevel;
 
@@ -113,7 +101,7 @@ struct CBoptions {
         current_engine(0),
         piece_set("standard"),
         three_move_option(0),
-        min_log_level(LogLevel::Info),
+        min_log_level(LOG_LEVEL_INFO),
         enable_game_timer(false),
         white_player_type(PLAYER_HUMAN),
         black_player_type(PLAYER_HUMAN)

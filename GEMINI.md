@@ -81,6 +81,10 @@ IT IS CRITICAL TO FOLLOW THESE GUIDELINES TO AVOID EXCESSIVE TOKEN CONSUMPTION.
 - After the command runs, inspect the temp files (e.g. '/home/victor/.gemini/tmp/c8881e07ea6c95987cc3ba085ca0f6d11c1e3b8678fa45bbb0659ee7e3ecd0e0/out.log' and '/home/victor/.gemini/tmp/c8881e07ea6c95987cc3ba085ca0f6d11c1e3b8678fa45bbb0659ee7e3ecd0e0/err.log') using commands like 'grep', 'tail', 'head', ... (or platform equivalents). Remove the temp files when done.
 
 
+## Development Rules
+
+-   **No New Files:** Do not create any new test files or additional files. Focus on modifying existing files.
+
 ## Development Conventions
 
 -   **Unified Header:** All C/C++ code is being refactored to use a single, comprehensive header file, `ResourceFiles/checkers_types.h`. This file contains all common `struct`, `enum`, `typedef`, and `#define` declarations, as well as forward declarations for shared functions. This convention was adopted to solve severe compilation issues arising from circular and conflicting header includes.
@@ -91,7 +95,18 @@ IT IS CRITICAL TO FOLLOW THESE GUIDELINES TO AVOID EXCESSIVE TOKEN CONSUMPTION.
 
 ### Compilation Status
 
-Compilation Status: SUCCESS. All compilation and linking errors resolved.
+Compilation Status: FAILED. `MainWindow.cpp` is currently experiencing compilation issues and is the current focus.
+
+### Current Focus: MainWindow.cpp Compilation
+
+The primary objective is to get `MainWindow.cpp` to compile. This will be achieved through an iterative process:
+1.  **Baseline Compilation:** Temporarily comment out significant portions of the code in `MainWindow.cpp` to establish a compiling baseline. This includes:
+    *   All method implementations (except constructor and destructor).
+    *   All signal/slot connections.
+    *   All UI element creations (menus, toolbars, status bar labels).
+    *   Calls to `loadSettings()` and `saveSettings()`.
+2.  **Incremental Reintroduction:** Gradually uncomment and re-enable functionality, resolving compilation errors at each step. This ensures that new errors are isolated and addressed immediately.
+3.  **Error Resolution:** Address specific compilation errors one by one, focusing on syntax, missing includes, or undeclared identifiers.
 
 ### Development Plan
 

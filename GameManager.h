@@ -6,7 +6,9 @@
 #include <QMutex>
 #include <QTimer>
 #include "checkers_types.h"
-#include "checkers_qt_types.h"
+
+
+
 
 class GameManager : public QObject
 {
@@ -45,10 +47,7 @@ public:
     void handleSquareClick(int x, int y);
     void loadPdnGame(const QString &filename);
 
-    // Logging
-    static void initLogging();
-    static void closeLogging();
-    static void log(LogLevel level, const QString& message);
+
 
     // Setup Mode functions
     void clearBoard();
@@ -83,10 +82,12 @@ public:
     void setCurrentColorToMove(int color);
     int getHalfMoveCount() const;
     CBoptions getOptions() const;
+    void setSoundEnabled(bool enabled);
 
 public slots:
     void handleEvaluationUpdate(int score, int depth); // New slot to receive evaluation from AI and re-emit
     void handleTimerTimeout(); // Slot to handle timer timeout
+    void handleGameOverResult(int result); // New slot to handle game over results
 
 signals:
     // Signals to communicate with the GUI (e.g., update board, display message)
@@ -99,6 +100,7 @@ signals:
     void humanTurn();
     void evaluationUpdated(int score, int depth); // New signal to emit evaluation score and depth
     void updateClockDisplay(double whiteTime, double blackTime); // New signal to update clock display
+    void sendEngineCommand(const QString& command); // Corrected signal signature
 
 private:
     void reconstructBoardState(int move_index);
@@ -117,11 +119,4 @@ private:
     double m_blackTime;
     int m_halfMoveCount; // New member for 50-move rule
     QTimer *m_gameTimer; // New member for game timer
-
-    // Logging
-    static QFile m_logFile;
-    static QTextStream m_logStream;
-    static QMutex m_logMutex;
 };
-
-extern LogLevel s_minLogLevel;

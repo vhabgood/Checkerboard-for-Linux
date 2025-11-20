@@ -1,3 +1,4 @@
+#include <QDebug>
 #include "BoardWidget.h"
 #include "GameManager.h"
 #include <QPainter>
@@ -59,6 +60,7 @@ void BoardWidget::clearSelectedPiece() {
 
 void BoardWidget::setBoard(const Board8x8& board)
 {
+    qDebug() << "BoardWidget::setBoard called";
     for (int r = 0; r < 8; ++r) {
         for (int c = 0; c < 8; ++c) {
             m_board.board[r][c] = board.board[r][c];
@@ -180,7 +182,7 @@ void BoardWidget::loadPiecePixmaps()
     // Check if pixmaps loaded successfully
     for (int key : m_piecePixmaps.keys()) {
         if (m_piecePixmaps.value(key).isNull()) {
-            GameManager::log(LogLevel::Error, QString("Failed to load pixmap for piece type: %1 from path: %2").arg(key).arg(basePath + (key == (CB_BLACK | CB_MAN) ? "bm.bmp" : (key == (CB_BLACK | CB_KING) ? "bk.bmp" : (key == (CB_WHITE | CB_MAN) ? "wm.bmp" : "wk.bmp")))));
+            log_c(LOG_LEVEL_ERROR, QString("Failed to load pixmap for piece type: %1 from path: %2").arg(key).arg(basePath + (key == (CB_BLACK | CB_MAN) ? "bm.bmp" : (key == (CB_BLACK | CB_KING) ? "bk.bmp" : (key == (CB_WHITE | CB_MAN) ? "wm.bmp" : "wk.bmp")))).toUtf8().constData());
         } else {
         }
     }
