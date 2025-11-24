@@ -17,7 +17,7 @@ struct TTEntry {
     uint64_t key;
     int depth;
     int score;
-    enum NodeType { EXACT, ALPHA, BETA } type;
+    enum EntryType { EXACT, ALPHA, BETA } type;
     CBmove bestMove;
 };
 
@@ -92,7 +92,6 @@ private:
     bool isKingTrapped(const Board8x8& board, int r, int c, const CBmove* legalMoves, int nmoves);
     bool hasCaptures(const Board8x8& board, int colorToMove);
     bool isSquareAttacked(const Board8x8& board, int r, int c, int attackerColor);
-    bool isPieceDefended(const Board8x8& board, int r, int c, int pieceColor);
     bool isMoveSafe(const Board8x8& board_after_move, int color);
     int evaluateKingSafety(const Board8x8& board, int color);
     int evaluatePassedMen(const Board8x8& board);

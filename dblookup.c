@@ -450,7 +450,7 @@ int dblookup(pos *q,int cl)
 	// get the unique number which identifies this block
     char log_msg[512];
     sprintf(log_msg, "dblookup: index: %d, blocknumber: %d, db->numblocks: %d", index, blocknumber, n);
-    log_c(LOG_LEVEL_DEBUG, log_msg);
+    log_c(LOG_LEVEL_ERROR, log_msg);
 	uniqueblockid = dbpointer->blockoffset+
 					dbpointer->firstblock +
 					blocknumber;
@@ -822,22 +822,35 @@ static int parseindexfile(const char* EGTBdirectory, char idxfilename[256],int b
 
 	                char log_msg[512];
 
-	                sprintf(log_msg, "parseindexfile: Called with idxfilename: %s, blockoffset: %d, cprFileIndex: %d", idxfilename, blockoffset, fpcount);
+	                	                sprintf(log_msg, "parseindexfile: Called with idxfilename: %s, blockoffset: %d, cprFileIndex: %d", idxfilename, blockoffset, fpcount);
 
-	                log_c(LOG_LEVEL_DEBUG, log_msg);
-	//logtofile(str);
+	                	                log_c(LOG_LEVEL_ERROR, log_msg);
 
-	char fullpath[MAX_PATH_FIXED];
-	snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, idxfilename);
-	                snprintf(log_msg, sizeof(log_msg), "parseindexfile: Attempting to open index file: %s", fullpath);
-	                log_c(LOG_LEVEL_DEBUG, log_msg);
-	fp = fopen(fullpath,"rb");
-	if(fp==0) {
-		                        snprintf(log_msg, sizeof(log_msg), "parseindexfile: Failed to open index file %s", fullpath);
-		                        log_c(LOG_LEVEL_ERROR, log_msg);
-		                        snprintf(log_msg, sizeof(log_msg), "Cannot open index file %s", fullpath);
-		                        log_c(LOG_LEVEL_ERROR, log_msg);		return -1;
-		}
+	                	//logtofile(str);
+
+	                
+
+	                	char fullpath[MAX_PATH_FIXED];
+
+	                	snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, idxfilename);
+
+	                	                snprintf(log_msg, sizeof(log_msg), "parseindexfile: Attempting to open index file: %s", fullpath);
+
+	                	                log_c(LOG_LEVEL_ERROR, log_msg);
+
+	                	fp = fopen(fullpath,"rb");
+
+	                	if(fp==0) {
+
+	                		                        snprintf(log_msg, sizeof(log_msg), "parseindexfile: Failed to open index file %s", fullpath);
+
+	                		                        log_c(LOG_LEVEL_ERROR, log_msg);
+
+	                		                        snprintf(log_msg, sizeof(log_msg), "Cannot open index file %s", fullpath);
+
+	                		                        log_c(LOG_LEVEL_ERROR, log_msg);		return -1;
+
+	                		}
 
 	while (1) {
 
@@ -890,7 +903,7 @@ static int parseindexfile(const char* EGTBdirectory, char idxfilename[256],int b
 
 				// Check for too many indices.
 				if (num == maxidx) {
-					                                                 log_c(LOG_LEVEL_WARNING, "Reached maxidx");
+					                                                 log_c(LOG_LEVEL_ERROR, "Reached maxidx");
 				}
 			}
 
@@ -932,7 +945,7 @@ static int parseindexfile(const char* EGTBdirectory, char idxfilename[256],int b
 	// firstblock has the offset relative to the start of the file. the
 	// sum of the two is the number of blocks associated with this index file.
 	                sprintf(log_msg, "parseindexfile: Returning %d", num+firstblock);
-	                log_c(LOG_LEVEL_DEBUG, log_msg);
+	                log_c(LOG_LEVEL_ERROR, log_msg);
 	return num + firstblock;
 	}
 
@@ -940,9 +953,8 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
 {
     char log_msg[512];
     char log_msg_buffer[512]; // Declare log_msg_buffer here
-    sprintf(log_msg, "db_init called with suggestedMB: %d", suggestedMB);
-    log_c(LOG_LEVEL_DEBUG, log_msg);
-    FILE *fp;
+    	sprintf(log_msg, "db_init called with suggestedMB: %d", suggestedMB);
+        log_c(LOG_LEVEL_ERROR, log_msg);    FILE *fp;
     char dbname[256];
     char fullpath[MAX_PATH_FIXED]; // Declare fullpath here
     int i,j,n,nb,nw;
@@ -1043,7 +1055,7 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
 			snprintf(dbname, sizeof(dbname), "db%i.idx",n);
             snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
             snprintf(log_msg, sizeof(log_msg), "db_init: Attempting to open index file: %s", fullpath);
-            log_c(LOG_LEVEL_DEBUG, log_msg);
+            log_c(LOG_LEVEL_ERROR, log_msg);
 		fp = fopen(fullpath,"rb");
 		if(fp)
 			{
@@ -1056,7 +1068,7 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
 					else
 					{
 					                                                 sprintf(log_msg, "db_init: Failed to open index file: %s", dbname);
-					                                                 log_c(LOG_LEVEL_WARNING, log_msg); // Change to WARNING
+					                                                 log_c(LOG_LEVEL_ERROR, log_msg); // Change to ERROR
 					continue; // Change break to continue
 					}    }
 
@@ -1085,8 +1097,8 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
 	                        continue;
 	                    snprintf(dbname, sizeof(dbname), "db%i_%i%i%i%i.cpr",bm+bk+wm+wk,bm,bk,wm,wk);
                         snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
-	                                                                                                         snprintf(log_msg, sizeof(log_msg), "db_init: Attempting to open 8-piece database file: %s", fullpath);
-	                                                                                                         log_c(LOG_LEVEL_DEBUG, log_msg);	                    fp = fopen(fullpath,"rb");
+	                                                                                                         	                    snprintf(log_msg, sizeof(log_msg), "db_init: Attempting to open 8-piece database file: %s", fullpath);
+	                                                                                                         	                    log_c(LOG_LEVEL_ERROR, log_msg);	                    fp = fopen(fullpath,"rb");
 	                    if(fp)
 	                    {
 	                        if (n > pieces) { // Update maxpieces only if a higher piece count DB is found
@@ -1098,7 +1110,7 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
 	                    else
 	                    {
 	                                                                                                                         sprintf(log_msg, "db_init: Failed to open 8-piece database file: %s", dbname);
-	                                                                                                                         log_c(LOG_LEVEL_WARNING, log_msg); // Change to WARNING
+	                                                                                                                         log_c(LOG_LEVEL_ERROR, log_msg); // Change to ERROR
 	                        continue; // Change to continue
 	                    }
 	                }
@@ -1173,9 +1185,8 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
 							
 							    }
 							
-							                                                                                                                                                                                         sprintf(log_msg, "db_init: cachesize: %d", cachesize);
-							                                                                                                                                                                                         log_c(LOG_LEVEL_DEBUG, log_msg);							
-							
+							                                                                                                                                                                                                                                                                                                                                                                                                                                      sprintf(log_msg, "db_init: cachesize: %d", cachesize);
+							                                                                                                                                                                                         							                                                                                                                                                                                                              log_c(LOG_LEVEL_ERROR, log_msg);							
 							    // parse index files
 							
 							    // blockoffset is the total number of blocks in all dbs belonging to an index file.
@@ -1195,11 +1206,11 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
         snprintf(dbname, sizeof(dbname), "db%i.cpr", n);
         snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
         snprintf(log_msg, sizeof(log_msg), "db_init: Attempting to open CPR file: %s", fullpath);
-        log_c(LOG_LEVEL_DEBUG, log_msg);
+        log_c(LOG_LEVEL_ERROR, log_msg);
 
         if (cprFileCount >= MAXFP) {
             snprintf(log_msg_buffer, sizeof(log_msg_buffer), "db_init: Exceeded MAXFP (%d) while trying to open %s. Skipping.", MAXFP, fullpath);
-            log_c(LOG_LEVEL_WARNING, log_msg_buffer);
+            log_c(LOG_LEVEL_ERROR, log_msg_buffer);
             // Continue, but don't increment cprFileCount, as this file won't be in dbfp
         } else {
             dbfp[cprFileCount] = fopen(fullpath, "rb");
@@ -1225,7 +1236,7 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
                 } else {
                     char log_msg_idx[512];
                     sprintf(log_msg_idx, "db_init: Failed to parse index file %s. Closing CPR file and skipping.", dbname);
-                    log_c(LOG_LEVEL_WARNING, log_msg_idx);
+                    log_c(LOG_LEVEL_ERROR, log_msg_idx);
                     fclose(dbfp[cprFileCount]); // Close the already opened CPR file
                     dbfp[cprFileCount] = NULL;
                 }
@@ -1255,11 +1266,11 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
                     snprintf(dbname, sizeof(dbname), "db%i_%i%i%i%i.cpr", bm+bk+wm+wk, bm, bk, wm, wk);
                     snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
                     snprintf(log_msg, sizeof(log_msg), "db_init: Attempting to open CPR file: %s", fullpath);
-                    log_c(LOG_LEVEL_DEBUG, log_msg);
+                    log_c(LOG_LEVEL_ERROR, log_msg);
 
                     if (cprFileCount >= MAXFP) {
                         snprintf(log_msg_buffer, sizeof(log_msg_buffer), "db_init: Exceeded MAXFP (%d) while trying to open %s. Skipping.", MAXFP, fullpath);
-                        log_c(LOG_LEVEL_WARNING, log_msg_buffer);
+                        log_c(LOG_LEVEL_ERROR, log_msg_buffer);
                         continue;
                     }
 
@@ -1282,7 +1293,7 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
                         } else {
                             char log_msg_idx[512];
                             sprintf(log_msg_idx, "db_init: Failed to parse index file %s. Closing CPR file and skipping.", dbname);
-                            log_c(LOG_LEVEL_WARNING, log_msg_idx);
+                            log_c(LOG_LEVEL_ERROR, log_msg_idx);
                             fclose(dbfp[cprFileCount]); // Close the already opened CPR file
                             dbfp[cprFileCount] = NULL;
                         }
@@ -1324,25 +1335,24 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
 							            sprintf(str,"\ncould not allocate blockpointer array (%i blocks)",maxblocknum);
 							            exit(0);
 							        }
-							                                                                                                                                                                                                             sprintf(log_msg, "db_init: Allocated %d KB for block pointer array. maxblocknum: %d", maxblocknum/256, maxblocknum);
-							                                                                                                                                                                                                             log_c(LOG_LEVEL_DEBUG, log_msg);							        //logtofile(str);
-							        // set blockpointers to NULL - this statement crashes on 64-bit machine
-							        for(i=0;i<maxblocknum;i++)
-							            blockpointer[i]=NULL;
-							        
-							        // allocate memory for doubly linked list LRU
-							        memsize = cachesize*sizeof(struct bi);
-							        blockinfo = (struct bi*)malloc(memsize);
-							        if(blockinfo == NULL && memsize!=0)
-							        {
-							            sprintf(str,"\ncould not allocate LRU list (%lu KB)",(cachesize)*sizeof(struct bi)/1024);
-							            exit(0);
-							        }
-							                                                                                                                                                                                                             sprintf(log_msg, "db_init: Allocated %d KB for LRU linked list.", (cachesize)*(int)sizeof(struct bi)/1024);
-							                                                                                                                                                                                                             log_c(LOG_LEVEL_DEBUG, log_msg);							        //logtofile(str);
-							    
-							        //getch();
-							    
+							                                                                                                                                                                                                                                                                                                                                                                                                                                                          sprintf(log_msg, "db_init: Allocated %d KB for block pointer array. maxblocknum: %d", maxblocknum/256, maxblocknum);
+							                                                                                                                                                                                                             							                                                                                                                                                                                                              log_c(LOG_LEVEL_ERROR, log_msg);							        //logtofile(str);
+							                                                                                                                                                                                                             							        // set blockpointers to NULL - this statement crashes on 64-bit machine
+							                                                                                                                                                                                                             							        for(i=0;i<maxblocknum;i++)
+							                                                                                                                                                                                                             							            blockpointer[i]=NULL;
+							                                                                                                                                                                                                             							        
+							                                                                                                                                                                                                             							        // allocate memory for doubly linked list LRU
+							                                                                                                                                                                                                             							        memsize = cachesize*sizeof(struct bi);
+							                                                                                                                                                                                                             							        blockinfo = (struct bi*)malloc(memsize);
+							                                                                                                                                                                                                             							        if(blockinfo == NULL && memsize!=0)
+							                                                                                                                                                                                                             							        {
+							                                                                                                                                                                                                             							            sprintf(str,"\ncould not allocate LRU list (%lu KB)",(cachesize)*sizeof(struct bi)/1024);
+							                                                                                                                                                                                                             							            exit(0);
+							                                                                                                                                                                                                             							        }
+							                                                                                                                                                                                                             							                                                                                                                                                                                                             sprintf(log_msg, "db_init: Allocated %d KB for LRU linked list.", (cachesize)*(int)sizeof(struct bi)/1024);
+							                                                                                                                                                                                                             							                                                                                                                                                                                                             log_c(LOG_LEVEL_ERROR, log_msg);							        //logtofile(str);
+							                                                                                                                                                                                                             							    
+							                                                                                                                                                                                                             							        //getch();							    
 							                                autoloadnum = preload(out, dbfp, cprFileCount);							    
 							        // prepare arrays which describe linked list
 							        // todo: if we want to autoload all blocks with a blocknumber < X (which preload would return)
@@ -1369,8 +1379,8 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
 							        {
 							            snprintf(dbname, sizeof(dbname), "db%i.cpr",n);
                                         snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
-                                                                                                                                    snprintf(log_msg, sizeof(log_msg), "db_init: Attempting to open CPR file: %s", fullpath);							            log_c(LOG_LEVEL_DEBUG, log_msg);
-							                                                                                  if (cprFileCount >= MAXFP) {							                                                                                 snprintf(log_msg_buffer, sizeof(log_msg_buffer), "db_init: Exceeded MAXFP (%d) while trying to open %s. Skipping.", MAXFP, fullpath);							                log_c(LOG_LEVEL_WARNING, log_msg_buffer);
+                                                                                                                                    snprintf(log_msg, sizeof(log_msg), "db_init: Attempting to open CPR file: %s", fullpath);							            log_c(LOG_LEVEL_ERROR, log_msg);
+							                                                                                  if (cprFileCount >= MAXFP) {							                                                                                 snprintf(log_msg_buffer, sizeof(log_msg_buffer), "db_init: Exceeded MAXFP (%d) while trying to open %s. Skipping.", MAXFP, fullpath);							                log_c(LOG_LEVEL_ERROR, log_msg_buffer);
 							                continue;
 							            }
 							                                                                                                                dbfp[cprFileCount] = fopen(fullpath,"rb");                                                                if(dbfp[cprFileCount]
@@ -1403,9 +1413,9 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
 							                        snprintf(dbname, sizeof(dbname), "db%i_%i%i%i%i.cpr",bm+bk+wm+wk,bm,bk,wm,wk);
                                                     snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
 							                                                                            snprintf(log_msg, sizeof(log_msg), "db_init: Attempting to open CPR file: %s", fullpath);
-							                        							                                                    log_c(LOG_LEVEL_DEBUG, log_msg);                                                                                if (cprFileCount 
+							                        							                                                    log_c(LOG_LEVEL_ERROR, log_msg);                                                                                if (cprFileCount 
 							                        							                        >= MAXFP) {
-							                                                                                                 snprintf(log_msg_buffer, sizeof(log_msg_buffer), "db_init: Exceeded MAXFP (%d) while trying to open %s. Skipping.", MAXFP, fullpath);							                            log_c(LOG_LEVEL_WARNING, log_msg_buffer);
+							                                                                                                 snprintf(log_msg_buffer, sizeof(log_msg_buffer), "db_init: Exceeded MAXFP (%d) while trying to open %s. Skipping.", MAXFP, fullpath);							                            log_c(LOG_LEVEL_ERROR, log_msg_buffer);
 							                            continue;
 							                        }
 							                                                                                                                           dbfp[cprFileCount] = fopen(fullpath, "rb");                                                                           if(dbfp[cprFileCount]
@@ -1444,7 +1454,7 @@ int preload(char out[256], FILE *db_fp[], int fp_count)	{
         strncpy(dbname_to_use, dbnames[i], sizeof(dbname_to_use) - 1);
         dbname_to_use[sizeof(dbname_to_use) - 1] = '\0';
 		sprintf(log_msg_buffer, "Preloading %s", dbname_to_use);
-		log_c(LOG_LEVEL_INFO, log_msg_buffer);
+		log_c(LOG_LEVEL_ERROR, log_msg_buffer);
 		while(!feof(fp))
 			{
 			// get a memory address to write block to:
@@ -1461,7 +1471,7 @@ int preload(char out[256], FILE *db_fp[], int fp_count)	{
 				{
 				sprintf(out,"preload block %i in %s",cachepointer,dbname_to_use);
 				sprintf(log_msg, "Reading block %d", cachepointer);
-				log_c(LOG_LEVEL_DEBUG, log_msg);
+				log_c(LOG_LEVEL_ERROR, log_msg);
 				}
 
 			            // read it

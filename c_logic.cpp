@@ -598,11 +598,14 @@ extern "C" void find_captures_recursive(const Board8x8* board, CBmove movelist[M
                 int next_is_king = is_king || becomes_king;
                 mm.newpiece = next_is_king ? (m.oldpiece | CB_KING) : m.oldpiece;
 
-                Board8x8 next_board = *board;
-                next_board.board[jump_y][jump_x] = CB_EMPTY;
-                
-                if(!becomes_king)
-                {
+                if (becomes_king) {
+                    // This jump makes a king. This is the last move in the sequence. Add it.
+                    movelist[*n] = mm;
+                    (*n)++;
+                } else {
+                    // Continue searching for more jumps in the sequence
+                    Board8x8 next_board = *board;
+                    next_board.board[jump_y][jump_x] = CB_EMPTY;
                     visited[current_square] = 1;
                     find_captures_recursive(&next_board, movelist, mm, land_x, land_y, d + 1, n, color, next_is_king, visited);
                     visited[current_square] = 0;
