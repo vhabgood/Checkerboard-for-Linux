@@ -372,7 +372,7 @@ void GameManager::newGame(int gameType)
     }
 }
 
-bool GameManager::makeMove(const CBmove& move)
+void GameManager::makeMove(const CBmove& move)
 {
     qDebug() << QString("GameManager: Making move from %1,%2 to %3,%4").arg(move.from.x).arg(move.from.y).arg(move.to.x).arg(move.to.y);
 
@@ -423,7 +423,6 @@ bool GameManager::makeMove(const CBmove& move)
 
     qDebug() << QString("GameManager: Board state after move: %1").arg(getFenPosition());
 
-    return isCapture;
 }
 
 void GameManager::handleTimerTimeout()
@@ -958,9 +957,8 @@ qDebug() << QString("Clicked on (%1, %2). Current player: %3. Piece selected: %4
             int isjump_val = 0;
             bool can_continue_multijump = false;
 
-            // If a forced capture is pending, we can only make jumps with the piece that just moved.
-            // The legal move generator needs the last move to correctly identify subsequent jumps.
-            get_legal_moves_c(&m_currentBoard, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, NULL, &can_continue_multijump);
+            CBmove *last_move_ptr = m_forcedCapturePending ? &m_lastMove : NULL;
+            get_legal_moves_c(&m_currentBoard, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, last_move_ptr, &can_continue_multijump);
 
             qDebug() << QString("GameManager: Potential move from (%1,%2) to (%3,%4)").arg(potentialMove.from.x).arg(potentialMove.from.y).arg(potentialMove.to.x).arg(potentialMove.to.y);
 
@@ -979,12 +977,10 @@ qDebug() << QString("Clicked on (%1, %2). Current player: %3. Piece selected: %4
             }
 
             if (moveFound) {
-                bool isCapture = makeMove(chosenMove);
+                bool isCapture = chosenMove.jumps > 0;
+                makeMove(chosenMove);
 
-                // Check if a promotion happened
-                bool promotionOccurred = (chosenMove.oldpiece & CB_MAN) && (chosenMove.newpiece & CB_KING);
-
-                if (isCapture && !promotionOccurred) {
+                if (isCapture) {
                     // After a capture, check if the same piece can make another jump
                     CBmove multiJumpMoves[MAXMOVES];
                     int n_multijump_moves = 0;
@@ -1025,14 +1021,18 @@ qDebug() << QString("Clicked on (%1, %2). Current player: %3. Piece selected: %4
                     emit gameMessage("Game Over!");
                 } else {
                     // Switch turns
+                    qDebug() << "Switching turns. Current color:" << m_currentColorToMove;
                     m_currentColorToMove = nextColorToMove;
+                    qDebug() << "New current color:" << m_currentColorToMove;
                     emit gameMessage("Move made.");
 
                     // Trigger AI if it's its turn
                     if ((m_currentColorToMove == CB_WHITE && m_options.white_player_type == PLAYER_AI) ||
                         (m_currentColorToMove == CB_BLACK && m_options.black_player_type == PLAYER_AI)) {
+                        qDebug() << "Triggering AI move.";
                         playMove();
                     } else {
+                        qDebug() << "It's human's turn.";
                         emit humanTurn();
                     }
                 }
@@ -1296,7 +1296,7 @@ void GameManager::setTimeContol(int level, bool exact_time, bool use_incremental
         case LEVEL_15M: m_options.time_per_move = 900.0; break;
         case LEVEL_30M: m_options.time_per_move = 1800.0; break;
         case LEVEL_INFINITE: m_options.time_per_move = 3600.0; break; // A very large number for "infinite"
-        default: m_options.time_per_move = 5.0; break; // Default to 5 seconds
+        default: m_options.time_per_move = 2.0; break; // Default to 2 seconds
     }
 
     qInfo() << QString("GameManager: AI Time per move set to: %1").arg(m_options.time_per_move);
@@ -1336,6 +1336,49 @@ void GameManager::subtractFromClock(int seconds) {
 void GameManager::handleEvaluationUpdate(int score, int depth)
 {
     emit evaluationUpdated(score, depth);
+}
+
+void GameManager::handleAIMoveFound(bool moveFound, bool aborted, const CBmove& bestMove, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime)
+{
+    qDebug() << "GameManager::handleAIMoveFound - Move found:" << moveFound << ", Aborted:" << aborted << ", Best Move:" << bestMove.from.x << "," << bestMove.from.y << " to " << bestMove.to.x << "," << bestMove.to.y << ", Status:" << statusText;
+    qDebug() << "GameManager::handleAIMoveFound - Received bestMove: from(" << bestMove.from.x << "," << bestMove.from.y << ") to(" << bestMove.to.x << "," << bestMove.to.y << ") is_capture:" << bestMove.is_capture << " jumps:" << bestMove.jumps;
+    
+    if (moveFound && !aborted) {
+        // Apply the AI's best move
+        makeMove(bestMove);
+        
+        // After making the move, switch turn and trigger AI if it's still AI's turn (e.g., multi-jump)
+        // Or if it's the other AI's turn (in AI vs AI mode)
+        int nextColorToMove = (m_currentColorToMove == CB_WHITE) ? CB_BLACK : CB_WHITE;
+
+        CBmove nextPlayerMoves[MAXMOVES];
+        int n_next_moves = 0;
+        int is_next_jump = 0;
+        bool dummy_can_continue_multijump = false;
+        get_legal_moves_c(&m_currentBoard, nextColorToMove, nextPlayerMoves, &n_next_moves, &is_next_jump, NULL, &dummy_can_continue_multijump);
+
+        qDebug() << "GameManager::handleAIMoveFound - Next player (" << nextColorToMove << ") has " << n_next_moves << " legal moves. Is jump: " << is_next_jump;
+
+
+        if (n_next_moves == 0) {
+            emit gameIsOver(CB_WIN); // Current player wins, as opponent has no moves
+            emit gameMessage("Game Over! No legal moves for opponent.");
+        } else {
+            m_currentColorToMove = nextColorToMove;
+            emit gameMessage("AI made its move.");
+
+            if ((m_currentColorToMove == CB_WHITE && m_options.white_player_type == PLAYER_AI) ||
+                (m_currentColorToMove == CB_BLACK && m_options.black_player_type == PLAYER_AI)) {
+                playMove(); // Trigger next AI move if applicable
+            } else {
+                emit humanTurn(); // It's human's turn now
+            }
+        }
+    } else if (aborted) {
+        gameMessage("AI search was aborted.");
+    } else {
+        gameMessage("AI could not find a move. Game might be over or an error occurred.");
+    }
 }
 
 bool GameManager::isLegalMove(const CBmove& move) {

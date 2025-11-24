@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QCoreApplication> // Added for QCoreApplication
 #include "MainWindow.h"
 #include <QMessageBox>
 #include <QSharedMemory>
@@ -7,6 +8,7 @@
 #include <QDebug>
 #include <QTimer>
 #include "log.h"
+#include <cstdio>
 
 void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
@@ -15,10 +17,30 @@ void messageHandler(QtMsgType type, const QMessageLogContext &context, const QSt
 }
 
 
+#include <cstdio>
+
 int main(int argc, char *argv[])
 {
+    // Redirect stdout and stderr to app.txt
+    if (freopen("app.txt", "w", stdout) == nullptr) {
+        // Cannot redirect stdout, print error to original stderr
+        fprintf(stderr, "error redirecting stdout\n");
+    }
+    if (freopen("app.txt", "w", stderr) == nullptr) {
+        // Cannot redirect stderr, print error to original stdout
+        printf("error redirecting stderr\n");
+    }
+
+    // Redirect stderr to a file
+    if (freopen("err.txt", "w", stderr) == nullptr) {
+        // Optionally handle the error, e.g., by logging to the console
+        qWarning("Could not redirect stderr to err.txt");
+    }
+
+    // Set application name for QStandardPaths
+    QCoreApplication::setApplicationName("CheckerBoard"); 
     init_logging();
-    qInstallMessageHandler(messageHandler);
+    qInstallMessageHandler(messageHandler); // Temporarily commented out to debug log crash
 
     // For debugging: try to remove any leftover shared memory segment from previous crashes
     QSharedMemory cleanupSharedMemory;

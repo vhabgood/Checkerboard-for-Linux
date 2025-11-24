@@ -152,70 +152,26 @@
 
 #include "dblookup.h"
 #include "checkers_c_types.h"
-
-
 #include <stdio.h>
-
-
 #include <stdlib.h>
-
-
 #include <string.h>
-
-
 #include <stdint.h>
-
-
 #include <stdbool.h>
-
-
 #include <sys/stat.h> // For stat()
-
-
 #include <fcntl.h>    // For open()
-
-
 #include <unistd.h>   // For close()
-
-
 #include <sys/mman.h> // For mmap()
-
-
 #include <errno.h>    // For errno
-
-
 #include <limits.h>   // For PATH_MAX
-
-
 #include <ctype.h>    // For isdigit
-
-
 #include <stdint.h>   // For int64_t
 
-
-
-
-
 // Forward declaration for logging function from GameManager
-
-
 void log_c(int level, const char* message);
-
-
-
-
-
 // Define bitcount if not already defined
-
-
 #ifndef bitcount
-
-
 #define bitcount __builtin_popcountll
-
-
 #endif
-
 
 // definition of a structure for compressed databases
 typedef struct compresseddatabase
@@ -232,22 +188,14 @@ typedef struct compresseddatabase
 	int fp;					// which file is it in?
 	} cprsubdb;
 
-
-
-
-
-int preload(char out[256]);
+int preload(char out[256], FILE *db_fp[], int fp_count);
 
 #define hiword(x) (((x)&0xFFFF0000)>>16)
 #define loword(x) ((x)&0xFFFF)
-
 static cprsubdb cprsubdatabase[MAXPIECE+1][MAXPIECE+1][MAXPIECE+1][MAXPIECE+1][7][7][2]; // db subslice info
-
 static unsigned char **blockpointer;	// pointers to the memory address of block #i, using unique block id i.
-										// watch out for 32/64-bit compatibility problem
+// watch out for 32/64-bit compatibility problem
 static unsigned char *cachebaseaddress; // allocate cache memory to this pointer
-
-
 // a doubly linked list for LRU caching
 static struct bi
 	{
@@ -255,10 +203,7 @@ static struct bi
 	int next;     // which is the index of the next blockinfo in the linked list
 	int prev;     // which is the index of the last blockinfo in the linked list
 	} *blockinfo;
-
 static int head,tail; // array index of head and tail of the linked list.
-
-
 // run-length-decoder definitions and variables.
 #define SKIPS 58
 #define MAXSKIP 10000
@@ -266,13 +211,10 @@ static int head,tail; // array index of head and tail of the linked list.
 static const int skip[SKIPS]={5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,36,40,44,48,52,56,60,70,80,90,100,150,200,250,300,400,500,650,800,1000,1200,1400,1600,2000,2400,3200,4000,5000,7500,MAXSKIP};
 static int runlength[256]; // holds the run length for every byte
 static int value[256];		// holds the value for every byte
-
 static int bicoef[33][33]; // binomial coefficients
-
 // if your system doesn't support LSB / MSB assembly functions, you would have to use the following two arrays:
 //static char LSBarray[256];
 //static char MSBarray[256];
-
 // duplicate data also in cake but possibly not in other engines...
 static char bitsinword[65536];
 static uint32_t revword[65536];
@@ -313,7 +255,6 @@ int dblookup(pos *q,int cl)
 	
     uint32_t index;
     int bm, bk, wm, wk, bmrank=0, wmrank=0;
-
     // next 4 lines for inlined version
     int i;
     uint32_t x,y;
@@ -335,11 +276,9 @@ int dblookup(pos *q,int cl)
 	cprsubdb *dbpointer;
 	FILE *errorlogfp;
 	
-	// get a copy of the board, because we may have to invert the board for a 
-	// lookup.
+	// get a copy of the board, because we may have to invert the board for a lookup.
 	p=*q;
-
-	// adjust color for different definition in dblookup
+        // adjust color for different definition in dblookup
 	p.color = q->color & 1;
 
 	// set bm, bk, wm, wk, and ranks - bitcount is in bool.c
@@ -353,7 +292,6 @@ int dblookup(pos *q,int cl)
 	// if one side has nothing, return appropriate value
 	// this means you can call lookup positions
 	// where one side has no pieces left - unlike chinook db.
-
 	// safety check if necessary: your engine should not call dblookup if one side has no pieces left
 	// disabled for Cake since it doesn't do this
 	/*
@@ -362,14 +300,11 @@ int dblookup(pos *q,int cl)
 	if(wm+wk==0)
 		return p.color==DB_WHITE?DB_LOSS:DB_WIN;
 	*/
-
 	// assert for debugging stuff.
 	//assert(bm+bk>0);
 	//assert(wm+wk>0);
-
 	if( (bm+wm+wk+bk>maxpieces) || (bm+bk>maxpiece) || (wm+wk>maxpiece))
 		return DB_UNKNOWN;	
-
 	if(bm)
 		bmrank = MSB(p.bm)/4;
 	if(wm)
@@ -404,13 +339,9 @@ int dblookup(pos *q,int cl)
 		
 		reverse = 1;
 		}
-
-
-// before we do a real lookup, check if this db has only one value:
-	
+        // before we do a real lookup, check if this db has only one value:
 	// get pointer to db
 	dbpointer = &cprsubdatabase[bm][bk][wm][wk][bmrank][wmrank][p.color];
-	
 	// check presence: this is important for the following reason: slices
 	// are stuffed into single files; db6.cpr for instance. if MAXPIECES/MAXPIECE
 	// were different during generation and in this code, then it is possible that
@@ -439,10 +370,7 @@ int dblookup(pos *q,int cl)
 	  0   1   2   3           
 	      BLACK
 */
-
-
-
-	// first, we set the index for the black men:
+        // first, we set the index for the black men:
 	i=1;
 	y=p.bm;
 	while(y)
@@ -490,8 +418,6 @@ int dblookup(pos *q,int cl)
 		i++;
 		}
 
-
-
 	if(bm)
 		bmrange = bicoef[4*(bmrank+1)][bm] - bicoef[4*bmrank][bm];
 	if(wm)
@@ -506,52 +432,28 @@ int dblookup(pos *q,int cl)
 
 	index = bmindex + wmindex*bmrange + bkindex*bmrange*wmrange + wkindex*bmrange*wmrange*bkrange;
 	// end uninlined version
-
 	// now we know the index, and the database, so we look in the .idx file to find the
 	// right memory block
-
 	idx = dbpointer->idx;
 	n= dbpointer->numberofblocks;
-
 	
-	// TODO: check if the n<8 is of any use - probably not. it would simplify the code
-	// if it was not here.
-	if(n<8)
-		{
 		// now the array idx[] contains the index number at the start of every block.
 		// we do a stupid linear search to find the block:
 		blocknumber=0;
 		// changed the order of the two conditions for cake sans souci 1.02; 
 		// it was possible before that idx[n] got read. now thanks to the && behavior
 		// of not evaluating the second clause, it is no longer possible.
-		while((blocknumber<n) && ((unsigned int)idx[blocknumber] <= index) )
+		while((blocknumber < n - 1) && ((unsigned int)idx[blocknumber + 1] <= index) )
 			blocknumber++;
-		// we overshot our target - blocknumber is now the first larger idx.
-		blocknumber--;
-		}
-	else
-		{
-		// try for a better search: binary division search
-		n1=0;n2=n;
-
-		while(n2>n1+1)
-			{
-			n3=(n1+n2)/2;
-			if((unsigned int)idx[n3]<=index)
-				n1=n3;
-			else
-				n2=n3;
-			}
-		blocknumber = n1;
-		}
 
 	// we now have the blocknumber inside the database slice in which the position is located.
 	// get the unique number which identifies this block
+    char log_msg[512];
+    sprintf(log_msg, "dblookup: index: %d, blocknumber: %d, db->numblocks: %d", index, blocknumber, n);
+    log_c(LOG_LEVEL_DEBUG, log_msg);
 	uniqueblockid = dbpointer->blockoffset+
 					dbpointer->firstblock +
 					blocknumber;
-
-
 	// check if it is loaded:
 	if(blockpointer[uniqueblockid] != NULL)
 		//yes!
@@ -920,7 +822,7 @@ static int parseindexfile(const char* EGTBdirectory, char idxfilename[256],int b
 
 	                char log_msg[512];
 
-	                sprintf(log_msg, "parseindexfile: Called with idxfilename: %s, blockoffset: %d, fpcount: %d", idxfilename, blockoffset, fpcount);
+	                sprintf(log_msg, "parseindexfile: Called with idxfilename: %s, blockoffset: %d, cprFileIndex: %d", idxfilename, blockoffset, fpcount);
 
 	                log_c(LOG_LEVEL_DEBUG, log_msg);
 	//logtofile(str);
@@ -929,6 +831,7 @@ static int parseindexfile(const char* EGTBdirectory, char idxfilename[256],int b
 	snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, idxfilename);
 	                snprintf(log_msg, sizeof(log_msg), "parseindexfile: Attempting to open index file: %s", fullpath);
 	                log_c(LOG_LEVEL_DEBUG, log_msg);
+	fp = fopen(fullpath,"rb");
 	if(fp==0) {
 		                        snprintf(log_msg, sizeof(log_msg), "parseindexfile: Failed to open index file %s", fullpath);
 		                        log_c(LOG_LEVEL_ERROR, log_msg);
@@ -1030,6 +933,7 @@ static int parseindexfile(const char* EGTBdirectory, char idxfilename[256],int b
 	// sum of the two is the number of blocks associated with this index file.
 	                sprintf(log_msg, "parseindexfile: Returning %d", num+firstblock);
 	                log_c(LOG_LEVEL_DEBUG, log_msg);
+	return num + firstblock;
 	}
 
 int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
@@ -1046,7 +950,8 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
     int singlevalue=0;
     int blockoffset = 0;
     int autoloadnum = 0;
-    int fpcount = 0;
+    int idx_fpcount = 0; // Renamed for clarity, handles .idx files for parseindexfile
+    int cprFileCount = 0; // Dedicated counter for dbfp (cpr files)
     int error;
     int pifreturnvalue;
     int pieces=0;
@@ -1276,87 +1181,122 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
 							    // blockoffset is the total number of blocks in all dbs belonging to an index file.
 							
 							    blockoffset = 0;
-							for(n=2;n<=maxpieces;n++)
-								{
-								if(n>=8)
-									continue;
-								snprintf(dbname, sizeof(dbname), "db%i.idx",n);
-                                snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
-								sprintf(out,"parsing %s",fullpath);
-								// No need to fopen here, parseindexfile will do it
-								// fp = fopen(fullpath,"rb");
-								// if(fp)
-								// {
-								// 	strcat(dbinfo,dbname);
-								// 	strcat(dbinfo,"\n");
-								// 	fclose(fp);
-								// }
-								// parse next index file
-								pifreturnvalue = parseindexfile(EGTBdirectory, dbname,blockoffset,fpcount);
-								
-								// if the index file is not present, or if an error occurs during parsing,
-								// we log a warning and continue.
-								if(pifreturnvalue >= 0)
-									{
-									blockoffset += pifreturnvalue;
-									sprintf(str,"  %i blocks",blockoffset);
-									//logtofile(str);
-									fpcount++;
-									} else {
-                                        char log_msg[512];
-                                        sprintf(log_msg, "db_init: Failed to parse index file %s. Skipping.", dbname);
-                                        log_c(LOG_LEVEL_WARNING, log_msg);
-                                    }
-								}
-							
-						
-														for(n=SPLITSIZE;n<=maxpieces;n++)
-															{
-															for(nb=maxpieces-maxpiece;nb<=maxpiece;nb++)
-																{
-																nw=n-nb;
-																if(nw>nb)
-																	continue;
-																for(bk=0;bk<=nb;bk++)
-																	{
-																	bm=nb-bk;
-																	for(wk=0;wk<=nw;wk++)
-																		{
-																		wm=nw-wk;
-																		if(bm+bk==wm+wk && wk>bk)
-																			continue;
-																		// ok, found a valid db, now do the do: 
-																		snprintf(dbname, sizeof(dbname), "db%i_%i%i%i%i.idx",bm+bk+wm+wk,bm,bk,wm,wk);
-							                                            snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
-																		sprintf(out,"parsing %s",fullpath);
-																		// No need to fopen here, parseindexfile will do it
-																		// fp = fopen(fullpath,"rb");
-																		// if(fp != NULL)
-																		// {
-																		// 	strcat(dbinfo,dbname);
-																		// 	strcat(dbinfo,"\n");
-																		// 	fclose(fp);
-																		// }
-																		pifreturnvalue = parseindexfile(EGTBdirectory, dbname,blockoffset,fpcount);
-																		if(pifreturnvalue >= 0)
-																			{
-																			blockoffset += pifreturnvalue;
-																			sprintf(str,"  %i blocks",blockoffset);
-																			//logtofile(str);
-																			fpcount++;
-																			} else {
-							                                                    char log_msg[512];
-							                                                    sprintf(log_msg, "db_init: Failed to parse index file %s. Skipping.", dbname);
-							                                                    log_c(LOG_LEVEL_WARNING, log_msg);
-							                                                }
-																		}
-																	}
-																}
-															}						
+// Here's the critical section to replace: START
+// The old loops for idx and cpr files are intertwined and problematic.
+// The new structure will correctly open CPRs and then parse IDXs, linking them by cprFileCount.
+
+    // First, process dbN.cpr and dbN.idx files (2- to 7-piece databases)
+    for(n=2; n<=maxpieces; n++) // Iterate up to maxpieces to cover db2 to db7 if they exist
+    {
+        if(n>=SPLITSIZE) // SPLITSIZE (8) and higher are handled in the 8-piece loop
+            continue;
+
+        // Attempt to open dbN.cpr
+        snprintf(dbname, sizeof(dbname), "db%i.cpr", n);
+        snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
+        snprintf(log_msg, sizeof(log_msg), "db_init: Attempting to open CPR file: %s", fullpath);
+        log_c(LOG_LEVEL_DEBUG, log_msg);
+
+        if (cprFileCount >= MAXFP) {
+            snprintf(log_msg_buffer, sizeof(log_msg_buffer), "db_init: Exceeded MAXFP (%d) while trying to open %s. Skipping.", MAXFP, fullpath);
+            log_c(LOG_LEVEL_WARNING, log_msg_buffer);
+            // Continue, but don't increment cprFileCount, as this file won't be in dbfp
+        } else {
+            dbfp[cprFileCount] = fopen(fullpath, "rb");
+            if (dbfp[cprFileCount] == NULL) {
+                sprintf(log_msg_buffer, "db_init: dbfp[%d] is null for %s! Skipping associated IDX file.", cprFileCount, dbname);
+                log_c(LOG_LEVEL_ERROR, log_msg_buffer);
+                // Even if CPR fails, we might still try to parse the IDX to get single value dbs,
+                // but the fp in cprsubdb will point to a NULL dbfp entry which dblookup will handle.
+                // For now, let's just proceed to parse IDX if CPR failed, to get single values
+                // but dbfp[cprFileCount] remains NULL.
+            } else {
+                sprintf(dbnames[cprFileCount], "%s", fullpath);
+                // Now, parse the corresponding dbN.idx file
+                snprintf(dbname, sizeof(dbname), "db%i.idx", n);
+                snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
+                sprintf(out, "parsing %s", fullpath);
+
+                pifreturnvalue = parseindexfile(EGTBdirectory, dbname, blockoffset, cprFileCount); // Pass current cprFileCount
+                if (pifreturnvalue >= 0) {
+                    blockoffset += pifreturnvalue;
+                    sprintf(str, "  %i blocks", blockoffset);
+                    cprFileCount++; // Only increment if both CPR opened and IDX parsed for this N
+                } else {
+                    char log_msg_idx[512];
+                    sprintf(log_msg_idx, "db_init: Failed to parse index file %s. Closing CPR file and skipping.", dbname);
+                    log_c(LOG_LEVEL_WARNING, log_msg_idx);
+                    fclose(dbfp[cprFileCount]); // Close the already opened CPR file
+                    dbfp[cprFileCount] = NULL;
+                }
+            }
+        }
+    }
+
+
+    // Now, process 8-piece databases (dbX_YYYY.cpr and dbX_YYYY.idx)
+    for (n=SPLITSIZE; n<=maxpieces; n++)
+    {
+        for (nb=maxpieces-maxpiece; nb<=maxpiece; nb++)
+        {
+            nw=n-nb;
+            if (nw > nb)
+                continue;
+            for (bk=0; bk<=nb; bk++)
+            {
+                bm=nb-bk;
+                for (wk=0; wk<=nw; wk++)
+                {
+                    wm=nw-wk;
+                    if (bm+bk==wm+wk && wk>bk)
+                        continue;
+
+                    // Attempt to open dbX_YYYY.cpr
+                    snprintf(dbname, sizeof(dbname), "db%i_%i%i%i%i.cpr", bm+bk+wm+wk, bm, bk, wm, wk);
+                    snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
+                    snprintf(log_msg, sizeof(log_msg), "db_init: Attempting to open CPR file: %s", fullpath);
+                    log_c(LOG_LEVEL_DEBUG, log_msg);
+
+                    if (cprFileCount >= MAXFP) {
+                        snprintf(log_msg_buffer, sizeof(log_msg_buffer), "db_init: Exceeded MAXFP (%d) while trying to open %s. Skipping.", MAXFP, fullpath);
+                        log_c(LOG_LEVEL_WARNING, log_msg_buffer);
+                        continue;
+                    }
+
+                    dbfp[cprFileCount] = fopen(fullpath, "rb");
+                    if (dbfp[cprFileCount] == NULL) {
+                        sprintf(log_msg_buffer, "db_init: dbfp[%d] is null for %s! Skipping associated IDX file.", cprFileCount, dbname);
+                        log_c(LOG_LEVEL_ERROR, log_msg_buffer);
+                    } else {
+                        sprintf(dbnames[cprFileCount], "%s", fullpath);
+                        // Now, parse the corresponding dbX_YYYY.idx
+                        snprintf(dbname, sizeof(dbname), "db%i_%i%i%i%i.idx", bm+bk+wm+wk, bm, bk, wm, wk);
+                        snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
+                        sprintf(out, "parsing %s", fullpath);
+
+                        pifreturnvalue = parseindexfile(EGTBdirectory, dbname, blockoffset, cprFileCount); // Pass current cprFileCount
+                        if (pifreturnvalue >= 0) {
+                            blockoffset += pifreturnvalue;
+                            sprintf(str, "  %i blocks", blockoffset);
+                            cprFileCount++; // Only increment if both CPR opened and IDX parsed for this N
+                        } else {
+                            char log_msg_idx[512];
+                            sprintf(log_msg_idx, "db_init: Failed to parse index file %s. Closing CPR file and skipping.", dbname);
+                            log_c(LOG_LEVEL_WARNING, log_msg_idx);
+                            fclose(dbfp[cprFileCount]); // Close the already opened CPR file
+                            dbfp[cprFileCount] = NULL;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 							//logtofile("index files parsed");
 							//sprintf(str,"allocated %i KB for indexing",bytesallocated/1024);
 							//logtofile(str);
 							// index files are parsed!
+
 							
 							
 							// allocate memory for the cache
@@ -1403,7 +1343,7 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
 							    
 							        //getch();
 							    
-							                                autoloadnum = preload(out);							    
+							                                autoloadnum = preload(out, dbfp, cprFileCount);							    
 							        // prepare arrays which describe linked list
 							        // todo: if we want to autoload all blocks with a blocknumber < X (which preload would return)
 							        // then we have to go from for i=0 to for i=X 
@@ -1424,24 +1364,23 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
 							    
 							    
 							        // open file pointers for each db: keep open all the time.
-							        fpcount=0;
+// Removed: cpr_fpcount is no longer used.
 							        for(n=2;n<SPLITSIZE;n++)
 							        {
 							            snprintf(dbname, sizeof(dbname), "db%i.cpr",n);
                                         snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
                                                                                                                                     snprintf(log_msg, sizeof(log_msg), "db_init: Attempting to open CPR file: %s", fullpath);							            log_c(LOG_LEVEL_DEBUG, log_msg);
-							            if (fpcount >= MAXFP) {
-							                                                                                 snprintf(log_msg_buffer, sizeof(log_msg_buffer), "db_init: Exceeded MAXFP (%d) while trying to open %s. Skipping.", MAXFP, fullpath);							                log_c(LOG_LEVEL_WARNING, log_msg_buffer);
+							                                                                                  if (cprFileCount >= MAXFP) {							                                                                                 snprintf(log_msg_buffer, sizeof(log_msg_buffer), "db_init: Exceeded MAXFP (%d) while trying to open %s. Skipping.", MAXFP, fullpath);							                log_c(LOG_LEVEL_WARNING, log_msg_buffer);
 							                continue;
 							            }
-							            dbfp[fpcount] = fopen(fullpath,"rb");
-							            sprintf(dbnames[fpcount],"%s",fullpath);
-							            if(dbfp[fpcount]==NULL)
+							                                                                                                                dbfp[cprFileCount] = fopen(fullpath,"rb");                                                                if(dbfp[cprFileCount]
+							                                                                                  ==NULL)
 							            {
-							                sprintf(log_msg_buffer, "db_init: dbfp[%d] is null for %s!", fpcount, dbname);
+							                sprintf(log_msg_buffer, "db_init: dbfp[%d] is null for %s!", cprFileCount, dbname);
 							                log_c(LOG_LEVEL_ERROR, log_msg_buffer);
 							            } else {
-							                fpcount++;
+							                sprintf(dbnames[cprFileCount],"%s",fullpath);
+							                cprFileCount++;
 							            }
 							        }
 							    
@@ -1464,18 +1403,19 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
 							                        snprintf(dbname, sizeof(dbname), "db%i_%i%i%i%i.cpr",bm+bk+wm+wk,bm,bk,wm,wk);
                                                     snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
 							                                                                            snprintf(log_msg, sizeof(log_msg), "db_init: Attempting to open CPR file: %s", fullpath);
-							                        							                        log_c(LOG_LEVEL_DEBUG, log_msg);							                        if (fpcount >= MAXFP) {
+							                        							                                                    log_c(LOG_LEVEL_DEBUG, log_msg);                                                                                if (cprFileCount 
+							                        							                        >= MAXFP) {
 							                                                                                                 snprintf(log_msg_buffer, sizeof(log_msg_buffer), "db_init: Exceeded MAXFP (%d) while trying to open %s. Skipping.", MAXFP, fullpath);							                            log_c(LOG_LEVEL_WARNING, log_msg_buffer);
 							                            continue;
 							                        }
-							                        dbfp[fpcount] = fopen(fullpath, "rb");
-							                        sprintf(dbnames[fpcount],"%s",fullpath);
-							                        if(dbfp[fpcount]==NULL)
+							                                                                                                                           dbfp[cprFileCount] = fopen(fullpath, "rb");                                                                           if(dbfp[cprFileCount]
+							                                                                                                          ==NULL)
 							                        {
-							                            sprintf(log_msg_buffer, "db_init: dbfp[%d] is null for %s!", fpcount, dbname);
+							                            sprintf(log_msg_buffer, "db_init: dbfp[%d] is null for %s!", cprFileCount, dbname);
 							                            log_c(LOG_LEVEL_ERROR, log_msg_buffer);
 							                        } else {
-							                            fpcount++;
+							                            sprintf(dbnames[cprFileCount],"%s",fullpath);
+							                            cprFileCount++;
 							                        }
 							                    }
 							                }
@@ -1484,40 +1424,33 @@ int db_init(int suggestedMB, char out[256], const char* EGTBdirectory)
 							return maxpieces;
 } // Closing brace for db_init
 
-int preload(char out[256])	{
+int preload(char out[256], FILE *db_fp[], int fp_count)	{
 	// preloads the entire db or until the cache is full.
-	FILE *fp;
-	int n,nb,nw;
 	unsigned char *diskblock;
 	int cachepointer = 0;
-	int bm,bk,wm,wk;
-	char dbname[256];
-	char fullpath[MAX_PATH_FIXED]; // Declare fullpath here
-	int blockoffset = 0;
 	int autoloadnum = 0;
-	int uniqueid = 0;
 	char log_msg[512]; // Declare log_msg here
 	char log_msg_buffer[512]; // Declare log_msg_buffer here
+    char dbname_to_use[256]; // Declare dbname_to_use here
 
-
-	for(n=2;n<SPLITSIZE;n++)
-		{
-		snprintf(dbname, sizeof(dbname), "db%i.cpr",n);
-        snprintf(fullpath, sizeof(fullpath), "%s/%s", DBpath, dbname); // Use DBpath
-		fp = fopen(fullpath,"rb");
-		if(fp==NULL) {
-            char log_msg_buffer[512];
-            snprintf(log_msg_buffer, sizeof(log_msg_buffer), "preload: Failed to open CPR file: %s. Skipping.", fullpath);
-            log_c(LOG_LEVEL_WARNING, log_msg_buffer);
-			continue; // Change break to continue
+    for (int i = 0; i < fp_count; ++i) {
+        FILE *fp = db_fp[i];
+        if (fp == NULL) {
+            continue;
         }
-		char log_msg_buffer[512];
-		sprintf(log_msg_buffer, "Preloading %d-piece db", n);
+
+        rewind(fp); // Rewind the file pointer to the beginning
+
+        strncpy(dbname_to_use, dbnames[i], sizeof(dbname_to_use) - 1);
+        dbname_to_use[sizeof(dbname_to_use) - 1] = '\0';
+		sprintf(log_msg_buffer, "Preloading %s", dbname_to_use);
 		log_c(LOG_LEVEL_INFO, log_msg_buffer);
 		while(!feof(fp))
 			{
 			// get a memory address to write block to:
 			diskblock = cachebaseaddress + 1024*cachepointer;
+			// Zero out the diskblock before reading to prevent garbage data if only a partial block is read
+            memset(diskblock, 0, 1024);
 			// and save it in the blockpointer array
 			blockpointer[cachepointer] = diskblock;
 			// cacheindex array tells which block id is at a certain place in cache - must update it
@@ -1526,103 +1459,31 @@ int preload(char out[256])	{
 			
 			if(!(cachepointer%1024))
 				{
-				sprintf(out,"preload block %i in %s",cachepointer,dbname);
+				sprintf(out,"preload block %i in %s",cachepointer,dbname_to_use);
 				sprintf(log_msg, "Reading block %d", cachepointer);
 				log_c(LOG_LEVEL_DEBUG, log_msg);
 				}
 
 			            // read it
 			
-			            // this was weird: fread statement was at the end of this loop before july 30 2007 - 
-			            // meaning that the last block of the cache was never read into memory?
 			            size_t bytesRead = fread(diskblock,1024,1,fp);
-			            if (bytesRead != 1) {
-			                sprintf(log_msg_buffer, "Error preloading block %d in %s: Expected 1 block, read %d.", cachepointer, dbname, (int)bytesRead);
-			                log_c(LOG_LEVEL_ERROR, log_msg_buffer);
-			                // Depending on the severity, you might want to exit or return an error code.
-			                // For preload, it might be acceptable to continue if some blocks fail,
-			                // but it's better to at least log the error.
-			            }
-			
-			            cachepointer++;			//uniqueid++;
+			                        if (bytesRead != 1) {
+			                            // We expect to fail reading when we hit the end of the file.
+                                        // Only log an error if it's not an EOF condition.
+                                        if (!feof(fp)) {
+                                            char error_detail_msg[512];
+                                            sprintf(error_detail_msg, "feof: %d, ferror: %d, errno: %d (%s)", feof(fp), ferror(fp), errno, strerror(errno));
+                                            sprintf(log_msg_buffer, "Error preloading block %d in %s: Expected 1 block, read %d. Details: %s", cachepointer, dbname_to_use, (int)bytesRead, error_detail_msg);
+                                            log_c(LOG_LEVEL_ERROR, log_msg_buffer);
+                                        }
+                                        break; // Exit the while loop for this file
+			                        }			
+			            cachepointer++;
 			// if we have preloaded the entire cache. no use going on.
 			if(cachepointer == cachesize)
 				return 1;
-			
-
 			}
-		fclose(fp);
-		// if we get to the autoload limit, we remember the block number up to which 
-		// blocks will remain permanently in memory.
-
-		if(n==AUTOLOADSIZE)
-			autoloadnum = cachepointer;
-		}
-
-	// continue preload on largest db
-	for(n=SPLITSIZE;n<=maxpieces;n++)
-		{
-		for(nb=maxpieces-maxpiece;nb<=maxpiece;nb++)
-			{
-			nw=n-nb;
-			if(nw>nb)
-				continue;
-			for(bk=0;bk<=nb;bk++)
-				{
-				bm=nb-bk;
-				for(wk=0;wk<=nw;wk++)
-					{
-					wm=nw-wk;
-					if(bm+bk==wm+wk && wk>bk)
-						continue;
-					sprintf(log_msg_buffer, "Preloading %d%d%d%d db", bm, bk, wm, wk);
-					log_c(LOG_LEVEL_INFO, log_msg_buffer);
-					fp = fopen(fullpath,"rb");
-					if(fp==NULL) {
-                        char log_msg_buffer_inner[512];
-                        snprintf(log_msg_buffer_inner, sizeof(log_msg_buffer_inner), "preload: Failed to open CPR file: %s. Skipping.", fullpath);
-                        log_c(LOG_LEVEL_WARNING, log_msg_buffer_inner);
-						continue; // Change to continue
-                    }
-					sprintf(log_msg_buffer, "Preloading %d%d%d%d db", bm, bk, wm, wk);
-					log_c(LOG_LEVEL_INFO, log_msg_buffer);
-					while(!feof(fp))
-						{
-						// get a memory address to write block to:
-						diskblock = cachebaseaddress + 1024*cachepointer;
-						// and save it in the blockpointer array
-						blockpointer[cachepointer]=diskblock;
-						// cacheindex array tells which block id is at a certain place in cache - must update it
-						blockinfo[cachepointer].uniqueid=cachepointer; //change to uniqueid
-						// say what we're doing
-						sprintf(out,"preload block %i in %s",cachepointer,dbname);
-						if(!(cachepointer%1024))
-							{
-							sprintf(log_msg, "Reading block %d", cachepointer);
-							log_c(LOG_LEVEL_DEBUG, log_msg);
-							}
-						
-						                        // WARNING: here and above, the // read it statement was at the end of this loop,
-						                        // AFTER if cachepointer == cachesize return 1 - i have no idea why!
-						                        // read it
-						                        size_t bytesRead = fread(diskblock,1024,1,fp);
-						                        if (bytesRead != 1) {
-						                            sprintf(log_msg_buffer, "Error preloading block %d in %s: Expected 1 block, read %d.", cachepointer, dbname, (int)bytesRead);
-						                            log_c(LOG_LEVEL_ERROR, log_msg_buffer);
-						                            // Depending on the severity, you might want to exit or return an error code.
-						                        }
-						
-						                        
-						                        cachepointer++;						//uniqueid++;
-						// if we have preloaded the entire cache. no use going on.
-						if(cachepointer == cachesize)
-							return 1;
-						
-						}
-					}
-				}
-			}
-		}
+    }
 	return autoloadnum;
 }
 

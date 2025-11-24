@@ -15,7 +15,6 @@ moc_*.o
 ui_*.h
 
 # Log files and temporary output
-app.txt
 app_output.log
 c_compile_error.log
 c_logic.log

@@ -266,22 +266,6 @@ int FENtoboard8(Board8x8 *board, const char *FEN, int *color, int gametype)
 }
 void board8toFEN(const Board8x8 *board, char *FEN, int color, int gametype)
 {
-    char board_str[256] = {0};
-    char *ptr = board_str;
-    int remaining = sizeof(board_str);
-    log_c(LOG_LEVEL_DEBUG, "--- board8toFEN: Start ---");
-    for (int y = 0; y < 8; ++y) {
-        int written = snprintf(ptr, remaining, "%d %d %d %d %d %d %d %d\n",
-                board->board[y][0], board->board[y][1], board->board[y][2], board->board[y][3],
-                board->board[y][4], board->board[y][5], board->board[y][6], board->board[y][7]);
-        if (written > 0 && written < remaining) {
-            ptr += written;
-            remaining -= written;
-        }
-    }
-    log_c(LOG_LEVEL_DEBUG, board_str);
-
-
     char white_pieces[100] = "";
     char black_pieces[100] = "";
     char temp[10];
@@ -323,7 +307,6 @@ void board8toFEN(const Board8x8 *board, char *FEN, int color, int gametype)
     } else {
         snprintf(FEN, 256, "B:W%s:B%s", white_pieces, black_pieces); // Use 256 for FEN buffer size
     }
-    log_c(LOG_LEVEL_DEBUG, "--- board8toFEN: End ---");
 }
 
 // From game_logic.h
@@ -511,8 +494,8 @@ int get_legal_moves_c(const Board8x8* board, int color, CBmove movelist[MAXMOVES
 
     makemovelist(board, color, all_moves, &all_isjump, &all_nmoves);
 
-    log_c(LOG_LEVEL_DEBUG, "--- get_legal_moves_c: Start ---");
-    log_c(LOG_LEVEL_DEBUG, "Finding legal moves for color");
+    // log_c(LOG_LEVEL_DEBUG, "--- get_legal_moves_c: Start ---");
+    // log_c(LOG_LEVEL_DEBUG, "Finding legal moves for color");
 
     if (last_move != NULL && last_move->jumps > 0 && all_isjump) {
         int filtered_count = 0;
@@ -545,9 +528,9 @@ int get_legal_moves_c(const Board8x8* board, int color, CBmove movelist[MAXMOVES
         }
     }
 
-    char log_msg[100];
-    sprintf(log_msg, "Found %d legal moves. Is jump: %d", *nmoves, *isjump);
-    log_c(LOG_LEVEL_DEBUG, log_msg);
+    // char log_msg[100];
+    // sprintf(log_msg, "Found %d legal moves. Is jump: %d", *nmoves, *isjump);
+    // log_c(LOG_LEVEL_DEBUG, log_msg);
 
     return *nmoves;
 }
@@ -556,22 +539,12 @@ int get_legal_moves_c(const Board8x8* board, int color, CBmove movelist[MAXMOVES
 
 extern "C" void find_captures_recursive(const Board8x8* board, CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n, int color, int is_king, int* visited)
 {
-    char log_msg[250];
-    sprintf(log_msg, "find_captures_recursive: Entry. board_ptr=%p, x=%d, y=%d, d=%d, color=%d, is_king=%d", board, x, y, d, color, is_king);
+    char log_msg[512];
+    sprintf(log_msg, "find_captures_recursive: x: %d, y: %d, d: %d, color: %d, is_king: %d", x, y, d, color, is_king);
     log_c(LOG_LEVEL_DEBUG, log_msg);
 
     int i;
-
-    // Safety check: if recursion depth exceeds the maximum allowed jumps, stop.
-    // MAX_JUMPS_PER_MOVE is effectively 11 (since del array is size 12 and del[11] is max index)
-    if (d >= 11) { // If d is 11, d+1 would be 12, out of bounds for del[12]
-        return;
-    }
-
-    // Define movement vectors based on color
-    int fwd = (color == CB_WHITE) ? 1 : -1; // White moves y+1, Black moves y-1
-
-    // Directions: 0:fwd-left, 1:fwd-right, 2:back-left, 3:back-right
+    int fwd = (color == CB_WHITE) ? 1 : -1;
     int dx[] = {-1, 1, -1, 1};
     int temp_dy[4];
     temp_dy[0] = fwd;
@@ -581,42 +554,34 @@ extern "C" void find_captures_recursive(const Board8x8* board, CBmove movelist[M
     int* dy = temp_dy;
 
     int start_dir = 0;
-    int end_dir = is_king ? 4 : 2; // Men only check the first 2 (forward) directions
+    int end_dir = is_king ? 4 : 2;
 
-    log_c(LOG_LEVEL_DEBUG, "find_captures_recursive: Entering loop. start_dir=0, end_dir=2"); // Log before the loop for better context
+    bool found_another_jump = false;
+
+    // Safety check: if recursion depth exceeds the maximum allowed jumps, stop.
+    if (d >= 11) { // If d is 11, d+1 would be 12, out of bounds for del[12]
+        return;
+    }
+    int current_square = coorstonumber(x, y, GT_ENGLISH);
+    if(visited[current_square])
+        return;
 
     for (i = start_dir; i < end_dir; ++i) {
         int jump_x = x + dx[i];
         int jump_y = y + dy[i];
         int land_x = x + 2 * dx[i];
         int land_y = y + 2 * dy[i];
-        sprintf(log_msg, "find_captures_recursive: Checking jump from (%d,%d) to (%d,%d) over (%d,%d). Depth: %d", x, y, land_x, land_y, jump_x, jump_y, d);
-        log_c(LOG_LEVEL_DEBUG, log_msg);
 
-        // Check bounds for 8x8 board
         if (jump_x >= 0 && jump_x < 8 && jump_y >= 0 && jump_y < 8 && land_x >= 0 && land_x < 8 && land_y >= 0 && land_y < 8) {
-            // Check for a valid capture in this direction
             int opponent_piece = board->board[jump_y][jump_x];
-            if (opponent_piece == CB_EMPTY) {
-                continue;
-            }
             int landing_square = board->board[land_y][land_x];
-
-            // An opponent piece has the opposite color
-            bool is_opponent = false;
-            if (color == CB_WHITE) { // Current piece is White
-                if ((opponent_piece & CB_BLACK) != 0) { // Opponent is Black
-                    is_opponent = true;
-                }
-            } else { // Current piece is Black
-                if ((opponent_piece & CB_WHITE) != 0) { // Opponent is White
-                    is_opponent = true;
-                }
-            }
+            
+            bool is_opponent = (opponent_piece != CB_EMPTY) && ((opponent_piece & color) == 0);
 
             if (is_opponent && landing_square == CB_EMPTY) {
-                CBmove mm = m;  // Copy the current move sequence
-                // Update move details for this jump
+                found_another_jump = true;
+
+                CBmove mm = m;
                 mm.to.x = land_x;
                 mm.to.y = land_y;
                 mm.path[d + 1].x = land_x;
@@ -624,26 +589,34 @@ extern "C" void find_captures_recursive(const Board8x8* board, CBmove movelist[M
                 mm.del[d].x = jump_x;
                 mm.del[d].y = jump_y;
                 mm.delpiece[d] = opponent_piece;
-                
-                // Only set sentinel if there is space
-                if (d + 1 < 12) { // 12 is the size of del array
-                    mm.del[d + 1].x = -1; // Sentinel
+                if (d + 1 < 12) {
+                    mm.del[d + 1].x = -1;
                 }
                 mm.jumps = d + 1;
 
-                // Determine the piece type after the move (promotion)
-                int becomes_king = 0;
-                if (!is_king) {
-                    if (color == CB_WHITE && land_y == 7) becomes_king = 1; // White reaches back rank
-                    if (color == CB_BLACK && land_y == 0) becomes_king = 1; // Black reaches back rank
-                }
+                int becomes_king = (!is_king) && ((color == CB_WHITE && land_y == 7) || (color == CB_BLACK && land_y == 0));
                 int next_is_king = is_king || becomes_king;
-                int new_piece_type = next_is_king ? (color == CB_WHITE ? (CB_WHITE | CB_KING) : (CB_BLACK | CB_KING)) : m.oldpiece;
-                mm.newpiece = new_piece_type;
-                movelist[*n] = mm;
-                (*n)++;
+                mm.newpiece = next_is_king ? (m.oldpiece | CB_KING) : m.oldpiece;
+
+                Board8x8 next_board = *board;
+                next_board.board[jump_y][jump_x] = CB_EMPTY;
+                
+                if(!becomes_king)
+                {
+                    visited[current_square] = 1;
+                    find_captures_recursive(&next_board, movelist, mm, land_x, land_y, d + 1, n, color, next_is_king, visited);
+                    visited[current_square] = 0;
+                }
             }
         }
+    }
+
+    if (!found_another_jump && d > 0) {
+        char log_msg[512];
+        sprintf(log_msg, "find_captures_recursive: adding move, from: (%d,%d), to: (%d,%d), jumps: %d", m.from.x, m.from.y, m.to.x, m.to.y, m.jumps);
+        log_c(LOG_LEVEL_DEBUG, log_msg);
+        movelist[*n] = m;
+        (*n)++;
     }
 }
 
@@ -1024,19 +997,10 @@ void start3move_c(Board8x8* board, int opening_index) {
 
 void domove_c(const CBmove *move, Board8x8 *board)
 {
-    char log_msg[200];
-    sprintf(log_msg, "--- domove_c: Start --- Move from (%d,%d) to (%d,%d). Piece: %d. Jumps: %d. Before: from_sq=%d, to_sq=%d",
-            move->from.x, move->from.y, move->to.x, move->to.y, move->oldpiece, move->jumps,
-            board->board[move->from.y][move->from.x], board->board[move->to.y][move->to.x]);
-    log_c(LOG_LEVEL_DEBUG, log_msg);
-
     int from_x = move->from.x;
     int from_y = move->from.y;
     int to_x = move->to.x;
     int to_y = move->to.y;
-
-    sprintf(log_msg, "domove_c: Accessing board at from=(%d,%d) and to=(%d,%d)", from_x, from_y, to_x, to_y);
-    log_c(LOG_LEVEL_DEBUG, log_msg);
 
     // Check bounds just in case
     if (from_x < 0 || from_x >= 8 || from_y < 0 || from_y >= 8 || to_x < 0 || to_x >= 8 || to_y < 0 || to_y >= 8) {
@@ -1045,7 +1009,7 @@ void domove_c(const CBmove *move, Board8x8 *board)
     }
 
 
-    int x, y, i;
+    int i;
 
     board->board[move->to.y][move->to.x] = board->board[move->from.y][move->from.x];
     board->board[move->from.y][move->from.x] = CB_EMPTY;
@@ -1062,9 +1026,11 @@ void domove_c(const CBmove *move, Board8x8 *board)
     if (move->to.y == 7 && board->board[move->to.y][move->to.x] == (CB_WHITE | CB_MAN))
         board->board[move->to.y][move->to.x] = (CB_WHITE | CB_KING);
     
-    sprintf(log_msg, "--- domove_c: End --- After: from_sq=%d, to_sq=%d",
-            board->board[move->from.y][move->from.x], board->board[move->to.y][move->to.x]);
-    log_c(LOG_LEVEL_DEBUG, log_msg);
+    char fen[256];
+    board8toFEN(board, fen, CB_WHITE, GT_ENGLISH); // Color doesn't matter for the board state part of FEN
+    char log_msg[512];
+    snprintf(log_msg, sizeof(log_msg), "domove_c: (%d,%d)->(%d,%d) jumps: %d. FEN: %s", from_x, from_y, to_x, to_y, move->jumps, fen);
+    log_c(LOG_LEVEL_TRACE, log_msg);
 }
 
 void unmake_move_c(const CBmove *move, Board8x8* board) {

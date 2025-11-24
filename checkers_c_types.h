@@ -141,6 +141,7 @@ enum AppState {
 
 // Log Levels (C-compatible)
 enum LogLevel {
+    LOG_LEVEL_TRACE = -1,
     LOG_LEVEL_DEBUG = 0,
     LOG_LEVEL_INFO = 1,
     LOG_LEVEL_WARNING = 2,
@@ -244,6 +245,16 @@ enum READ_TEXT_FILE_ERROR_TYPE {
 
 #define ENGINECOMMAND_REPLY_SIZE 2048
 #define MOVESPLAY 1
+
+// --- AI Evaluation Constants ---
+#define MAN_VALUE 100
+#define KING_VALUE 133
+#define PASSED_MAN_BONUS 15
+#define BRIDGE_BONUS 20
+#define MOBILITY_MULTIPLIER 10
+#define THREAT_PENALTY_MULTIPLIER 5
+#define CENTER_BONUS 5
+// --- End AI Evaluation Constants ---
 
 // Function pointer types for engine interaction
 typedef int (*CB_GETMOVE)(Board8x8 board, int color, double maxtime, char statusBuffer[1024], int *playnow, int info, int moreinfo, CBmove *bestMove);

@@ -25,20 +25,20 @@
 
 void AI::setPriority(int priority)
 {
-    GameManager::log(LogLevel::Debug, QString("AI: Setting AI process priority to: %1").arg(priority));
+    qDebug() << QString("AI: Setting AI process priority to: %1").arg(priority));
     pid_t pid = getpid(); // Get the PID of the current process (AI thread's process)
     if (setpriority(PRIO_PROCESS, pid, priority) == -1) {
-        GameManager::log(LogLevel::Error, QString("AI: Failed to set AI process priority: %1").arg(strerror(errno)));
+        qCritical() << QString("AI: Failed to set AI process priority: %1").arg(strerror(errno)));
     } else {
-        GameManager::log(LogLevel::Debug, QString("AI: AI process priority set to %1").arg(priority));
+        qDebug() << QString("AI: AI process priority set to %1").arg(priority));
     }
 
     if (m_engineProcess && m_engineProcess->state() == QProcess::Running) {
         pid_t enginePid = m_engineProcess->processId();
     if (setpriority(PRIO_PROCESS, m_engineProcess->processId(), priority) == -1) {
-        GameManager::log(LogLevel::Error, QString("AI: Failed to set engine process priority: %1").arg(strerror(errno)));
+        qCritical() << QString("AI: Failed to set engine process priority: %1").arg(strerror(errno)));
     } else {
-        GameManager::log(LogLevel::Debug, QString("AI: Engine process priority set to %1").arg(priority));
+        qDebug() << QString("AI: Engine process priority set to %1").arg(priority));
     }
     }
 }
@@ -46,7 +46,7 @@ void AI::setPriority(int priority)
 void AI::setHandicap(int handicapDepth)
 {
     m_handicapDepth = handicapDepth;
-    GameManager::log(LogLevel::Debug, QString("AI: AI handicap depth set to: %1").arg(m_handicapDepth));
+    qDebug() << QString("AI: AI handicap depth set to: %1").arg(m_handicapDepth));
 }
 
 bool AI::isGameOver(Board8x8 board, int color)
@@ -827,10 +827,10 @@ void AI::blackkingcapture(int board[12][12], CBmove movelist[MAXMOVES], CBmove m
 
 void AI::loadUserBook(const QString& filename)
 {
-    GameManager::log(LogLevel::Info, QString("AI: Loading user book from: %1").arg(filename));
+    qInfo() << QString("AI: Loading user book from: %1").arg(filename));
     QFile file(filename);
     if (!file.open(QIODevice::ReadOnly)) {
-        GameManager::log(LogLevel::Error, QString("AI: Failed to open user book file for reading: %1").arg(filename));
+        qCritical() << QString("AI: Failed to open user book file for reading: %1").arg(filename));
         return;
     }
 
@@ -841,9 +841,9 @@ void AI::loadUserBook(const QString& filename)
         userbookentry entry;
         int bytesRead = in.readRawData(reinterpret_cast<char*>(&entry), sizeof(userbookentry));
         if (bytesRead != sizeof(userbookentry) || in.status() != QDataStream::Ok) {
-            GameManager::log(LogLevel::Error, QString("AI: Error reading user book entry from file: %1, Bytes read: %2/%3, Status: %4").arg(filename).arg(bytesRead).arg(sizeof(userbookentry)).arg(in.status()));
+            qCritical() << QString("AI: Error reading user book entry from file: %1, Bytes read: %2/%3, Status: %4").arg(filename).arg(bytesRead).arg(sizeof(userbookentry)).arg(in.status()));
             if (bytesRead == -1 && in.status() != QDataStream::Ok) {
-                 GameManager::log(LogLevel::Warning, "AI: Attempting to re-read with a different stream version or handle corrupted data.");
+                 qWarning() << "AI: Attempting to re-read with a different stream version or handle corrupted data.");
             }
             break;
         }
@@ -851,15 +851,15 @@ void AI::loadUserBook(const QString& filename)
     }
     file.close();
     m_userbookcur = 0; // Reset navigation
-    GameManager::log(LogLevel::Info, QString("AI: Loaded %1 entries from user book: %2").arg(m_userbooknum).arg(filename));
+    qInfo() << QString("AI: Loaded %1 entries from user book: %2").arg(m_userbooknum).arg(filename));
 }
 
 void AI::saveUserBook(const QString& filename)
 {
-    GameManager::log(LogLevel::Info, QString("AI: Saving user book to: %1").arg(filename));
+    qInfo() << QString("AI: Saving user book to: %1").arg(filename));
     QFile file(filename);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        GameManager::log(LogLevel::Error, QString("AI: Failed to open user book file for writing: %1").arg(filename));
+        qCritical() << QString("AI: Failed to open user book file for writing: %1").arg(filename));
         return;
     }
 
@@ -868,18 +868,18 @@ void AI::saveUserBook(const QString& filename)
     for (int i = 0; i < m_userbooknum; ++i) {
         int bytesWritten = out.writeRawData(reinterpret_cast<const char*>(&m_userbook[i]), sizeof(userbookentry));
         if (bytesWritten != sizeof(userbookentry) || out.status() != QDataStream::Ok) {
-            GameManager::log(LogLevel::Error, QString("AI: Error writing user book entry to file: %1, Bytes written: %2/%3, Status: %4").arg(filename).arg(bytesWritten).arg(sizeof(userbookentry)).arg(out.status()));
+            qCritical() << QString("AI: Error writing user book entry to file: %1, Bytes written: %2/%3, Status: %4").arg(filename).arg(bytesWritten).arg(sizeof(userbookentry)).arg(out.status()));
             break;
         }
     }
     file.close();
-    GameManager::log(LogLevel::Info, QString("AI: Saved %1 entries to user book: %2").arg(m_userbooknum).arg(filename));
+    qInfo() << QString("AI: Saved %1 entries to user book: %2").arg(m_userbooknum).arg(filename));
 }
 
 void AI::deleteCurrentEntry()
 {
     if (m_userbooknum == 0 || m_userbookcur < 0 || m_userbookcur >= m_userbooknum) {
-        GameManager::log(LogLevel::Warning, "AI: No entry to delete or invalid current index.");
+        qWarning() << "AI: No entry to delete or invalid current index.");
         return;
     }
 
@@ -917,10 +917,10 @@ void AI::resetNavigation()
 
 void AI::deleteAllEntriesFromUserBook()
 {
-    GameManager::log(LogLevel::Info, "AI: Deleting all entries from user book.");
+    qInfo() << "AI: Deleting all entries from user book.");
     m_userbooknum = 0; // Simply reset the count to 0
     m_userbookcur = 0; // Reset navigation
-    GameManager::log(LogLevel::Info, "AI: All entries deleted from user book.");
+    qInfo() << "AI: All entries deleted from user book.");
 }
 
 const userbookentry* AI::getCurrentEntry() const
@@ -956,7 +956,7 @@ bool AI::lookupMove(const Board8x8 board, int color, int gametype, CBmove* bookM
 void AI::addMoveToUserBook(const Board8x8 board, const CBmove& move)
 {
     if (m_userbooknum >= MAXUSERBOOK) {
-        GameManager::log(LogLevel::Warning, "User book is full. Cannot add new entry.");
+        qWarning() << "User book is full. Cannot add new entry.");
         return;
     }
 
@@ -964,13 +964,13 @@ void AI::addMoveToUserBook(const Board8x8 board, const CBmove& move)
     boardtobitboard(&board, &newEntry.position); // Convert Board8x8 to pos
     newEntry.move = move;
     m_userbook[m_userbooknum++] = newEntry;
-    GameManager::log(LogLevel::Info, QString("Added move to user book. Total entries: %1").arg(m_userbooknum));
+    qInfo() << QString("Added move to user book. Total entries: %1").arg(m_userbooknum));
 }
 
 
 void AI::loadEngine(const QString& enginePath)
 {
-    GameManager::log(LogLevel::Info, QString("AI: Attempting to load engine: %1").arg(enginePath));
+    qInfo() << QString("AI: Attempting to load engine: %1").arg(enginePath));
     if (m_engineProcess) {
         m_engineProcess->close();
         // m_engineProcess->deleteLater(); // QProcess will be deleted by its parent QObject (AI) when AI is destroyed
@@ -984,17 +984,17 @@ void AI::loadEngine(const QString& enginePath)
     m_engineProcess->setProgram(enginePath);
     m_engineProcess->start();
     if (m_engineProcess->waitForStarted()) {
-    GameManager::log(LogLevel::Info, QString("AI: Starting engine: %1 %2").arg(m_engineProcess->program()).arg(m_engineProcess->arguments().join(" ")));
+    qInfo() << QString("AI: Starting engine: %1 %2").arg(m_engineProcess->program()).arg(m_engineProcess->arguments().join(" ")));
         emit engineOutput("Engine loaded successfully.");
     } else {
-        GameManager::log(LogLevel::Error, QString("AI: Failed to start engine: %1").arg(enginePath));
+        qCritical() << QString("AI: Failed to start engine: %1").arg(enginePath));
         emit engineError(QString("Failed to start engine: %1").arg(enginePath));
     }
 }
 
 void AI::requestMove(const Board8x8& board, int colorToMove, double timeLimit)
 {
-    GameManager::log(LogLevel::Debug, QString("AI::requestMove: Received request with timeLimit: %1").arg(timeLimit));
+    qDebug() << QString("AI::requestMove: Received request with timeLimit: %1").arg(timeLimit));
     // Set the board and color for the AI to work with
     memcpy(&m_board, &board, sizeof(Board8x8));
     m_color = colorToMove;
@@ -1002,25 +1002,25 @@ void AI::requestMove(const Board8x8& board, int colorToMove, double timeLimit)
     m_abortRequested.storeRelaxed(0); // Reset abort flag
 
     if (m_useInternalAI) {
-        GameManager::log(LogLevel::Debug, "AI: Queuing move request for internal AI.");
+        qDebug() << "AI: Queuing move request for internal AI.");
         QMetaObject::invokeMethod(this, "doWork", Qt::QueuedConnection);
             } else {
                 if (!m_engineProcess || m_engineProcess->state() != QProcess::Running) {
                     emit engineError("Engine not loaded or not running.");
                     return;
                 }
-                GameManager::log(LogLevel::Debug, QString("AI: Requesting move using external engine."));
+                qDebug() << QString("AI: Requesting move using external engine."));
                 char fen_c[256];
                 board8toFEN(&board, fen_c, colorToMove, m_gametype);
                             QString command = QString("position fen %1\ngo movetime %2\n").arg(fen_c).arg(timeLimit * 1000);
-                            GameManager::log(LogLevel::Debug, QString("AI: Sending command to engine: %1").arg(command.trimmed()));
+                            qDebug() << QString("AI: Sending command to engine: %1").arg(command.trimmed()));
                             qint64 bytesWritten = m_engineProcess->write(command.toUtf8());
                                         if (bytesWritten == -1) {
-                                            GameManager::log(LogLevel::Error, QString("AI: Failed to write command to engine: %1").arg(m_engineProcess->errorString()));
+                                            qCritical() << QString("AI: Failed to write command to engine: %1").arg(m_engineProcess->errorString()));
                                                     } else if (bytesWritten != command.toUtf8().length()) {
-                                                        GameManager::log(LogLevel::Warning, QString("AI: Incomplete command written to engine. Expected %1 bytes, wrote %2 bytes.").arg(command.toUtf8().length()).arg(bytesWritten));
+                                                        qWarning() << QString("AI: Incomplete command written to engine. Expected %1 bytes, wrote %2 bytes.").arg(command.toUtf8().length()).arg(bytesWritten));
                                                                 } else {
-                                                                    GameManager::log(LogLevel::Debug, QString("AI: Successfully wrote %1 bytes to engine.").arg(bytesWritten));
+                                                                    qDebug() << QString("AI: Successfully wrote %1 bytes to engine.").arg(bytesWritten));
                                                                 }            }}
 
 void AI::abortSearch()
@@ -1028,7 +1028,7 @@ void AI::abortSearch()
     m_abortRequested.storeRelaxed(1);
     if (m_engineProcess && m_engineProcess->state() == QProcess::Running) {
         m_engineProcess->write("stop\n");
-        GameManager::log(LogLevel::Info, "AI: Abort requested. Stop command sent to engine.");
+        qInfo() << "AI: Abort requested. Stop command sent to engine.");
     }
 }
 
@@ -1040,14 +1040,14 @@ void AI::requestAbort()
 
 void AI::parseEngineOutput(const QString& output)
 {
-    GameManager::log(LogLevel::Debug, QString("AI: Engine Raw Output: %1").arg(output.trimmed()));
+    qDebug() << QString("AI: Engine Raw Output: %1").arg(output.trimmed()));
 
     QStringList lines = output.split('\n', Qt::SkipEmptyParts);
     for (const QString& line : lines) {
         if (line.startsWith("bestmove")) {
             QString moveString = line.section(' ', 1, 1).trimmed();
             if (!moveString.isEmpty()) {
-                GameManager::log(LogLevel::Debug, QString("AI: Parsed bestmove string: %1").arg(moveString));
+                qDebug() << QString("AI: Parsed bestmove string: %1").arg(moveString));
                 CBmove parsedMove = parseMoveString(moveString);
                 emit moveFound(parsedMove);
                 return;
@@ -1082,7 +1082,7 @@ void AI::parseEngineOutput(const QString& output)
 
 CBmove AI::parseMoveString(const QString& moveString)
 {
-    GameManager::log(LogLevel::Debug, QString("AI: Parsing move string: %1").arg(moveString));
+    qDebug() << QString("AI: Parsing move string: %1").arg(moveString));
     CBmove move = {false}; // Initialize with false for is_capture, and zeros for the rest
 
     QStringList parts;
@@ -1095,7 +1095,7 @@ CBmove AI::parseMoveString(const QString& moveString)
             if (parts.size() == 2) {
                 int from_square = parts[0].toInt();
                 int to_square = parts[1].toInt();
-                GameManager::log(LogLevel::Debug, QString("AI: Parsed from_square: %1, to_square: %2").arg(from_square).arg(to_square));
+                qDebug() << QString("AI: Parsed from_square: %1, to_square: %2").arg(from_square).arg(to_square));
         int from_x, from_y;
         numbertocoors(from_square, &from_x, &from_y, m_gametype);
         move.from.x = from_x;
@@ -1113,9 +1113,9 @@ CBmove AI::parseMoveString(const QString& moveString)
         if (move.is_capture) {
             move.jumps = 1;
         }
-        GameManager::log(LogLevel::Debug, QString("AI: Parsed CBmove: from(%1,%2) to(%3,%4) is_capture: %5").arg(move.from.x).arg(move.from.y).arg(move.to.x).arg(move.to.y).arg(move.is_capture));
+        qDebug() << QString("AI: Parsed CBmove: from(%1,%2) to(%3,%4) is_capture: %5").arg(move.from.x).arg(move.from.y).arg(move.to.x).arg(move.to.y).arg(move.is_capture));
     } else {
-        GameManager::log(LogLevel::Warning, QString("AI: Could not parse move string: %1").arg(moveString));
+        qWarning() << QString("AI: Could not parse move string: %1").arg(moveString));
     }
 
     return move;
@@ -1123,7 +1123,7 @@ CBmove AI::parseMoveString(const QString& moveString)
 
 bool AI::internalGetMove(Board8x8 board, int colorToMove, double maxtime, char statusBuffer[1024], QAtomicInt *playnow, int info, int moreinfo, CBmove *bestMove)
 {
-    GameManager::log(LogLevel::Debug, QString("AI::internalGetMove: Entering with maxtime: %1, color: %2").arg(maxtime).arg(colorToMove));
+    qDebug() << QString("AI::internalGetMove: Entering with maxtime: %1, color: %2").arg(maxtime).arg(colorToMove));
 
     // Pass the abort flag to the GeminiAI instance
     if (m_abortRequested.loadRelaxed()) {
@@ -1139,14 +1139,14 @@ bool AI::internalGetMove(Board8x8 board, int colorToMove, double maxtime, char s
                 if (egdb_result != DB_UNKNOWN && egdb_result != DB_NOT_LOOKED_UP) {
                     // If EGDB provides a definitive result, we can potentially use it.
                     // For now, we'll just log it and proceed with search.
-                    GameManager::log(LogLevel::Debug, QString("AI::internalGetMove: EGDB lookup for %1 pieces returned: %2").arg(num_pieces).arg(egdb_result));
+                    qDebug() << QString("AI::internalGetMove: EGDB lookup for %1 pieces returned: %2").arg(num_pieces).arg(egdb_result));
                     // A more sophisticated implementation would use this to guide the search or make an immediate move.
                 }
             }
     *bestMove = m_geminiAI.getBestMove(board, colorToMove, maxtime);
 
     if (m_abortRequested.loadRelaxed()) {
-        GameManager::log(LogLevel::Info, QString("AI::internalGetMove: Abort requested. Stopping search."));
+        qInfo() << QString("AI::internalGetMove: Abort requested. Stopping search."));
         return false; // Aborted, no move found
     }
     
@@ -1155,7 +1155,7 @@ bool AI::internalGetMove(Board8x8 board, int colorToMove, double maxtime, char s
 
 void AI::handleAutoplayState() {
     if (m_abortRequested.loadRelaxed()) {
-        GameManager::log(LogLevel::Info, "AI: Autoplay aborted.");
+        qInfo() << "AI: Autoplay aborted.");
         setMode(Idle);
         emit changeState(STATE_NORMAL);
         return;
@@ -1171,7 +1171,7 @@ void AI::handleAutoplayState() {
         emit searchFinished(true, false, bestMove, QString(statusBuffer), 0, "", 0.0);
         // GameManager will then switch turns and potentially call playMove again if AI's turn
     } else {
-        GameManager::log(LogLevel::Warning, "AI: Autoplay: No move found or search aborted.");
+        qWarning() << "AI: Autoplay: No move found or search aborted.");
         setMode(Idle);
         emit changeState(STATE_NORMAL);
     }
@@ -1179,7 +1179,7 @@ void AI::handleAutoplayState() {
 
 void AI::handleEngineMatchState() {
     if (m_abortRequested.loadRelaxed()) {
-        GameManager::log(LogLevel::Info, "AI: Engine match aborted.");
+        qInfo() << "AI: Engine match aborted.");
         setMode(Idle);
         emit changeState(STATE_NORMAL);
         return;
@@ -1188,12 +1188,12 @@ void AI::handleEngineMatchState() {
     if (m_matchGameOver) {
         m_matchGameNumber++;
         if (m_matchGameNumber >= m_totalMatchGames) {
-            GameManager::log(LogLevel::Info, "AI: Engine match finished.");
+            qInfo() << "AI: Engine match finished.");
             setMode(Idle);
             emit changeState(STATE_NORMAL);
             return;
         } else {
-            GameManager::log(LogLevel::Info, QString("AI: Starting game %1 of %2 in engine match.").arg(m_matchGameNumber + 1).arg(m_totalMatchGames));
+            qInfo() << QString("AI: Starting game %1 of %2 in engine match.").arg(m_matchGameNumber + 1).arg(m_totalMatchGames));
             emit requestNewGame(GT_ENGLISH); // Request a new game
             m_matchGameOver = false;
             m_matchMoveCount = 0;
@@ -1215,14 +1215,14 @@ void AI::handleEngineMatchState() {
         // Check for game over after the move is applied by GameManager
         // For now, we'll assume GameManager will emit gameIsOver if the game ends.
     } else {
-        GameManager::log(LogLevel::Warning, "AI: Engine match: No move found or search aborted.");
+        qWarning() << "AI: Engine match: No move found or search aborted.");
         m_matchGameOver = true; // Consider game over if no move found
     }
 }
 
 void AI::handleRunTestSetState() {
     // Placeholder implementation for handleRunTestSetState
-    GameManager::log(LogLevel::Info, "AI: handleRunTestSetState called (placeholder). Full implementation will involve loading test sets, iterating positions, requesting AI moves, comparing to expected moves, and recording results.");
+    qInfo() << "AI: handleRunTestSetState called (placeholder). Full implementation will involve loading test sets, iterating positions, requesting AI moves, comparing to expected moves, and recording results.");
     // For now, just transition to Idle after a short delay to avoid busy-waiting
     QTimer::singleShot(100, this, [this](){
         setMode(Idle);
@@ -1236,24 +1236,24 @@ void AI::handleEngineGameState() {
     // The `parseEngineOutput` slot handles the engine's response.
     // This handler ensures the AI is in the correct mode to process that.
     if (m_abortRequested.loadRelaxed()) {
-        GameManager::log(LogLevel::Info, "AI: Engine game aborted.");
+        qInfo() << "AI: Engine game aborted.");
         setMode(Idle);
         emit changeState(STATE_NORMAL);
         return;
     }
 
     if (!m_useInternalAI && (!m_engineProcess || m_engineProcess->state() != QProcess::Running)) {
-        GameManager::log(LogLevel::Warning, "AI: External engine not running in EngineGame state. Transitioning to Idle.");
+        qWarning() << "AI: External engine not running in EngineGame state. Transitioning to Idle.");
         setMode(Idle);
         emit changeState(STATE_NORMAL);
         return;
     }
-    // GameManager::log("AI: handleEngineGameState: Waiting for external engine move.");
+    // qDebug("AI: handleEngineGameState: Waiting for external engine move.");
 }
 
 void AI::handleAnalyzeGameState() {
     if (m_abortRequested.loadRelaxed()) {
-        GameManager::log(LogLevel::Info, "AI: Analyze game aborted.");
+        qInfo() << "AI: Analyze game aborted.");
         setMode(Idle);
         emit changeState(STATE_NORMAL);
         return;
@@ -1272,7 +1272,7 @@ void AI::handleAnalyzeGameState() {
     emit evaluationReady(m_geminiAI.getLastEvaluationScore(), m_geminiAI.getLastSearchDepth());
 
     if (!moveFound && m_abortRequested.loadRelaxed()) {
-        GameManager::log(LogLevel::Info, "AI: Analyze game: Search aborted.");
+        qInfo() << "AI: Analyze game: Search aborted.");
         setMode(Idle);
         emit changeState(STATE_NORMAL);
     }
@@ -1281,7 +1281,7 @@ void AI::handleAnalyzeGameState() {
 
 void AI::handleAnalyzePdnState() {
     // Placeholder implementation for handleAnalyzePdnState
-    GameManager::log(LogLevel::Info, "AI: handleAnalyzePdnState called (placeholder). Full implementation will involve loading PDN games, iterating through moves, analyzing positions, and emitting evaluation.");
+    qInfo() << "AI: handleAnalyzePdnState called (placeholder). Full implementation will involve loading PDN games, iterating through moves, analyzing positions, and emitting evaluation.");
     // For now, just transition to Idle after a short delay to avoid busy-waiting
     QTimer::singleShot(100, this, [this](){
         setMode(Idle);
@@ -1291,7 +1291,7 @@ void AI::handleAnalyzePdnState() {
 
 void AI::handleObserveGameState() {
     if (m_abortRequested.loadRelaxed()) {
-        GameManager::log(LogLevel::Info, "AI: Observe game aborted.");
+        qInfo() << "AI: Observe game aborted.");
         setMode(Idle);
         emit changeState(STATE_NORMAL);
         return;
@@ -1308,12 +1308,12 @@ void AI::handleObserveGameState() {
     // Emit the evaluation score and search depth
     emit evaluationReady(m_geminiAI.getLastEvaluationScore(), m_geminiAI.getLastSearchDepth());
 
-    // GameManager::log("AI: handleObserveGameState: Observing game and providing analysis.");
+    // qDebug("AI: handleObserveGameState: Observing game and providing analysis.");
 }
 
 void AI::setMode(AI_State newMode) {
     m_mode = newMode;
-    GameManager::log(LogLevel::Debug, QString("AI: Mode set to %1").arg(newMode));
+    qDebug() << QString("AI: Mode set to %1").arg(newMode));
 }
 
 AI::AI(const QString& egdbPath, QObject *parent) : QObject(parent),
@@ -1333,7 +1333,7 @@ AI::AI(const QString& egdbPath, QObject *parent) : QObject(parent),
     m_totalMatchGames(0),
     m_geminiAI(egdbPath, this) // Initialize m_geminiAI with egdbPath
 {
-    GameManager::log(LogLevel::Debug, "AI: Constructor called.");
+    qDebug() << "AI: Constructor called.");
     connect(m_stateMachineTimer, &QTimer::timeout, this, &AI::runStateMachine);
     m_stateMachineTimer->start(100); // Call runStateMachine every 100ms
 
@@ -1343,7 +1343,7 @@ AI::AI(const QString& egdbPath, QObject *parent) : QObject(parent),
 
 AI::~AI()
 {
-    GameManager::log(LogLevel::Debug, "AI: Destructor called.");
+    qDebug() << "AI: Destructor called.");
     // Cleanup EGDB if initialized
     // egdb_wrapper_exit(); // Example
     if (m_stateMachineTimer) {
@@ -1364,7 +1364,7 @@ void AI::move_to_pdn_english(const Board8x8& board, int color, const CBmove* mov
     // This is a placeholder. A full implementation would convert the move to PDN English notation.
     // For now, we'll just use the simple move4tonotation.
     move4tonotation(move, pdn_c);
-    GameManager::log(LogLevel::Debug, QString("AI: move_to_pdn_english called (placeholder). Move: %1").arg(pdn_c));
+    qDebug() << QString("AI: move_to_pdn_english called (placeholder). Move: %1").arg(pdn_c));
 }
 
 void AI::get_movelist_from_engine(const Board8x8& board, int color, CBmove* movelist, int* nmoves, int* iscapture) {
@@ -1374,32 +1374,32 @@ void AI::get_movelist_from_engine(const Board8x8& board, int color, CBmove* move
     boardtobitboard(&board, &p);
     bool dummy_can_continue_multijump = false;
     get_legal_moves_c(&p, color, movelist, nmoves, iscapture, NULL, &dummy_can_continue_multijump);
-    GameManager::log(LogLevel::Debug, QString("AI: get_movelist_from_engine called (placeholder). Found %1 moves.").arg(*nmoves));
+    qDebug() << QString("AI: get_movelist_from_engine called (placeholder). Found %1 moves.").arg(*nmoves));
 }
 
 void AI::move_to_pdn_english_from_list(int nmoves, CBmove* movelist, const CBmove* move, char* pdn_c, int gametype) {
     // This is a placeholder. A full implementation would convert the move to PDN English notation from a list.
     // For now, we'll just use the simple move4tonotation.
     move4tonotation(move, pdn_c);
-    GameManager::log(LogLevel::Debug, QString("AI: move_to_pdn_english_from_list called (placeholder). Move: %1").arg(pdn_c));
+    qDebug() << QString("AI: move_to_pdn_english_from_list called (placeholder). Move: %1").arg(pdn_c));
 }
 
 // --- Stubs for missing AI functions ---
 
 void AI::initEngineProcess()
 {
-    GameManager::log(LogLevel::Debug, "AI::initEngineProcess: Initializing engine process.");
+    qDebug() << "AI::initEngineProcess: Initializing engine process.");
     if (!m_engineProcess) {
         m_engineProcess = new QProcess();
         connect(m_engineProcess, &QProcess::readyReadStandardOutput, this, [this](){
             parseEngineOutput(m_engineProcess->readAllStandardOutput());
         });
         connect(m_engineProcess, &QProcess::readyReadStandardError, this, [this](){
-            GameManager::log(LogLevel::Error, QString("AI: Engine Error: %1").arg(QString(m_engineProcess->readAllStandardError())));
+            qCritical() << QString("AI: Engine Error: %1").arg(QString(m_engineProcess->readAllStandardError())));
             emit engineError(m_engineProcess->readAllStandardError());
         });
         connect(m_engineProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, [this](int exitCode, QProcess::ExitStatus exitStatus){
-            GameManager::log(LogLevel::Info, QString("AI: Engine process finished with exit code %1, status %2.").arg(exitCode).arg(exitStatus));
+            qInfo() << QString("AI: Engine process finished with exit code %1, status %2.").arg(exitCode).arg(exitStatus));
             if (exitStatus == QProcess::CrashExit) {
                 emit engineError("Engine process crashed.");
             }
@@ -1409,7 +1409,7 @@ void AI::initEngineProcess()
 
 void AI::quitEngineProcess()
 {
-    GameManager::log(LogLevel::Info, "AI::quitEngineProcess: Quitting engine process.");
+    qInfo() << "AI::quitEngineProcess: Quitting engine process.");
     if (m_engineProcess) {
         m_engineProcess->terminate();
         m_engineProcess->waitForFinished(1000); // Give it some time to terminate
@@ -1423,7 +1423,7 @@ void AI::quitEngineProcess()
 
 void AI::doWork()
 {
-    GameManager::log(LogLevel::Debug, "AI::doWork: Starting search.");
+    qDebug() << "AI::doWork: Starting search.");
     QElapsedTimer totalTimer;
     totalTimer.start();
 
@@ -1438,10 +1438,10 @@ void AI::doWork()
     int gameResult = 0; // Placeholder, determine actual game result if applicable
 
     if (moveFound) {
-        GameManager::log(LogLevel::Info, QString("AI::doSearch: Search finished. Best move found: from(%1,%2) to(%3,%4)").arg(bestMove.from.x).arg(bestMove.from.y).arg(bestMove.to.x).arg(bestMove.to.y));
+        qInfo() << QString("AI::doSearch: Search finished. Best move found: from(%1,%2) to(%3,%4)").arg(bestMove.from.x).arg(bestMove.from.y).arg(bestMove.to.x).arg(bestMove.to.y));
         emit searchFinished(true, m_abortRequested.loadRelaxed(), bestMove, QString(statusBuffer), gameResult, "", elapsedTime);
     } else {
-        GameManager::log(LogLevel::Warning, "AI::doSearch: Search finished. No move found or aborted.");
+        qWarning() << "AI::doSearch: Search finished. No move found or aborted.");
         emit searchFinished(false, m_abortRequested.loadRelaxed(), bestMove, QString(statusBuffer), gameResult, "", elapsedTime);
     }
 }
@@ -1476,22 +1476,22 @@ bool AI::sendCommand(const QString& command, QString& reply)
 {
     if (!m_engineProcess || m_engineProcess->state() != QProcess::Running) {
         reply = "Error: Engine not loaded or not running.";
-        GameManager::log(LogLevel::Error, QString("AI: sendCommand failed: %1").arg(reply));
+        qCritical() << QString("AI: sendCommand failed: %1").arg(reply));
         return false;
     }
 
-    GameManager::log(LogLevel::Debug, QString("AI: Sending command to engine: %1").arg(command.trimmed()));
+    qDebug() << QString("AI: Sending command to engine: %1").arg(command.trimmed()));
     m_engineProcess->write(command.toUtf8() + "\n");
     m_engineProcess->waitForBytesWritten();
 
     // Wait for a response, or a timeout
     if (m_engineProcess->waitForReadyRead(5000)) { // 5 second timeout
         reply = m_engineProcess->readAllStandardOutput();
-        GameManager::log(LogLevel::Debug, QString("AI: Engine response: %1").arg(reply.trimmed()));
+        qDebug() << QString("AI: Engine response: %1").arg(reply.trimmed()));
         return true;
     } else {
         reply = "Error: No response from engine within timeout.";
-        GameManager::log(LogLevel::Error, QString("AI: sendCommand failed: %1").arg(reply));
+        qCritical() << QString("AI: sendCommand failed: %1").arg(reply));
         return false;
     }
 }
@@ -1525,26 +1525,26 @@ void AI::runStateMachine()
         case Idle:
         default:
             // Do nothing or log unexpected call
-            // GameManager::log("AI::runStateMachine: Called in Idle or unknown mode.");
+            // qDebug("AI::runStateMachine: Called in Idle or unknown mode.");
             break;
     }
 }
 
 void AI::startAnalyzeGame()
 {
-    GameManager::log(LogLevel::Info, "AI: Starting Analyze Game mode.");
+    qInfo() << "AI: Starting Analyze Game mode.");
     setMode(AnalyzeGame);
 }
 
 void AI::startAnalyzePdn()
 {
-    GameManager::log(LogLevel::Info, "AI: Starting Analyze PDN mode.");
+    qInfo() << "AI: Starting Analyze PDN mode.");
     setMode(AnalyzePdn);
 }
 
 void AI::startAutoplay(const Board8x8& board, int color)
 {
-    GameManager::log(LogLevel::Info, "AI: Starting Autoplay mode.");
+    qInfo() << "AI: Starting Autoplay mode.");
     m_board = board;
     m_color = color;
     setMode(Autoplay);
@@ -1552,7 +1552,7 @@ void AI::startAutoplay(const Board8x8& board, int color)
 
 void AI::startEngineMatch(int totalGames)
 {
-    GameManager::log(LogLevel::Info, QString("AI: Starting Engine Match mode for %1 games.").arg(totalGames));
+    qInfo() << QString("AI: Starting Engine Match mode for %1 games.").arg(totalGames));
     m_totalMatchGames = totalGames;
     m_matchGameNumber = 0;
     m_matchMoveCount = 0;
@@ -1562,19 +1562,19 @@ void AI::startEngineMatch(int totalGames)
 
 void AI::startRunTestSet()
 {
-    GameManager::log(LogLevel::Info, "AI: Starting Run Test Set mode.");
+    qInfo() << "AI: Starting Run Test Set mode.");
     setMode(RunTestSet);
 }
 
 void AI::startEngineGame()
 {
-    GameManager::log(LogLevel::Info, "AI: Starting Engine Game mode.");
+    qInfo() << "AI: Starting Engine Game mode.");
     setMode(EngineGame);
 }
 
 void AI::startObserveGame()
 {
-    GameManager::log(LogLevel::Info, "AI: Starting Observe Game mode.");
+    qInfo() << "AI: Starting Observe Game mode.");
     setMode(ObserveGame);
 }
 
@@ -1657,7 +1657,7 @@ int AI::evaluate(const Board8x8& board)
 
 // Standalone function to test move generation
 void AI::testMoveGeneration() {
-    GameManager::log(LogLevel::Info, "--- Starting Move Generation Tests ---");
+    qInfo() << "--- Starting Move Generation Tests ---");
 
     struct TestPosition {
         const char* fen;
@@ -1712,7 +1712,7 @@ void AI::testMoveGeneration() {
     int passedTests = 0;
     for (int i = 0; i < testPositions.size(); ++i) {
         const TestPosition& tp = testPositions.at(i);
-        GameManager::log(LogLevel::Debug, QString("Test %1: Position FEN: %2, Color: %3").arg(i + 1).arg(tp.fen).arg(tp.colorToMove == CB_BLACK ? "Black" : "White"));
+        qDebug() << QString("Test %1: Position FEN: %2, Color: %3").arg(i + 1).arg(tp.fen).arg(tp.colorToMove == CB_BLACK ? "Black" : "White"));
 
         Board8x8 board;
         int colorToMove;
@@ -1741,16 +1741,16 @@ void AI::testMoveGeneration() {
         std::sort(expectedMovesVec.begin(), expectedMovesVec.end());
         mutableExpectedMoves = QList<QString>(expectedMovesVec.begin(), expectedMovesVec.end());
 
-        GameManager::log(LogLevel::Debug, QString("  Generated Moves: %1").arg(generatedMoves.join(", ")));
-        GameManager::log(LogLevel::Debug, QString("  Expected Moves: %1").arg(mutableExpectedMoves.join(", ")));
+        qDebug() << QString("  Generated Moves: %1").arg(generatedMoves.join(", ")));
+        qDebug() << QString("  Expected Moves: %1").arg(mutableExpectedMoves.join(", ")));
 
         if (generatedMoves == mutableExpectedMoves) {
-            GameManager::log(LogLevel::Info, "  Test Passed!");
+            qInfo() << "  Test Passed!");
             passedTests++;
         } else {
-            GameManager::log(LogLevel::Error, "  Test FAILED!");
+            qCritical() << "  Test FAILED!");
         }
     }
 
-    GameManager::log(LogLevel::Info, QString("--- Move Generation Tests Finished: %1/%2 Passed ---").arg(passedTests).arg(testPositions.size()));
+    qInfo() << QString("--- Move Generation Tests Finished: %1/%2 Passed ---").arg(passedTests).arg(testPositions.size()));
 }

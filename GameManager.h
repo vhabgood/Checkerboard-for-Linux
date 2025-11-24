@@ -20,7 +20,7 @@ public:
 
     // Public API for game management
     void newGame(int gameType);
-    bool makeMove(const CBmove& move);
+    void makeMove(const CBmove& move);
     static char *read_text_file_qt(const QString &filename, READ_TEXT_FILE_ERROR_TYPE &etype);
     static int read_match_stats_internal();
     static void reset_match_stats_internal();
@@ -88,6 +88,7 @@ public slots:
     void handleEvaluationUpdate(int score, int depth); // New slot to receive evaluation from AI and re-emit
     void handleTimerTimeout(); // Slot to handle timer timeout
     void handleGameOverResult(int result); // New slot to handle game over results
+    void handleAIMoveFound(bool moveFound, bool aborted, const CBmove& bestMove, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime);
 
 signals:
     // Signals to communicate with the GUI (e.g., update board, display message)

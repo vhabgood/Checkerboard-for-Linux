@@ -1,6 +1,6 @@
 #pragma once
 
-#include "checkers_types.h"
+#include "checkers_c_types.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -43,6 +43,8 @@ void board8toFEN(const Board8x8* board, char *fenstr, int color, int gametype);
 void newgame(Board8x8* board);
 
 
+
+
 // From dialogs.h
 int extract_filename(const char *filespec, char *name);
 
@@ -59,15 +61,16 @@ int get_startcolor(int gametype);
 enum PDN_RESULT string_to_pdn_result(const char *resultstr, int gametype);
 char* read_text_file_c(const char* filename, enum READ_TEXT_FILE_ERROR_TYPE* etype);
 
-// From egdb_wrapper.h
-int egdb_wrapper_init(const char* egdb_path);
-int egdb_wrapper_lookup(pos* p, int side_to_move);
-int egdb_wrapper_exit();
 void start3move_c(Board8x8* board, int opening_index);
 void domove_c(const CBmove *move, Board8x8* board);
 void unmake_move_c(const CBmove *move, Board8x8* board);
-void makemovelist(const Board8x8* board, int color, CBmove movelist[MAXMOVES], int *isjump, int *n);
 void find_captures_recursive(const Board8x8* board, CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n, int color, int is_king, int* visited);
+void makemovelist(const Board8x8* board, int color, CBmove movelist[MAXMOVES], int *isjump, int *n);
+
+// Explicitly declare functions from dblookup.h
+int db_init(int, char*, const char*);
+int db_exit();
+int dblookup(pos*, int);
 
 #ifdef __cplusplus
 }

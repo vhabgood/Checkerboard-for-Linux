@@ -5,10 +5,12 @@
 #include <random> // For Zobrist key generation
 #include <unordered_map> // For transposition table
 #include "engine_wrapper.h" // Include ExternalEngine definition
+#include "dblookup.h"
 
-
+#define MAX_DEPTH 20 // Define the maximum search depth for iterative deepening
 #define WIN_SCORE 100000
 #define LOSS_SCORE -100000
+#define R 2
 
 // Transposition Table Entry
 struct TTEntry {
@@ -58,9 +60,6 @@ public:
     void loadUserBook(const QString& filename);
     void saveUserBook(const QString& filename);
 
-    static const int MAX_DEPTH = 20; // Maximum search depth
-    static const int R = 2; // Reduction factor for null-move pruning
-
 public slots:
     void init();
     void requestMove(Board8x8 board, int colorToMove, double timeLimit);
@@ -75,7 +74,8 @@ public slots:
     void abortSearch();
     void setExternalEnginePath(const QString& path);
     void setSecondaryExternalEnginePath(const QString& path);
-    void setEgdbPath(const QString& path); // Add this new slot
+    void setOptions(const CBoptions& options);
+    void setEgdbPath(const QString& path);
 
 signals:
     void searchFinished(bool moveFound, bool aborted, const CBmove& bestMove, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime);
@@ -86,7 +86,6 @@ signals:
     void evaluationReady(int score, int depth);
 
 private:
-    int countLegalMoves(const Board8x8& board, int color);
     int evaluateBoard(const Board8x8& board, int color);
     int minimax(Board8x8 board, int color, int depth, int alpha, int beta, CBmove *bestMove, bool allowNull = true);
     int quiescenceSearch(Board8x8 board, int color, int alpha, int beta);
@@ -94,10 +93,14 @@ private:
     bool hasCaptures(const Board8x8& board, int colorToMove);
     bool isSquareAttacked(const Board8x8& board, int r, int c, int attackerColor);
     bool isPieceDefended(const Board8x8& board, int r, int c, int pieceColor);
-    bool isMoveSafe(const Board8x8& board, int color, const CBmove& move);
+    bool isMoveSafe(const Board8x8& board_after_move, int color);
+    int evaluateKingSafety(const Board8x8& board, int color);
+    int evaluatePassedMen(const Board8x8& board);
+    int evaluateBridge(const Board8x8& board);
+    int evaluateCenterControl(const Board8x8& board);
+    bool isManPassed(const Board8x8& board, int r, int c);
     static bool compareMoves(const CBmove& a, const CBmove& b);
     pos boardToPosition(const Board8x8& board, int colorToMove);
-    int evaluateKingSafety(const Board8x8& board, int color);
 
     // Zobrist Hashing
     static uint64_t ZobristTable[8][8][5]; // [row][col][piece_type: empty, white_man, white_king, black_man, black_king]
@@ -134,5 +137,7 @@ private:
 
     // History Table for move ordering
     int m_historyTable[8][8][8][8];
+
+    CBoptions m_options; // The AI's copy of options
 };
 

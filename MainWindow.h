@@ -70,7 +70,7 @@ public slots:
     void updateEvaluationDisplay(int score, int depth); 
 
 private slots: 
-    void handleSearchFinished(bool moveFound, bool aborted, const CBmove& bestMove, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime);
+
 
     // --- Menu Actions --- 
     // File Menu 

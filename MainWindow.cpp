@@ -18,19 +18,7 @@
 
 // Helper function
 
-MainWindow::MainWindow(GameManager *gameManager, QWidget *parent)
-    : QMainWindow(parent),
-    m_gameManager(gameManager),
-    m_ai(nullptr), // Initialize pointer to nullptr
-    m_aiThread(new QThread(this)), // Create QThread here
-    m_pieceSelected(false),
-    m_isAnalyzing(false),
-    m_isPondering(false),
-    m_isInfiniteAnalyzing(false),
-    m_setupPieceType(CB_EMPTY),
-    m_togglePieceColorMode(false),
-    m_currentPdnGameIndex(-1)
-{
+MainWindow::MainWindow(GameManager *gameManager, QWidget *parent) : m_gameManager(gameManager), QMainWindow(parent), m_aiThread(new QThread(this)){
     setWindowTitle("Checkerboard for Linux");
     resize(640, 700);
 
@@ -52,8 +40,8 @@ MainWindow::MainWindow(GameManager *gameManager, QWidget *parent)
     connect(m_aiThread, &QThread::finished, m_ai, &QObject::deleteLater); // Clean up AI object on thread finish
 
     // Connect signals from AI to GameManager and MainWindow
-    connect(m_ai, &GeminiAI::evaluationReady, m_gameManager, &GameManager::handleEvaluationUpdate);
-    connect(m_ai, &GeminiAI::searchFinished, this, &MainWindow::handleSearchFinished);
+    connect(m_ai, &GeminiAI::evaluationReady, this, &MainWindow::updateEvaluationDisplay);
+    connect(m_ai, &GeminiAI::searchFinished, m_gameManager, &GameManager::handleAIMoveFound);
     connect(m_ai, &GeminiAI::engineError, this, [this](const QString& errorMessage){
         QMessageBox::critical(this, tr("Engine Error"), errorMessage);
         setStatusBarText(QString("Engine Error: %1").arg(errorMessage));
@@ -68,12 +56,18 @@ MainWindow::MainWindow(GameManager *gameManager, QWidget *parent)
 
     // Ensure GameManager's options are set before newGame is called (even if deferred)
     m_gameManager->setOptions(m_options);
+    m_ai->setOptions(m_options); // Pass options to the AI instance
 
     // Start the AI thread
     m_aiThread->start();
 
     createMenus();
     createToolBars();
+
+    m_evaluationLabel = new QLabel(this);
+    m_depthLabel = new QLabel(this);
+    statusBar()->addPermanentWidget(m_evaluationLabel);
+    statusBar()->addPermanentWidget(m_depthLabel);
 
     connect(m_gameManager, &GameManager::boardUpdated, this, &MainWindow::handleBoardUpdated);
     connect(m_boardWidget, &BoardWidget::squareClicked, m_gameManager, &GameManager::handleSquareClick);
@@ -90,7 +84,14 @@ void MainWindow::startGame()
 
 MainWindow::~MainWindow()
 {
-    // Destructor is empty for baseline compilation
+    // Clean up AI thread
+    if (m_aiThread->isRunning()) {
+        m_ai->requestAbort(); // Request AI to stop gracefully
+        m_aiThread->quit();   // Ask the thread to exit
+        m_aiThread->wait();   // Wait for the thread to finish
+    }
+    delete m_aiThread; // Delete the QThread object
+    // m_ai is deleted automatically when m_aiThread finishes due to QObject::deleteLater
 }
 
 // /**
@@ -362,20 +363,23 @@ void MainWindow::loadSettings()
     strncpy(m_options.matchdirectory, settings.value("Options/MatchDirectory", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).toString().toUtf8().constData(), MAX_PATH_FIXED - 1);
     m_options.matchdirectory[MAX_PATH_FIXED - 1] = '\0';
     // Determine the preferred default EGTB directory (application's db folder)
-    QString defaultEgdbPath = QCoreApplication::applicationDirPath() + "/db/";
+    QString defaultEgdbPath = QCoreApplication::applicationDirPath() + "/db";
 
-    // Load the stored EGTB directory from settings. If not found, use the application's Documents location as a temporary default.
-    QString storedEgdbPath = settings.value("Options/EGTBDirectory", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).toString();
+    // Load the stored EGTB directory from settings.
+    QString storedEgdbPath = settings.value("Options/EGTBDirectory").toString();
 
-    // The final path will be the default app path, unless a valid stored path overrides it.
-    QString finalEgdbPath = defaultEgdbPath;
+    QString finalEgdbPath;
 
-    // Check if the stored path is valid and exists. If so, use it.
-    if (!storedEgdbPath.isEmpty() && QDir(storedEgdbPath).exists()) {
+    // Check if the stored path is a valid directory containing the DB files
+    if (!storedEgdbPath.isEmpty() && QDir(storedEgdbPath).exists() && QFile(storedEgdbPath + "/db2.idx").exists()) {
         finalEgdbPath = storedEgdbPath;
-        qInfo() << QString("Using stored EGTB directory: %1").arg(finalEgdbPath);
+        qInfo() << "Using valid stored EGTB directory:" << finalEgdbPath;
     } else {
-        qWarning() << QString("Stored EGTB directory '%1' is invalid or does not exist. Using default: %2").arg(storedEgdbPath).arg(defaultEgdbPath);
+        // If stored path is invalid, fall back to the default path
+        finalEgdbPath = defaultEgdbPath;
+        qWarning() << "Stored EGTB directory was invalid or missing files. Falling back to default:" << finalEgdbPath;
+        // Overwrite the bad setting with the correct default for next time
+        settings.setValue("Options/EGTBDirectory", finalEgdbPath);
     }
     
     // Copy the chosen path into the C-style string struct member
@@ -453,10 +457,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 
 
-void MainWindow::handleSearchFinished(bool moveFound, bool aborted, const CBmove& bestMove, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime)
-{
-    qInfo() << "Search finished.";
-}
+
 
 void MainWindow::setStatusBarText(const QString& text)
 {
@@ -465,7 +466,8 @@ void MainWindow::setStatusBarText(const QString& text)
 
 void MainWindow::updateEvaluationDisplay(int score, int depth)
 {
-    qInfo() << "Updating evaluation display.";
+    m_evaluationLabel->setText(QString("Eval: %1").arg(score / 100.0, 0, 'f', 2));
+    m_depthLabel->setText(QString("Depth: %1").arg(depth));
 }
 
 void MainWindow::optionsHighlight()

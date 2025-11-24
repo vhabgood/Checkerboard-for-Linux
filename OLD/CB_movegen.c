@@ -26,9 +26,9 @@ static void blackkingcapture(int board[12][12], CBmove movelist[MAXMOVES], CBmov
 static inline int cbcolor_to_getmovelistcolor(int cbcolor)
 {
 	if (cbcolor == CB_BLACK)
-		return(1);
-	else
 		return(-1);
+	else
+		return(1);
 }
 
 void getmovelist(pos *p, int color, CBmove M[MAXMOVES], int *n)
@@ -140,13 +140,13 @@ void board8toboard12(Board8x8 board8, int board12[12][12])
 	for (i = 0; i <= 7; i++) {
 		for (j = 0; j <= 7; j++) {
 			if (board8[i][j] == (CB_BLACK | CB_MAN))
-				board12[i + 2][j + 2] = 1;
-			if (board8[i][j] == (CB_BLACK | CB_KING))
-				board12[i + 2][j + 2] = 2;
-			if (board8[i][j] == (CB_WHITE | CB_MAN))
 				board12[i + 2][j + 2] = -1;
-			if (board8[i][j] == (CB_WHITE | CB_KING))
+			if (board8[i][j] == (CB_BLACK | CB_KING))
 				board12[i + 2][j + 2] = -2;
+			if (board8[i][j] == (CB_WHITE | CB_MAN))
+				board12[i + 2][j + 2] = 1;
+			if (board8[i][j] == (CB_WHITE | CB_KING))
+				board12[i + 2][j + 2] = 2;
 		}
 	}
 }
@@ -234,7 +234,7 @@ static void makemovelist(int color, CBmove movelist[MAXMOVES], int board[12][12]
 		}
 	}
 
-	if (color == CB_WHITE) {
+	if (color == 1) {
 
 		/* search for captures with white kings*/
 		if (nwk > 0) {
