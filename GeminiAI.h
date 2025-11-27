@@ -1,11 +1,11 @@
 #pragma once
 
-#include "checkers_types.h"
-#include <QObject>
+#include <QQueue>
+#include <QString>
 #include <random> // For Zobrist key generation
 #include <unordered_map> // For transposition table
 #include "engine_wrapper.h" // Include ExternalEngine definition
-#include "dblookup.h"
+#include "checkers_types.h" // For dblookup.h defines
 
 #define MAX_DEPTH 20 // Define the maximum search depth for iterative deepening
 #define WIN_SCORE 100000
@@ -85,10 +85,17 @@ signals:
     void changeState(AppState newState);
     void evaluationReady(int score, int depth);
 
+private slots:
+    void handleEngineResponse(const QString& response);
+    void handleBestMoveFound(const QString& moveString);
+
 private:
-    int evaluateBoard(const Board8x8& board, int color);
-    int minimax(Board8x8 board, int color, int depth, int alpha, int beta, CBmove *bestMove, bool allowNull = true);
-    int quiescenceSearch(Board8x8 board, int color, int alpha, int beta);
+    int evaluateBoard(const Board8x8& board, int color, int egdb_context);
+    int countPieces(const Board8x8& board) const;
+    int countKings(const Board8x8& board, int color) const; // New helper
+    int calculateKingProximity(const Board8x8& board, int color) const; // New helper
+    int minimax(Board8x8 board, int color, int depth, int alpha, int beta, CBmove *bestMove, bool allowNull, int egdb_context);
+    int quiescenceSearch(Board8x8 board, int color, int alpha, int beta, int egdb_context);
     bool isKingTrapped(const Board8x8& board, int r, int c, const CBmove* legalMoves, int nmoves);
     bool hasCaptures(const Board8x8& board, int colorToMove);
     bool isSquareAttacked(const Board8x8& board, int r, int c, int attackerColor);
@@ -100,6 +107,8 @@ private:
     bool isManPassed(const Board8x8& board, int r, int c);
     static bool compareMoves(const CBmove& a, const CBmove& b);
     pos boardToPosition(const Board8x8& board, int colorToMove);
+    QString egdbScoreToString(int score);
+    void sendNextCommand();
 
     // Zobrist Hashing
     static uint64_t ZobristTable[8][8][5]; // [row][col][piece_type: empty, white_man, white_king, black_man, black_king]
@@ -137,6 +146,9 @@ private:
     // History Table for move ordering
     int m_historyTable[8][8][8][8];
 
+    QQueue<QString> m_commandQueue; // Queue for engine commands
+    Board8x8 m_currentBoard; // Store board state for async operations
+    int m_currentColor;      // Store color to move for async operations
     CBoptions m_options; // The AI's copy of options
 };
 

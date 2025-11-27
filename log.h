@@ -3,7 +3,7 @@
 
 #include <QString>
 
-#include "checkers_c_types.h"
+#include "checkers_types.h"
 
 void init_logging();
 void close_logging();

@@ -1,0 +1,36 @@
+# Program Status Word (PSW) Lookup Table
+
+This table details the meaning of each bit and bit-field within the 32-bit `g_programStatusWord`. The `g_programStatusWord` provides a concise summary of the program's execution flow and critical events.
+
+---
+
+## Status Word: `uint32_t g_programStatusWord` (0xRRGGBBTT)
+
+| Bit Position (N) | Flag Macro / Field Name        | Mask (Hex)     | Description                                                          | Expected Values / Interpretation                                                                    |
+|------------------|--------------------------------|----------------|----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| **Bits 0-7: Application & Initialization**                                                                                                                              |
+| 0                | `STATUS_APP_START`             | `0x00000001`   | Application execution started.                                       | `1`: Application started.                                                                           |
+| 1                | `STATUS_BOARD_INIT_OK`         | `0x00000002`   | Checkerboard initialized to starting state.                          | `1`: Board initialized.                                                                             |
+| 2                | `STATUS_EGDB_INIT_START`       | `0x00000004`   | Endgame Database (EGDB) initialization process began.                | `1`: EGDB init started.                                                                             |
+| 3                | `STATUS_EGDB_INIT_OK`          | `0x00000008`   | EGDB initialized successfully.                                       | `1`: EGDB init successful.                                                                          |
+| 4                | `STATUS_EGDB_INIT_FAIL`        | `0x00000010`   | EGDB initialization failed.                                          | `1`: EGDB init failed.                                                                              |
+| 5                | `STATUS_ENGINE_LOAD_OK`        | `0x00000020`   | AI engine loaded successfully.                                       | `1`: Engine loaded.                                                                                 |
+| 6                | `STATUS_ENGINE_LOAD_FAIL`      | `0x00000040`   | AI engine failed to load.                                            | `1`: Engine load failed.                                                                            |
+| 7                | `STATUS_NEW_GAME_OK`           | `0x00000080`   | A new game was started successfully.                                 | `1`: New game started.                                                                              |
+| **Bits 8-15: Game Control & State**                                                                                                                                     |
+| 8                | `STATUS_GAME_LOAD_PDN_OK`      | `0x00000100`   | A PDN game was loaded successfully.                                  | `1`: PDN game loaded.                                                                               |
+| 9                | `STATUS_GAME_SAVE_PDN_OK`      | `0x00000200`   | A PDN game was saved successfully.                                   | `1`: PDN game saved.                                                                                |
+| 10               | `STATUS_GAMEMANAGER_INIT_START`| `0x00000400`   | GameManager constructor initiated.                                   | `1`: GameManager started.                                                                           |
+| 11               | `STATUS_TURN_BIT_POS`          | `0x00000800`   | Whose turn it is.                                                    | `0`: Black's Turn (`STATUS_TURN_BLACK`)<br>`1`: White's Turn (`STATUS_TURN_WHITE`)                  |
+| 12               | `STATUS_GAMETYPE_BIT_POS`      | `0x00001000`   | Type of game being played.                                           | `0`: Normal (Go-as-you-please)<br>`1`: 3-Move Opening                                               |
+| 13-14            | `STATUS_WHITE_PLAYER_BIT_POS`  | `0x00006000`   | Type of player for White.                                            | `00`: None (`STATUS_WHITE_PLAYER_NONE`)<br>`01`: Human (`STATUS_WHITE_PLAYER_HUMAN`)<br>`10`: AI (`STATUS_WHITE_PLAYER_AI`) |
+| 15-16            | `STATUS_BLACK_PLAYER_BIT_POS`  | `0x00018000`   | Type of player for Black.                                            | `00`: None (`STATUS_BLACK_PLAYER_NONE`)<br>`01`: Human (`STATUS_BLACK_PLAYER_HUMAN`)<br>`10`: AI (`STATUS_BLACK_PLAYER_AI`) |
+| **Bits 17-23: AI & Time Control**                                                                                                                                       |
+| 17-20            | `STATUS_AI_TIME_SETTING_BIT_POS`| `0x001E0000`   | AI's move time control level. (4-bit field)                          | `0`: Instant (`LEVEL_INSTANT`)<br>`1`: 1 Second (`LEVEL_1S`)<br>...up to `15` (`LEVEL_30M` in the current setup corresponds to `1101` or decimal 13, `LEVEL_INFINITE` would be a very large number, need to map to 4 bits) |
+| **Bits 24-31: Events & Errors**                                                                                                                                         |
+| 24               | `STATUS_EGDB_LOOKUP_HIT`       | `0x01000000`   | EGDB lookup returned a definitive result.                            | `1`: EGDB result found.                                                                             |
+| 25               | `STATUS_EGDB_LOOKUP_MISS`      | `0x02000000`   | EGDB lookup performed, but position not found.                       | `1`: EGDB miss.                                                                                     |
+| 26               | `STATUS_ENGINE_MOVE_RECEIVED`  | `0x04000000`   | AI engine successfully returned a move.                              | `1`: Engine move received.                                                                          |
+| 28               | `STATUS_INVALID_MOVE`          | `0x10000000`   | An illegal move was attempted by a human player.                     | `1`: Illegal move.                                                                                  |
+| 29               | `STATUS_FILE_IO_ERROR`         | `0x20000000`   | An error occurred during a file read/write operation.                | `1`: File I/O error.                                                                                |
+| 31               | `STATUS_CRITICAL_ERROR`        | `0x80000000`   | A generic, unrecoverable critical error occurred.                    | `1`: Critical error.                                                                                |

@@ -99,6 +99,19 @@ bool ExternalEngine::sendCommand(const QString& command, QString& reply)
     return true;
 }
 
+void ExternalEngine::sendCommandAsync(const QString& command)
+{
+    if (m_process->state() != QProcess::Running) {
+        qCritical() << "ExternalEngine: Cannot send async command, engine is not running.";
+        return;
+    }
+
+    m_lastCommand = command;
+    qDebug() << QString("ExternalEngine: Sending async command: %1").arg(command);
+    m_process->write((command + "\n").toUtf8());
+    m_process->waitForBytesWritten(1000); // Keeping this for simplicity, as in the original design.
+}
+
 void ExternalEngine::setEnginePath(const QString& path)
 {
     m_enginePath = path;
@@ -111,38 +124,35 @@ void ExternalEngine::readStandardOutput()
         qDebug() << QString("ExternalEngine StdOut: %1").arg(line);
         emit engineOutput(line);
 
-        // Buffer output for synchronous reply
+        // Buffer output for synchronous reply (if applicable)
         if (m_currentReply) {
             m_outputBuffer.append(line);
         }
 
-        // Basic parsing for common engine responses
+        // --- Asynchronous and Synchronous Signal Handling ---
+
         if (line == "readyok") {
             m_isReady = true;
             emit engineReady();
+            emit engineResponse(line); // For the async state machine
             if (m_eventLoop && m_eventLoop->isRunning()) {
                 m_eventLoop->exit(0);
             }
         } else if (line.startsWith("bestmove")) {
-            // Parse bestmove line (e.g., "bestmove e2e4 ponder e7e5")
-            // For now, just log and emit a dummy move
             QStringList parts = line.split(" ");
             if (parts.size() >= 2) {
-                // TODO: Parse actual move from parts[1]
-                CBmove dummyMove = {0}; // Assuming CBmove is a defined struct
-                emit bestMoveFound(dummyMove);
+                emit bestMoveFound(parts[1]); // Emit raw move string for async path
             }
             m_expectingBestMove = false;
             if (m_eventLoop && m_eventLoop->isRunning()) {
                 m_eventLoop->exit(0);
             }
         } else if (line.startsWith("info")) {
-            // Parse info line for evaluation and depth
-            // Example: "info depth 5 score cp 200 nodes 1000 pv e2e4 e7e5"
+            // This is purely informational, so it just emits a signal.
             int depth = 0;
             int score = 0;
             QRegExp depthRx("depth (\\d+)");
-            QRegExp scoreRx("score cp (-?\\d+)"); // Centipawn score
+            QRegExp scoreRx("score cp (-?\\d+)");
 
             if (depthRx.indexIn(line) != -1) {
                 depth = depthRx.cap(1).toInt();
@@ -150,16 +160,14 @@ void ExternalEngine::readStandardOutput()
             if (scoreRx.indexIn(line) != -1) {
                 score = scoreRx.cap(1).toInt();
             }
-            if (depth > 0 || score != 0) { // Only emit if we found some meaningful info
+            if (depth > 0 || score != 0) {
                 emit evaluationUpdate(score, depth);
             }
         }
 
-        // If we are waiting for a reply and the line indicates the end of a response
-        // (e.g., "readyok", "bestmove", or a blank line after a command that doesn't expect specific output)
-        // we can exit the event loop. This part might need refinement based on actual engine protocols.
-        if (m_currentReply && (line.isEmpty() || line == "readyok" || line.startsWith("bestmove"))) {
-            if (m_eventLoop && m_eventLoop->isRunning()) {
+        // This condition is for general synchronous commands that don't have a specific "readyok" or "bestmove" response.
+        if (m_currentReply && (line.isEmpty())) {
+             if (m_eventLoop && m_eventLoop->isRunning()) {
                 m_eventLoop->exit(0);
             }
         }

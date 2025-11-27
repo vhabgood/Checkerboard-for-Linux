@@ -15,67 +15,143 @@
 
 #include "GeminiAI.h"
 
-
 // Helper function
 
+
+
 MainWindow::MainWindow(GameManager *gameManager, QWidget *parent) : m_gameManager(gameManager), QMainWindow(parent), m_aiThread(new QThread(this)){
+
     setWindowTitle("Checkerboard for Linux");
+
     resize(640, 700);
 
+
+
     m_boardWidget = new BoardWidget(this);
+
     setCentralWidget(m_boardWidget);
 
-    qInfo() << "MainWindow initialized."; // Re-enable qInfo
+
+
+    qDebug() << "MainWindow initialized."; // Re-enable qInfo
+
+
 
     // Initialize AI here since m_egdbPath is needed from m_options
+
     // Load settings first to get m_options.EGTBdirectory
+
     loadSettings();
 
+
+
     // Create AI after settings are loaded
+
     m_ai = new GeminiAI(QString(m_options.EGTBdirectory), nullptr); // Pass egdbPath from options
+
     m_ai->moveToThread(m_aiThread);
 
+
+
     // Connect AI signals/slots
+
     connect(m_aiThread, &QThread::started, m_ai, &GeminiAI::init);
+
     connect(m_aiThread, &QThread::finished, m_ai, &QObject::deleteLater); // Clean up AI object on thread finish
 
+
+
     // Connect signals from AI to GameManager and MainWindow
-    connect(m_ai, &GeminiAI::evaluationReady, this, &MainWindow::updateEvaluationDisplay);
-    connect(m_ai, &GeminiAI::searchFinished, m_gameManager, &GameManager::handleAIMoveFound);
+
+    connect(m_ai, &GeminiAI::evaluationReady, this, &MainWindow::updateEvaluationDisplay, Qt::QueuedConnection);
+
+    connect(m_ai, &GeminiAI::searchFinished, m_gameManager, &GameManager::handleAIMoveFound, Qt::QueuedConnection);
+
     connect(m_ai, &GeminiAI::engineError, this, [this](const QString& errorMessage){
+
         QMessageBox::critical(this, tr("Engine Error"), errorMessage);
+
         setStatusBarText(QString("Engine Error: %1").arg(errorMessage));
-    });
+
+    }, Qt::QueuedConnection);
+
+
 
     // Connect signals from GameManager to AI
-    connect(m_gameManager, &GameManager::requestEngineSearch, m_ai, &GeminiAI::requestMove);
+
+    connect(m_gameManager, &GameManager::requestEngineSearch, m_ai, &GeminiAI::requestMove, Qt::QueuedConnection);
+
     connect(m_gameManager, &GameManager::sendEngineCommand, this, [this](const QString& command){
+
         QString reply; // Dummy reply for the AI's sendCommand slot
+
         m_ai->sendCommand(command, reply);
-    });
+
+    }, Qt::QueuedConnection);
+
+
+
+    // Connect MainWindow signals to AI slots
+
+    connect(this, &MainWindow::setAiOptions, m_ai, &GeminiAI::setOptions, Qt::QueuedConnection);
+
+
 
     // Ensure GameManager's options are set before newGame is called (even if deferred)
+
     m_gameManager->setOptions(m_options);
-    m_ai->setOptions(m_options); // Pass options to the AI instance
+
+    emit setAiOptions(m_options); // Pass options to the AI instance via signal
+
+
 
     // Start the AI thread
+
     m_aiThread->start();
 
+
+
     createMenus();
+
     createToolBars();
 
+
+
     m_evaluationLabel = new QLabel(this);
+
     m_depthLabel = new QLabel(this);
+
     statusBar()->addPermanentWidget(m_evaluationLabel);
+
     statusBar()->addPermanentWidget(m_depthLabel);
 
-    connect(m_gameManager, &GameManager::boardUpdated, this, &MainWindow::handleBoardUpdated);
-    connect(m_boardWidget, &BoardWidget::squareClicked, m_gameManager, &GameManager::handleSquareClick);
-    connect(this, &MainWindow::setPrimaryEnginePath, m_ai, &GeminiAI::setExternalEnginePath);
-    connect(this, &MainWindow::setSecondaryEnginePath, m_ai, &GeminiAI::setSecondaryExternalEnginePath);
-    connect(this, &MainWindow::setEgdbPath, m_ai, &GeminiAI::setEgdbPath); // Connect the new signal
-    QTimer::singleShot(0, this, &MainWindow::startGame);
-}
+
+
+        connect(m_gameManager, &GameManager::boardUpdated, this, &MainWindow::handleBoardUpdated);
+
+
+
+        connect(m_boardWidget, &BoardWidget::squareClicked, m_gameManager, &GameManager::handleSquareClick);
+
+
+
+        connect(this, &MainWindow::setPrimaryEnginePath, m_ai, &GeminiAI::setExternalEnginePath, Qt::QueuedConnection);
+
+
+
+        connect(this, &MainWindow::setSecondaryEnginePath, m_ai, &GeminiAI::setSecondaryExternalEnginePath, Qt::QueuedConnection);
+
+
+
+        connect(this, &MainWindow::setEgdbPath, m_ai, &GeminiAI::setEgdbPath, Qt::QueuedConnection); // Connect the new signal
+
+
+
+        QTimer::singleShot(0, this, &MainWindow::startGame);
+
+
+
+    }
 
 void MainWindow::startGame()
 {
@@ -322,7 +398,7 @@ void MainWindow::createToolBars()
 
 void MainWindow::loadSettings()
 {
-    qInfo() << "Loading settings.";
+    qDebug() << "Loading settings.";
     QSettings settings("Checkerboard", "Checkerboard");
 
     restoreGeometry(settings.value("Window/Geometry").toByteArray());
@@ -353,8 +429,11 @@ void MainWindow::loadSettings()
     m_options.time_increment = settings.value("Options/TimeIncrement", 0).toInt(); // Default to 0 increment
     m_options.enable_game_timer = false; // Force disable the game timer for now
     m_options.white_player_type = static_cast<PlayerType>(settings.value("Options/WhitePlayerType", PLAYER_AI).toInt());
-    m_options.white_player_type = PLAYER_AI; // <-- ADD THIS LINE to force it.
     m_options.black_player_type = static_cast<PlayerType>(settings.value("Options/BlackPlayerType", PLAYER_HUMAN).toInt());
+
+    qDebug() << QString("MainWindow: Settings loaded - White Player Type: %1, Black Player Type: %2")
+                 .arg(m_options.white_player_type)
+                 .arg(m_options.black_player_type);
 
 
     // Apply loaded settings to UI and other components
@@ -373,7 +452,7 @@ void MainWindow::loadSettings()
     // Check if the stored path is a valid directory containing the DB files
     if (!storedEgdbPath.isEmpty() && QDir(storedEgdbPath).exists() && QFile(storedEgdbPath + "/db2.idx").exists()) {
         finalEgdbPath = storedEgdbPath;
-        qInfo() << "Using valid stored EGTB directory:" << finalEgdbPath;
+        qDebug() << "Using valid stored EGTB directory:" << finalEgdbPath;
     } else {
         // If stored path is invalid, fall back to the default path
         finalEgdbPath = defaultEgdbPath;
@@ -391,7 +470,7 @@ void MainWindow::loadSettings()
         emit setPrimaryEnginePath(m_options.engine_path);
         emit setSecondaryEnginePath(m_options.secondary_engine_path);
     
-    qInfo() << "Settings loaded.";
+    qDebug() << "Settings loaded.";
 }
 
 void MainWindow::saveSettings()
@@ -1149,13 +1228,15 @@ void MainWindow::gameFenToClipboard() {
 }
 void MainWindow::gameFenFromClipboard() {
     qInfo() << "Game FEN from Clipboard action triggered.";
-    QClipboard *clipboard = QApplication::clipboard();
-    QString fen = clipboard->text();
-    if (!fen.isEmpty()) {
+    bool ok;
+    QString fen = QInputDialog::getText(this, tr("Load FEN"),
+                                        tr("FEN:"), QLineEdit::Normal,
+                                        "", &ok);
+    if (ok && !fen.isEmpty()) {
         m_gameManager->loadFenPosition(fen);
-        setStatusBarText("FEN position loaded from clipboard.");
+        setStatusBarText("FEN position loaded from input dialog.");
     } else {
-        setStatusBarText("Clipboard is empty or does not contain valid FEN.");
+        setStatusBarText("FEN loading cancelled.");
     }
 }
 void MainWindow::gameSelectUserBook() {

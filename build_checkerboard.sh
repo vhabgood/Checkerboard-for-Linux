@@ -65,7 +65,7 @@ INCLUDE_DIRS=(
 INCLUDE_FLAGS="$(printf -- "-I%s " "${INCLUDE_DIRS[@]}")"
 
 # All source files for the main application
-APP_SRCS=("${RESOURCE_FILES_DIR}/main.cpp" "${RESOURCE_FILES_DIR}/MainWindow.cpp" "${RESOURCE_FILES_DIR}/GameManager.cpp" "${RESOURCE_FILES_DIR}/c_logic.cpp" "${RESOURCE_FILES_DIR}/dblookup.c" "${RESOURCE_FILES_DIR}/BoardWidget.cpp" "${RESOURCE_FILES_DIR}/engine_wrapper.cpp" "${RESOURCE_FILES_DIR}/FindPositionDialog.cpp" "${RESOURCE_FILES_DIR}/FindCRDialog.cpp" "${RESOURCE_FILES_DIR}/EngineSelectDialog.cpp" "${RESOURCE_FILES_DIR}/EngineOptionsDialog.cpp" "${RESOURCE_FILES_DIR}/PieceSetDialog.cpp" "${RESOURCE_FILES_DIR}/PriorityDialog.cpp" "${RESOURCE_FILES_DIR}/ThreeMoveOptionsDialog.cpp" "${RESOURCE_FILES_DIR}/DirectoriesDialog.cpp" "${RESOURCE_FILES_DIR}/UserBookDialog.cpp" "${RESOURCE_FILES_DIR}/GeminiAI.cpp" "${RESOURCE_FILES_DIR}/log.cpp")
+APP_SRCS=("${RESOURCE_FILES_DIR}/main.cpp" "${RESOURCE_FILES_DIR}/MainWindow.cpp" "${RESOURCE_FILES_DIR}/GameManager.cpp" "${RESOURCE_FILES_DIR}/c_logic.cpp" "${RESOURCE_FILES_DIR}/dblookup.cpp" "${RESOURCE_FILES_DIR}/BoardWidget.cpp" "${RESOURCE_FILES_DIR}/engine_wrapper.cpp" "${RESOURCE_FILES_DIR}/Dialogs.cpp" "${RESOURCE_FILES_DIR}/GeminiAI.cpp" "${RESOURCE_FILES_DIR}/log.cpp")
 
 # Object files for the main application
 APP_OBJS=()
@@ -87,7 +87,7 @@ for header_file in "${RESOURCE_FILES_DIR}"/*.h; do
         echo "Running moc on ${base_name}.h..."
         moc "${header_file}" -o "${moc_cpp_file}" ${INCLUDE_FLAGS}
         echo "Compiling ${moc_cpp_file}..."
-        g++ -c "${moc_cpp_file}" -o "${moc_obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -std=c++11
+        g++ -c "${moc_cpp_file}" -o "${moc_obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -g -std=c++11
         
         # All generated moc objects are for the app
         APP_MOC_OBJS+=("${moc_obj_file}")
@@ -110,7 +110,7 @@ RCC_FILE="${RESOURCE_FILES_DIR}/resources.cpp"
 RCC_OBJ_FILE="${RESOURCE_FILES_DIR}/resources.o"
 rcc -name resources -o "${RCC_FILE}" "${QRC_FILE}"
 echo "Compiling ${RCC_FILE}..."
-g++ -c "${RCC_FILE}" -o "${RCC_OBJ_FILE}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -std=c++11
+g++ -c "${RCC_FILE}" -o "${RCC_OBJ_FILE}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -g -std=c++11
 APP_MOC_OBJS+=("${RCC_OBJ_FILE}") # Add resources.o to APP_MOC_OBJS
 
 # --- Compile Application Source Files ---
@@ -119,16 +119,16 @@ for src_file in "${APP_SRCS[@]}"; do
     obj_file="${src_file%.*}.o"
     echo "Compiling ${src_file}..."
     if [[ "${src_file}" == *.c ]]; then
-        g++ -c "${src_file}" -o "${obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -std=c++11
+        g++ -c "${src_file}" -o "${obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -g -std=c++11
     else
-        g++ -c "${src_file}" -o "${obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -std=c++11
+        g++ -c "${src_file}" -o "${obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -g -std=c++11
     fi
     APP_OBJS+=("${obj_file}")
 done
 
 # --- Link Application ---
 echo "Linking application..."
-g++ -o "${RESOURCE_FILES_DIR}/checkerboard_app" "${APP_OBJS[@]}" "${APP_MOC_OBJS[@]}" ${QT_LIBS} -L/usr/local/lib -lrt -lstdc++
+g++ -o "${RESOURCE_FILES_DIR}/checkerboard_app" "${APP_OBJS[@]}" "${APP_MOC_OBJS[@]}" ${QT_LIBS} -L/usr/local/lib -lrt -lstdc++ -g
 if [ $? -ne 0 ]; then
     echo "Application linking failed!"
     exit 1

@@ -31,4 +31,8 @@ forTestingOnly/
 .aiexclude
 
 # Other generated files
-resources.cpp
+resources.cppOLD/OUTPUT.txt
+app.txt
+CRASH_OUTPUT.txt
+gdb_output.txt
+OLD/CRASH_OUTPUT.txt

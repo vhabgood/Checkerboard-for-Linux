@@ -1,3 +1,4 @@
+#include "checkers_types.h" // Direct include
 #include <QDebug>
 #include "GameManager.h"
 #include <QFile>
@@ -12,7 +13,7 @@
 extern "C" {
 #include "c_logic.h" // Added for C functions like newgame, domove_c, board8toFEN, FENtoboard8
 }
-#include "checkers_c_types.h" // Direct include
+#include "checkers_types.h" // Direct include
 
 extern LogLevel s_minLogLevel;
 
@@ -317,15 +318,16 @@ GameManager::GameManager(QObject *parent) : QObject(parent),
     m_pieceSelected(false),
     m_selectedX(-1),
     m_selectedY(-1),
-    m_forcedCapturePending(false), // Initialize new flag
-    m_engineColor(CB_WHITE), // Initialize AI engine color to WHITE
-    m_whiteTime(0.0), // Initialize white's time
-    m_blackTime(0.0), // Initialize black's time
-    m_halfMoveCount(0), // Initialize half-move count
-    m_gameTimer(new QTimer(this)) // Initialize game timer
+    m_forcedCapturePending(false),
+    m_engineColor(CB_WHITE),
+    m_whiteTime(0.0),
+    m_blackTime(0.0),
+    m_halfMoveCount(0),
+    m_gameTimer(new QTimer(this))
 {
-    qInfo() << "GameManager: Initializing.";
-    connect(m_gameTimer, &QTimer::timeout, this, &GameManager::handleTimerTimeout);
+    g_programStatusWord |= STATUS_GAMEMANAGER_INIT_START;
+    qDebug() << "GameManager: Initializing.";
+    // connect(m_gameTimer, &QTimer::timeout, this, &GameManager::handleTimerTimeout);
     connect(this, &GameManager::gameIsOver, this, &GameManager::handleGameOverResult); // Connect gameIsOver to handleGameOverResult
 }
 
@@ -336,14 +338,23 @@ GameManager::~GameManager()
 
 void GameManager::newGame(int gameType)
 {
-    qInfo() << QString("GameManager: Starting new game of type %1").arg(gameType);
+    qDebug() << QString("GameManager: Starting new game of type %1").arg(gameType);
     // Call C function to set up initial board
     newgame(&m_currentBoard);
+    g_programStatusWord |= STATUS_BOARD_INIT_OK; // Set status flag for board initialization
     m_currentColorToMove = CB_BLACK; // Black typically starts
+    // Set turn flag
+    g_programStatusWord &= ~STATUS_TURN_MASK; // Clear existing turn bits
+    if (m_currentColorToMove == CB_WHITE) {
+        g_programStatusWord |= (1U << STATUS_TURN_BIT_POS); // Set bit for White's turn
+    } else {
+        g_programStatusWord |= (0U << STATUS_TURN_BIT_POS); // Clear bit for Black's turn
+    }
     m_halfMoveCount = 0; // Reset half-move count for new game
     m_boardHistory.clear(); // Clear board history for new game
-    m_boardHistory.append(getFenPosition()); // Add initial position to history
-    qDebug() << "GameManager::newGame, FEN:" << getFenPosition();
+    QString fen = getFenPosition();
+    m_boardHistory.append(fen); // Add initial position to history
+    qDebug() << "GameManager::newGame, FEN:" << fen;
 
     // Determine m_engineColor based on options
     if (m_options.white_player_type == PLAYER_AI && m_options.black_player_type == PLAYER_AI) {
@@ -356,8 +367,41 @@ void GameManager::newGame(int gameType)
         m_engineColor = CB_EMPTY; // No AI playing
     }
 
+    // Set game type flag
+    g_programStatusWord &= ~STATUS_GAMETYPE_MASK; // Clear existing game type bits
+    if (gameType == GT_3MOVE) {
+        g_programStatusWord |= (1U << STATUS_GAMETYPE_BIT_POS); // Set bit 1 for 3-move game
+    } else {
+        g_programStatusWord |= (0U << STATUS_GAMETYPE_BIT_POS); // Clear bit for normal game
+    }
+
+    // Set white player type flag
+    g_programStatusWord &= ~STATUS_WHITE_PLAYER_MASK; // Clear existing white player type bits
+    if (m_options.white_player_type == PLAYER_HUMAN) {
+        g_programStatusWord |= (1U << STATUS_WHITE_PLAYER_BIT_POS); // Set bit 1 for human
+    } else if (m_options.white_player_type == PLAYER_AI) {
+        g_programStatusWord |= (2U << STATUS_WHITE_PLAYER_BIT_POS); // Set bit 2 for AI
+    } else {
+        g_programStatusWord |= (0U << STATUS_WHITE_PLAYER_BIT_POS); // Set bit 0 for None
+    }
+
+    // Set black player type flag
+    g_programStatusWord &= ~STATUS_BLACK_PLAYER_MASK; // Clear existing black player type bits
+    if (m_options.black_player_type == PLAYER_HUMAN) {
+        g_programStatusWord |= (1U << STATUS_BLACK_PLAYER_BIT_POS); // Set bit 1 for human
+    } else if (m_options.black_player_type == PLAYER_AI) {
+        g_programStatusWord |= (2U << STATUS_BLACK_PLAYER_BIT_POS); // Set bit 2 for AI
+    } else {
+        g_programStatusWord |= (0U << STATUS_BLACK_PLAYER_BIT_POS); // Set bit 0 for None
+    }
+
+    qDebug() << QString("GameManager: newGame - m_options.white_player_type: %1, m_options.black_player_type: %2")
+                 .arg(m_options.white_player_type)
+                 .arg(m_options.black_player_type);
+
     emit boardUpdated(m_currentBoard);
     emit gameMessage("New game started!");
+    g_programStatusWord |= STATUS_NEW_GAME_OK; // Set status flag for new game start
 
     if (m_options.enable_game_timer) {
         m_gameTimer->start(1000); // Tick every second
@@ -374,7 +418,7 @@ void GameManager::newGame(int gameType)
 
 void GameManager::makeMove(const CBmove& move)
 {
-    qDebug() << QString("GameManager: Making move from %1,%2 to %3,%4").arg(move.from.x).arg(move.from.y).arg(move.to.x).arg(move.to.y);
+    qDebug() << QString("GameManager: Moving (%1-%2)").arg(coorstonumber(move.from.x, move.from.y, GT_ENGLISH)).arg(coorstonumber(move.to.x, move.to.y, GT_ENGLISH));
 
     // Check if the move is a capture or a pawn move for 50-move rule
     bool isCapture = move.jumps > 0;
@@ -410,7 +454,8 @@ void GameManager::makeMove(const CBmove& move)
     }
 
     // Add current board FEN to history for draw detection
-    m_boardHistory.append(getFenPosition());
+    QString fen = getFenPosition();
+    m_boardHistory.append(fen);
 
     // Stop and restart the timer for the next player
     if (m_options.enable_game_timer) {
@@ -421,7 +466,7 @@ void GameManager::makeMove(const CBmove& move)
     // 4. Emit boardUpdated
     emit boardUpdated(m_currentBoard);
 
-    qDebug() << QString("GameManager: Board state after move: %1").arg(getFenPosition());
+    qDebug() << QString("GameManager: Board state after move: %1").arg(fen);
 
 }
 
@@ -466,7 +511,7 @@ void GameManager::handleGameOverResult(int result)
             break;
     }
     m_currentPdnGame.game.resultstring[sizeof(m_currentPdnGame.game.resultstring) - 1] = '\0';
-    qInfo() << QString("GameManager: Updated PDN game result string to: %1").arg(m_currentPdnGame.game.resultstring);
+    qDebug() << QString("GameManager: Updated PDN game result string to: %1").arg(m_currentPdnGame.game.resultstring);
 }
 
 void GameManager::loadPdnGame(const QString &filename)
@@ -477,6 +522,7 @@ void GameManager::loadPdnGame(const QString &filename)
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         qCritical() << QString("Failed to open file: %1 %2").arg(filename).arg(file.errorString());
         emit gameMessage(QString("Failed to load PDN file: %1").arg(filename));
+        g_programStatusWord |= STATUS_FILE_IO_ERROR; // Set status flag for file I/O error
         return;
     }
 
@@ -560,6 +606,7 @@ void GameManager::loadPdnGame(const QString &filename)
         m_currentPdnGame.game.movesindex = m_currentPdnGame.moves.size(); // Set history to the end
         emit boardUpdated(m_currentBoard);
         emit gameMessage(QString("Loaded game: %1").arg(m_currentPdnGame.game.event));
+        g_programStatusWord |= STATUS_GAME_LOAD_PDN_OK; // Set status flag for successful PDN load
     }
     else {
         qCritical() << QString("GameManager: Failed to load PDN file: %1").arg(filename);
@@ -668,6 +715,7 @@ void GameManager::savePdnGame(const QString &filename) {
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         qCritical() << QString("GameManager: Could not open file for writing: %1 %2").arg(filename).arg(file.errorString());
         emit gameMessage(QString("Failed to save game to %1.").arg(filename));
+        g_programStatusWord |= STATUS_FILE_IO_ERROR; // Set status flag for file I/O error
         return;
     }
 
@@ -749,20 +797,21 @@ void GameManager::savePdnGame(const QString &filename) {
     file.close();
     emit gameMessage(QString("Game saved to %1.").arg(filename));
     qInfo() << "GameManager: PDN game saved.";
+    g_programStatusWord |= STATUS_GAME_SAVE_PDN_OK; // Set status flag for successful PDN save
 }
 
 QString GameManager::getFenPosition() {
     char fen_c[256];
     board8toFEN(&m_currentBoard, fen_c, m_currentColorToMove, GT_ENGLISH); // Assuming GT_ENGLISH for now
     QString fenString = QString::fromUtf8(fen_c);
-    qDebug() << QString("GameManager: Generated FEN: %1").arg(fenString);
     return fenString;
 }
 
 void GameManager::loadFenPosition(const QString& fen) {
     qInfo() << QString("GameManager: Loading FEN position: %1").arg(fen);
     int color_to_move;
-    QByteArray ba = fen.toUtf8();
+    QString trimmedFen = fen.trimmed(); // Trim whitespace
+    QByteArray ba = trimmedFen.toUtf8();
     char* fen_copy = ba.data();
     if (FENtoboard8(&m_currentBoard, fen_copy, &color_to_move, GT_ENGLISH) == 1) {
         m_currentColorToMove = color_to_move;
@@ -770,7 +819,7 @@ void GameManager::loadFenPosition(const QString& fen) {
         emit gameMessage("FEN position loaded successfully.");
     } else {
         emit gameMessage("Failed to load FEN position.");
-        qCritical() << QString("GameManager: Failed to load FEN position: %1").arg(fen);
+        qCritical() << QString("GameManager: Failed to load FEN position: %1").arg(trimmedFen);
     }
 }
 
@@ -878,9 +927,11 @@ CBmove GameManager::getLastMove() const
 
 void GameManager::handleSquareClick(int x, int y)
 {
-    qDebug() << QString("--- handleSquareClick: Start ---");
-qDebug() << QString("Clicked on (%1, %2). Current player: %3. Piece selected: %4. Forced capture: %5")
-                                .arg(x).arg(y).arg(m_currentColorToMove).arg(m_pieceSelected).arg(m_forcedCapturePending);
+    // qDebug() << QString("GameManager: User clicked on (%1) Current player: %2, Piece selected: %3, Forced capture: %4")
+    //              .arg(coorstonumber(x, y, GT_ENGLISH))
+    //              .arg((m_currentColorToMove == CB_WHITE) ? "white" : "black")
+    //              .arg(m_pieceSelected ? "true" : "false")
+    //              .arg(m_forcedCapturePending ? "true" : "false");
 
     // If it's an AI's turn, ignore human clicks
     if ((m_currentColorToMove == CB_WHITE && m_options.white_player_type == PLAYER_AI) ||
@@ -891,7 +942,7 @@ qDebug() << QString("Clicked on (%1, %2). Current player: %3. Piece selected: %4
     }
 
     int square = coorstonumber(x, y, GT_ENGLISH);
-    qDebug() << QString("GameManager: Square clicked: %1").arg(square);
+    // qDebug() << QString("GameManager: Square clicked: %1").arg(square);
 
     // Get all legal moves for the current player to determine if a capture is mandatory
     CBmove allLegalMoves[MAXMOVES];
@@ -956,16 +1007,13 @@ qDebug() << QString("Clicked on (%1, %2). Current player: %3. Piece selected: %4
             int nmoves_val = 0;
             int isjump_val = 0;
             bool can_continue_multijump = false;
-
+            
             CBmove *last_move_ptr = m_forcedCapturePending ? &m_lastMove : NULL;
             get_legal_moves_c(&m_currentBoard, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, last_move_ptr, &can_continue_multijump);
-
-            qDebug() << QString("GameManager: Potential move from (%1,%2) to (%3,%4)").arg(potentialMove.from.x).arg(potentialMove.from.y).arg(potentialMove.to.x).arg(potentialMove.to.y);
 
             bool moveFound = false;
             CBmove chosenMove;
             for (int i = 0; i < nmoves_val; ++i) {
-                qDebug() << QString("GameManager: Comparing with legal move %1: from (%2,%3) to (%4,%5)").arg(i).arg(legalMoves[i].from.x).arg(legalMoves[i].from.y).arg(legalMoves[i].to.x).arg(legalMoves[i].to.y);
                 if (legalMoves[i].from.x == potentialMove.from.x &&
                     legalMoves[i].from.y == potentialMove.from.y &&
                     legalMoves[i].to.x == potentialMove.to.x &&
@@ -976,7 +1024,9 @@ qDebug() << QString("Clicked on (%1, %2). Current player: %3. Piece selected: %4
                 }
             }
 
+
             if (moveFound) {
+                qDebug() << "GameManager: User selected move " << QString("(%1-%2)").arg(coorstonumber(chosenMove.from.x, chosenMove.from.y, GT_ENGLISH)).arg(coorstonumber(chosenMove.to.x, chosenMove.to.y, GT_ENGLISH));
                 bool isCapture = chosenMove.jumps > 0;
                 makeMove(chosenMove);
 
@@ -1009,27 +1059,26 @@ qDebug() << QString("Clicked on (%1, %2). Current player: %3. Piece selected: %4
                 int nextColorToMove = (m_currentColorToMove == CB_WHITE) ? CB_BLACK : CB_WHITE;
 
                 // Check for game over
-                qDebug() << "GameManager: Before get_legal_moves_c for next player.";
+                // qDebug() << "GameManager: Before get_legal_moves_c for next player.";
                 CBmove nextPlayerMoves[MAXMOVES];
                 int n_next_moves = 0;
                 int is_next_jump = 0;
                 get_legal_moves_c(&m_currentBoard, nextColorToMove, nextPlayerMoves, &n_next_moves, &is_next_jump, NULL, NULL);
-                qDebug() << QString("GameManager: After get_legal_moves_c for next player. n_next_moves: %1").arg(n_next_moves);
+                // qDebug() << QString("GameManager: After get_legal_moves_c for next player. n_next_moves: %1").arg(n_next_moves);
 
                 if (n_next_moves == 0) {
                     emit gameIsOver(CB_WIN); // Current player wins
                     emit gameMessage("Game Over!");
                 } else {
                     // Switch turns
-                    qDebug() << "Switching turns. Current color:" << m_currentColorToMove;
+                    // qDebug() << "Switching turns. Current color:" << m_currentColorToMove;
                     m_currentColorToMove = nextColorToMove;
-                    qDebug() << "New current color:" << m_currentColorToMove;
+                    // qDebug() << "New current color:" << m_currentColorToMove;
                     emit gameMessage("Move made.");
 
                     // Trigger AI if it's its turn
                     if ((m_currentColorToMove == CB_WHITE && m_options.white_player_type == PLAYER_AI) ||
                         (m_currentColorToMove == CB_BLACK && m_options.black_player_type == PLAYER_AI)) {
-                        qDebug() << "Triggering AI move.";
                         playMove();
                     } else {
                         qDebug() << "It's human's turn.";
@@ -1040,6 +1089,7 @@ qDebug() << QString("Clicked on (%1, %2). Current player: %3. Piece selected: %4
             } else {
                 // Move was not found in the legal list
                 emit gameMessage("Illegal move. Please try again.");
+                g_programStatusWord |= STATUS_INVALID_MOVE; // Set status flag for invalid move
                 // Do not deselect the piece if a capture is forced, to guide the user.
                 if (!m_forcedCapturePending) {
                     m_pieceSelected = false;
@@ -1053,37 +1103,7 @@ qDebug() << QString("Clicked on (%1, %2). Current player: %3. Piece selected: %4
 }
 
 void GameManager::playMove() {
-    qDebug() << QString("--- playMove: Start ---");
-    // Safeguard: Ensure it's an AI's turn based on options
-    bool isWhiteAI = (m_options.white_player_type == PLAYER_AI);
-    bool isBlackAI = (m_options.black_player_type == PLAYER_AI);
-
-    if (!((m_currentColorToMove == CB_WHITE && isWhiteAI) || (m_currentColorToMove == CB_BLACK && isBlackAI))) {
-        qWarning() << QString("GameManager: playMove() called, but it is not an AI's turn. Current color: %1, White AI: %2, Black AI: %3. Ignoring.").arg(m_currentColorToMove).arg(isWhiteAI).arg(isBlackAI);
-        return;
-    }
-
-    // Check if AI has any legal moves
-    CBmove legalMovesForAI[MAXMOVES];
-    int nmoves_for_ai = 0;
-    int isjump_for_ai = 0;
-    get_legal_moves_c(&m_currentBoard, m_currentColorToMove, legalMovesForAI, &nmoves_for_ai, &isjump_for_ai, NULL, NULL);
-
-    if (nmoves_for_ai == 0) {
-        // AI has no legal moves, human wins (or other AI wins in AI vs AI)
-        int result;
-        if (m_currentColorToMove == CB_WHITE) { // White AI has no moves
-            result = (isBlackAI) ? CB_WIN : CB_LOSS; // If Black is AI, Black AI wins. Else, Human (Black) wins.
-        } else { // Black AI has no moves
-            result = (isWhiteAI) ? CB_WIN : CB_LOSS; // If White is AI, White AI wins. Else, Human (White) wins.
-        }
-        emit gameIsOver(result);
-        emit gameMessage("Game Over! No legal moves for current player.");
-        m_forcedCapturePending = false;
-        return;
-    }
-
-    qDebug() << "GameManager: playMove called. Requesting AI move.";
+    qDebug() << "GameManager: AI move requested.";
     // Emit a signal to the AI to request a move
     emit requestEngineSearch(m_currentBoard, m_currentColorToMove, m_options.time_per_move);
     emit gameMessage("AI is thinking...");
@@ -1278,6 +1298,10 @@ void GameManager::setTimeContol(int level, bool exact_time, bool use_incremental
     m_options.initial_time = initial_time;
     m_options.time_increment = time_increment;
 
+    // Clear existing AI time setting bits and set new ones
+    g_programStatusWord &= ~STATUS_AI_TIME_SETTING_MASK;
+    g_programStatusWord |= ((uint32_t)level << STATUS_AI_TIME_SETTING_BIT_POS);
+
     // Set AI's time_per_move based on the level
     switch (level) {
         case LEVEL_INSTANT: m_options.time_per_move = 0.001; break; // Effectively instant
@@ -1341,11 +1365,12 @@ void GameManager::handleEvaluationUpdate(int score, int depth)
 void GameManager::handleAIMoveFound(bool moveFound, bool aborted, const CBmove& bestMove, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime)
 {
     qDebug() << "GameManager::handleAIMoveFound - Move found:" << moveFound << ", Aborted:" << aborted << ", Best Move:" << bestMove.from.x << "," << bestMove.from.y << " to " << bestMove.to.x << "," << bestMove.to.y << ", Status:" << statusText;
-    qDebug() << "GameManager::handleAIMoveFound - Received bestMove: from(" << bestMove.from.x << "," << bestMove.from.y << ") to(" << bestMove.to.x << "," << bestMove.to.y << ") is_capture:" << bestMove.is_capture << " jumps:" << bestMove.jumps;
+    qDebug() << "GameManager::handleAIMoveFound - Received bestMove: from(" << coorstonumber(bestMove.from.x, bestMove.from.y, GT_ENGLISH) << ") to(" << coorstonumber(bestMove.to.x, bestMove.to.y, GT_ENGLISH) << ") is_capture:" << bestMove.is_capture << " jumps:" << bestMove.jumps;
     
     if (moveFound && !aborted) {
         // Apply the AI's best move
         makeMove(bestMove);
+        detectDraws(); // Check for draws after AI's move
         
         // After making the move, switch turn and trigger AI if it's still AI's turn (e.g., multi-jump)
         // Or if it's the other AI's turn (in AI vs AI mode)
@@ -1377,6 +1402,7 @@ void GameManager::handleAIMoveFound(bool moveFound, bool aborted, const CBmove& 
     } else if (aborted) {
         gameMessage("AI search was aborted.");
     } else {
+        gameMessage("AI could not find a move. Game might be over or an error occurred.");
         gameMessage("AI could not find a move. Game might be over or an error occurred.");
     }
 }

@@ -1,11 +1,13 @@
-#pragma once
+#ifndef PIECESETDIALOG_H
+#define PIECESETDIALOG_H
 
 #include <QDialog>
-#include <QStringList>
+#include <QString>
 #include <QListWidget>
+#include <QPushButton>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QPushButton>
+#include <QDialogButtonBox>
 
 class PieceSetDialog : public QDialog
 {
@@ -15,16 +17,15 @@ public:
     explicit PieceSetDialog(const QString& currentPieceSet, QWidget *parent = nullptr);
     ~PieceSetDialog();
 
-    QString getSelectedPieceSet() const { return m_selectedPieceSet; }
+    QString getSelectedPieceSet() const;
 
 private slots:
-    void acceptSelection();
-    void rejectSelection();
+    void on_buttonBox_accepted();
+    void on_buttonBox_rejected();
 
 private:
-    void loadPieceSets();
-
+    QListWidget *pieceSetListWidget;
     QString m_selectedPieceSet;
-    QListWidget *m_pieceSetListWidget;
-    QStringList m_availablePieceSets;
 };
+
+#endif // PIECESETDIALOG_H

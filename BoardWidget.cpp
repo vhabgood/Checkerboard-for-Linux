@@ -60,7 +60,7 @@ void BoardWidget::clearSelectedPiece() {
 
 void BoardWidget::setBoard(const Board8x8& board)
 {
-    qDebug() << "BoardWidget::setBoard called";
+    // qDebug() << "BoardWidget::setBoard called";
     for (int r = 0; r < 8; ++r) {
         for (int c = 0; c < 8; ++c) {
             m_board.board[r][c] = board.board[r][c];

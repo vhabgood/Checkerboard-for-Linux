@@ -10,6 +10,9 @@
 #include "log.h"
 #include <cstdio>
 
+// Global program status word definition
+uint32_t g_programStatusWord = 0;
+
 void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
     Q_UNUSED(context);
@@ -21,35 +24,12 @@ void messageHandler(QtMsgType type, const QMessageLogContext &context, const QSt
 
 int main(int argc, char *argv[])
 {
-    // Redirect stdout and stderr to app.txt
-    if (freopen("app.txt", "w", stdout) == nullptr) {
-        // Cannot redirect stdout, print error to original stderr
-        fprintf(stderr, "error redirecting stdout\n");
-    }
-    if (freopen("app.txt", "w", stderr) == nullptr) {
-        // Cannot redirect stderr, print error to original stdout
-        printf("error redirecting stderr\n");
-    }
-
-    // Redirect stderr to a file
-    if (freopen("err.txt", "w", stderr) == nullptr) {
-        // Optionally handle the error, e.g., by logging to the console
-        qWarning("Could not redirect stderr to err.txt");
-    }
+    g_programStatusWord |= STATUS_APP_START;
 
     // Set application name for QStandardPaths
-    QCoreApplication::setApplicationName("CheckerBoard"); 
-    init_logging();
-    qInstallMessageHandler(messageHandler); // Temporarily commented out to debug log crash
-
-    // For debugging: try to remove any leftover shared memory segment from previous crashes
-    QSharedMemory cleanupSharedMemory;
-    cleanupSharedMemory.setKey("CheckerBoardAppKey");
-    if (cleanupSharedMemory.attach()) {
-        cleanupSharedMemory.detach();
-    }
-    cleanupSharedMemory.create(1); // Re-create to ensure it's clean for this run
-    cleanupSharedMemory.detach(); // Detach immediately, the main sharedMemory will handle it
+    QCoreApplication::setApplicationName("CheckerBoard");
+    // init_logging();
+    // qInstallMessageHandler(messageHandler);
 
     QApplication a(argc, argv);
 
@@ -71,6 +51,7 @@ int main(int argc, char *argv[])
     if (!sharedMemory.create(1)) {
         // This case should ideally not be reached if attach() failed, but for robustness
         QMessageBox::critical(nullptr, "Error", "Could not create shared memory segment.");
+        g_programStatusWord |= STATUS_CRITICAL_ERROR; // Set status flag for critical error
         return 1;
     }
 
@@ -84,13 +65,16 @@ int main(int argc, char *argv[])
 
     int result = a.exec();
 
-    if (sharedMemory.isAttached()) {
-        sharedMemory.detach();
-    }
+    // if (sharedMemory.isAttached()) {
+    //     sharedMemory.detach();
+    // }
 
     qDebug() << "Application finished.";
 
-    close_logging();
+    fprintf(stdout, "Program Status Word: 0x%08X\n", g_programStatusWord);
+    fprintf(stderr, "Program Status Word: 0x%08X\n", g_programStatusWord);
+
+    // close_logging();
     return result;
 }
 

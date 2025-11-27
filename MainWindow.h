@@ -24,15 +24,7 @@
 #include "GameManager.h"
 #include "BoardWidget.h"
 
-#include "FindPositionDialog.h" // Include the new dialog header
-#include "FindCRDialog.h"
-#include "EngineSelectDialog.h"
-#include "EngineOptionsDialog.h" // Include the new dialog header
-#include "PieceSetDialog.h" // Include the new dialog header
-#include "PriorityDialog.h" // Include the new dialog header
-#include "ThreeMoveOptionsDialog.h" // Include the new dialog header
-#include "DirectoriesDialog.h" // Include the new dialog header
-#include "UserBookDialog.h" // Include the new dialog header
+#include "Dialogs.h"
 
 #include "checkers_types.h"
 
@@ -194,6 +186,7 @@ signals:
     void setPrimaryEnginePath(const QString& path);
     void setSecondaryEnginePath(const QString& path);
     void setEgdbPath(const QString& path); // Add this new signal
+    void setAiOptions(const CBoptions& options); // New signal to send options to AI
 private:
     // Setup Methods
     void createMenus();

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "checkers_c_types.h"
+#include "checkers_types.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -64,7 +64,7 @@ char* read_text_file_c(const char* filename, enum READ_TEXT_FILE_ERROR_TYPE* ety
 void start3move_c(Board8x8* board, int opening_index);
 void domove_c(const CBmove *move, Board8x8* board);
 void unmake_move_c(const CBmove *move, Board8x8* board);
-void find_captures_recursive(const Board8x8* board, CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n, int color, int is_king, int* visited);
+void find_captures_recursive(const Board8x8* board, CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n, int color, int is_king, const int* visited_parent);
 void makemovelist(const Board8x8* board, int color, CBmove movelist[MAXMOVES], int *isjump, int *n);
 
 // Explicitly declare functions from dblookup.h

@@ -1,17 +1,34 @@
 #include "c_logic.h"
-#include "dblookup.h"
-#include "checkers_c_types.h" // Direct include
+#include "checkers_types.h" // Includes checkers_c_types.h via conditional logic
 #include "log.h"
 
+// Global variables defined here, declared extern in checkers_c_types.h
+char bitsinword[65536]; 
+uint32_t revword[65536]; 
 
-
-int bitcount(unsigned int n) {
-    int c = 0;
-    while (n > 0) { n &= (n - 1); c++; } 
-    return c;
+// Implementations for bit manipulation functions
+int recbitcount(int32 n)
+{
+	return __builtin_popcount(n);
 }
 
-// From bitboard.h
+int LSB(int32 x)
+{
+    if (x == 0) return -1;
+    return __builtin_ctz(x);
+}
+
+int MSB(int32 x)
+{
+    if (x == 0) return -1;
+    return 31 - __builtin_clz(x);
+}
+
+int revert(int32 n)
+{
+	return (revword[hiword(n)] + (revword[loword(n)]<<16));
+}
+
 void boardtobitboard(const Board8x8* b, pos *position)
 {
     int i, j, bit_pos;
@@ -20,83 +37,28 @@ void boardtobitboard(const Board8x8* b, pos *position)
     for (i = 0; i < 8; i++) {
         for (j = 0; j < 8; j++) {
             if ((i + j) % 2 == 1) { // Only dark squares
-                bit_pos = i * 4 + j / 2;
-                switch (b->board[i][j]) {
-                    case (CB_BLACK | CB_MAN):
-                        position->bm |= (1 << bit_pos);
-                        break;
-                    case (CB_BLACK | CB_KING):
-                        position->bk |= (1 << bit_pos);
-                        break;
-                    case (CB_WHITE | CB_MAN):
-                        position->wm |= (1 << bit_pos);
-                        break;
-                    case (CB_WHITE | CB_KING):
-                        position->wk |= (1 << bit_pos);
-                        break;
+                bit_pos = coorstonumber(j, i, GT_ENGLISH) - 1; // Convert to 0-indexed bit position
+                if (bit_pos >= 0 && bit_pos < 32) { // Ensure bit_pos is valid
+                    switch (b->board[i][j]) {
+                        case (CB_BLACK | CB_MAN):
+                            position->bm |= (1 << bit_pos);
+                            break;
+                        case (CB_BLACK | CB_KING):
+                            position->bk |= (1 << bit_pos);
+                            break;
+                        case (CB_WHITE | CB_MAN):
+                            position->wm |= (1 << bit_pos);
+                            break;
+                        case (CB_WHITE | CB_KING):
+                            position->wk |= (1 << bit_pos);
+                            break;
+                    }
                 }
             }
         }
     }
 }
 
-void boardtocrbitboard(const Board8x8* b, pos *position)
-{
-    int i, board[32];
-    board[0] = b->board[0][0]; board[1] = b->board[2][0]; board[2] = b->board[4][0]; board[3] = b->board[6][0];
-    board[4] = b->board[1][1]; board[5] = b->board[3][1]; board[6] = b->board[5][1]; board[7] = b->board[7][1];
-    board[8] = b->board[0][2]; board[9] = b->board[2][2]; board[10] = b->board[4][2]; board[11] = b->board[6][2];
-    board[12] = b->board[1][3]; board[13] = b->board[3][3]; board[14] = b->board[5][3]; board[15] = b->board[7][3];
-    board[16] = b->board[0][4]; board[17] = b->board[2][4]; board[18] = b->board[4][4]; board[19] = b->board[6][4];
-    board[20] = b->board[1][5]; board[21] = b->board[3][5]; board[22] = b->board[5][5]; board[23] = b->board[7][5];
-    board[24] = b->board[0][6]; board[25] = b->board[2][6]; board[26] = b->board[4][6]; board[27] = b->board[6][6];
-    board[28] = b->board[1][7]; board[29] = b->board[3][7]; board[30] = b->board[5][7]; board[31] = b->board[7][7];
-
-    position->bm = 0; position->bk = 0; position->wm = 0; position->wk = 0;
-    for (i = 0; i < 32; i++) {
-        switch (board[i]) {
-        case CB_BLACK | CB_MAN: position->wm |= (1 << (31 - i)); break;
-        case CB_BLACK | CB_KING: position->wk |= (1 << (31 - i)); break;
-        case CB_WHITE | CB_MAN: position->bm |= (1 << (31 - i)); break;
-        case CB_WHITE | CB_KING: position->wk = position->wk | (1 << (31 - i)); break;
-        }
-    }
-}
-
-void bitboardtoboard8(pos *p, Board8x8* b)
-{
-    int i, r, c, bit_pos;
-
-    // Initialize board to empty
-    for (r = 0; r < 8; r++) {
-        for (c = 0; c < 8; c++) {
-            b->board[r][c] = CB_EMPTY;
-        }
-    }
-
-    for (r = 0; r < 8; r++) {
-        for (c = 0; c < 8; c++) {
-            if ((r + c) % 2 == 1) { // Only dark squares
-                bit_pos = r * 4 + c / 2;
-                if (p->bm & (1 << bit_pos))
-                    b->board[r][c] = CB_BLACK | CB_MAN;
-                else if (p->bk & (1 << bit_pos))
-                    b->board[r][c] = CB_BLACK | CB_KING;
-                else if (p->wm & (1 << bit_pos))
-                    b->board[r][c] = CB_WHITE | CB_MAN;
-                else if (p->wk & (1 << bit_pos))
-                    b->board[r][c] = CB_WHITE | CB_KING;
-            }
-        }
-    }
-}
-
-int count_pieces(const Board8x8* board)
-{
-    pos currentPos;
-    boardtobitboard(board, &currentPos);
-    return bitcount(currentPos.bm) + bitcount(currentPos.bk) + bitcount(currentPos.wm) + bitcount(currentPos.wk);
-}
 
 // From coordinates.h
 int coorstonumber(int x, int y, int gametype) {
@@ -134,9 +96,12 @@ void numbertocoors(int n, int *x, int *y, int gametype) {
     if (adjusted_y % 2 == 0) { // Original y=7,5,3,1
         *x = 6 - (offset_in_row * 2);
     } else { // Original y=6,4,2,0
-        *x = 7 - (offset_in_row * 2 + 1);
+        *x = 7 - (offset_in_row * 2);
     }
     *y = 7 - adjusted_y;
+    char log_msg_buffer[256];
+    snprintf(log_msg_buffer, sizeof(log_msg_buffer), "numbertocoors: n=%d -> x=%d, y=%d", n, *x, *y);
+    log_c(LOG_LEVEL_DEBUG, log_msg_buffer);
 }
 void coorstocoors(int *x, int *y, bool invert, bool mirror) { if (invert) { *x = 7 - *x; *y = 7 - *y; } if (mirror) *x = 7 - *x; }
 bool is_valid_board8_square(int x, int y) { return((x + y) % 2 != 0); }
@@ -183,85 +148,100 @@ int fname_crc_calc(const char *name, unsigned int *crc) { FILE *fp = fopen(name,
 int is_fen(const char *buf) { while (*buf) { if (isspace(*buf)) ++buf; else if (*buf == '"') ++buf; else break; } if ((toupper(*buf) == 'B' || toupper(*buf) == 'W') && buf[1] == ':') return(1); else return(0); }
 int FENtoboard8(Board8x8 *board, const char *FEN, int *color, int gametype)
 {
-    int square, square2, s;
-    int piece_color, piece_type;
-    int i, j;
-    const char *lastp;
-    char *p;
+    char log_msg_buffer[256];
+    log_c(LOG_LEVEL_DEBUG, "FENtoboard8: Entering function.");
+    snprintf(log_msg_buffer, sizeof(log_msg_buffer), "FENtoboard8: Received FEN: %s", FEN);
+    log_c(LOG_LEVEL_DEBUG, log_msg_buffer);
 
     // Create a mutable copy of FEN
     char FEN_copy[256];
     strncpy(FEN_copy, FEN, 255);
     FEN_copy[255] = '\0';
 
+    char *p = FEN_copy;
     char *token;
     char *saveptr;
 
-    // Parse color to move
-    token = strtok_r(FEN_copy, ":", &saveptr);
-    if (!token) return 0;
-
-    if (toupper(token[0]) == 'B')
-        *color = CB_BLACK;
-    else if (toupper(token[0]) == 'W')
-        *color = CB_WHITE;
-    else
-        return (0);
-    
-    for (i = 0; i < 8; ++i)
-        for (j = 0; j < 8; ++j)
-            board->board[i][j] = 0;
-
-    // Now, parse the piece list
-    token = strtok_r(NULL, "", &saveptr); // Get the rest of the string
-    if (!token) return 0;
-    
-    p = token; // Set 'p' to point to the beginning of the piece list
-    const char *fen_end = FEN_copy + strlen(FEN_copy); // Calculate the end of the FEN string within the buffer
-
-    while (p < fen_end && *p) { // Loop while p is within bounds and not null terminator
-        piece_type = CB_MAN;
-        if (p < fen_end && *p == '"') {
-            ++p;
-            continue;
-        }
-        if (p < fen_end && toupper(*p) == 'W') {
-            piece_color = CB_WHITE;
-            ++p;
-            continue;
-        }
-        if (p < fen_end && toupper(*p) == 'B') {
-            piece_color = CB_BLACK;
-            ++p;
-            continue;
-        }
-        if (p < fen_end && toupper(*p) == 'K') {
-            piece_type = CB_KING;
-            ++p;
-        }
-        for (square = 0; p < fen_end && isdigit(*p); ++p)
-            square = 10 * square + (*p - '0');
-        square2 = square;
-        if (p < fen_end && (*p == ',' || *p == ':'))
-            ++p;
-        else if (p < fen_end && *p == '-' && p + 1 < fen_end && isdigit(p[1])) {
-            ++p;
-            for (square2 = 0; p < fen_end && isdigit(*p); ++p)
-                square2 = 10 * square2 + (*p - '0');
-            if (p < fen_end && (*p == ',' || *p == ':'))
-                ++p;
-        }
-        if (square && square <= square2) {
-            for (s = square; s <= square2; ++s) {
-                numbertocoors(s, &i, &j, gametype);
-                if (i >= 0 && i < 8 && j >= 0 && j < 8) { // Added bounds check for board
-                    board->board[j][i] = piece_type | piece_color;
-                }
-            }
-        }
-        if (p < fen_end && *p == ',')
-            ++p;
+    // 1. Parse color to move from the very beginning
+    token = strtok_r(p, ":", &saveptr);
+    if (!token) {
+        log_c(LOG_LEVEL_ERROR, "FENtoboard8: Failed to parse color token.");
+        return 0;
     }
+    if (toupper(token[0]) == 'B') {
+        *color = CB_BLACK;
+    } else if (toupper(token[0]) == 'W') {
+        *color = CB_WHITE;
+    } else {
+        snprintf(log_msg_buffer, sizeof(log_msg_buffer), "FENtoboard8: Invalid color character in FEN: %c", token[0]);
+        log_c(LOG_LEVEL_ERROR, log_msg_buffer);
+        return 0;
+    }
+    snprintf(log_msg_buffer, sizeof(log_msg_buffer), "FENtoboard8: Parsed color to move: %d", *color);
+    log_c(LOG_LEVEL_DEBUG, log_msg_buffer);
+
+    // 2. Initialize board to empty
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            board->board[i][j] = CB_EMPTY;
+        }
+    }
+
+    // 3. Loop through the remaining color sections (W:... and B:...)
+    while ((token = strtok_r(NULL, ":", &saveptr)) != NULL) {
+        int piece_color;
+        
+        if (toupper(token[0]) == 'W') {
+            piece_color = CB_WHITE;
+        } else if (toupper(token[0]) == 'B') {
+            piece_color = CB_BLACK;
+        } else {
+            snprintf(log_msg_buffer, sizeof(log_msg_buffer), "FENtoboard8: Invalid piece color specifier: %c", token[0]);
+            log_c(LOG_LEVEL_WARNING, log_msg_buffer);
+            continue; // Skip to next token
+        }
+
+        // Now parse the squares for this color
+        char* squares_ptr = token + 1; // Move past 'W' or 'B'
+        char* square_token;
+        char* square_saveptr;
+
+        square_token = strtok_r(squares_ptr, ",", &square_saveptr);
+        while(square_token != NULL) {
+            int piece_type = CB_MAN;
+            if (toupper(square_token[0]) == 'K') {
+                piece_type = CB_KING;
+                square_token++; // Move past 'K'
+            }
+
+            int square_num = atoi(square_token);
+            if (square_num >= 1 && square_num <= 32) {
+                int coor_x, coor_y;
+                numbertocoors(square_num, &coor_x, &coor_y, gametype);
+                if (coor_x >= 0 && coor_x < 8 && coor_y >= 0 && coor_y < 8) {
+                    board->board[coor_y][coor_x] = piece_type | piece_color;
+                    snprintf(log_msg_buffer, sizeof(log_msg_buffer), "FENtoboard8: Placed piece at square %d (x:%d, y:%d)", square_num, coor_x, coor_y);
+                    log_c(LOG_LEVEL_DEBUG, log_msg_buffer);
+                } else {
+                    snprintf(log_msg_buffer, sizeof(log_msg_buffer), "FENtoboard8: Invalid coordinates for square %d (x:%d, y:%d)", square_num, coor_x, coor_y);
+                    log_c(LOG_LEVEL_WARNING, log_msg_buffer);
+                }
+            } else {
+                snprintf(log_msg_buffer, sizeof(log_msg_buffer), "FENtoboard8: Invalid square number %d", square_num);
+                log_c(LOG_LEVEL_WARNING, log_msg_buffer);
+            }
+
+            square_token = strtok_r(NULL, ",", &square_saveptr);
+        }
+    }
+
+    // After parsing, before returning
+    char board_fen_after_parse[256];
+    board8toFEN(board, board_fen_after_parse, *color, gametype); // Generate FEN from the parsed board
+    snprintf(log_msg_buffer, sizeof(log_msg_buffer), "FENtoboard8: Board state after parsing: %s", board_fen_after_parse);
+    log_c(LOG_LEVEL_DEBUG, log_msg_buffer);
+    
+    log_c(LOG_LEVEL_DEBUG, "FENtoboard8: Exiting function successfully.");
     return (1);
 }
 void board8toFEN(const Board8x8 *board, char *FEN, int color, int gametype)
@@ -537,11 +517,11 @@ int get_legal_moves_c(const Board8x8* board, int color, CBmove movelist[MAXMOVES
 
 
 
-extern "C" void find_captures_recursive(const Board8x8* board, CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n, int color, int is_king, int* visited)
+extern "C" void find_captures_recursive(const Board8x8* board, CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n, int color, int is_king, const int* visited_parent)
 {
     char log_msg[512];
-    sprintf(log_msg, "find_captures_recursive: x: %d, y: %d, d: %d, color: %d, is_king: %d", x, y, d, color, is_king);
-    log_c(LOG_LEVEL_DEBUG, log_msg);
+//    sprintf(log_msg, "find_captures_recursive: x: %d, y: %d, d: %d, color: %d, is_king: %d", x, y, d, color, is_king);
+//    log_c(LOG_LEVEL_DEBUG, log_msg);
 
     int i;
     int fwd = (color == CB_WHITE) ? 1 : -1;
@@ -559,12 +539,22 @@ extern "C" void find_captures_recursive(const Board8x8* board, CBmove movelist[M
     bool found_another_jump = false;
 
     // Safety check: if recursion depth exceeds the maximum allowed jumps, stop.
-    if (d >= 11) { // If d is 11, d+1 would be 12, out of bounds for del[12]
+    if (d >= 11) { // If d is 11, it's the last valid index for del[11], path[11] is valid for storage.
         return;
     }
+    
+    int visited[33];
+    memcpy(visited, visited_parent, sizeof(visited));
+
     int current_square = coorstonumber(x, y, GT_ENGLISH);
+    if (current_square == 0) {
+        log_c(LOG_LEVEL_ERROR, "find_captures_recursive: current_square is 0!");
+        return;
+    }
     if(visited[current_square])
         return;
+    visited[current_square] = 1;
+
 
     for (i = start_dir; i < end_dir; ++i) {
         int jump_x = x + dx[i];
@@ -589,7 +579,7 @@ extern "C" void find_captures_recursive(const Board8x8* board, CBmove movelist[M
                 mm.del[d].x = jump_x;
                 mm.del[d].y = jump_y;
                 mm.delpiece[d] = opponent_piece;
-                if (d + 1 < 12) {
+                if (d < 11) {
                     mm.del[d + 1].x = -1;
                 }
                 mm.jumps = d + 1;
@@ -600,36 +590,38 @@ extern "C" void find_captures_recursive(const Board8x8* board, CBmove movelist[M
 
                 if (becomes_king) {
                     // This jump makes a king. This is the last move in the sequence. Add it.
-                    movelist[*n] = mm;
-                    (*n)++;
+                    if (*n < MAXMOVES) {
+                        movelist[*n] = mm;
+                        (*n)++;
+                    } else {
+                        // qWarning() << "MAXMOVES exceeded in find_captures_recursive (becomes_king)"; // Re-enable custom logging first
+                    }
                 } else {
                     // Continue searching for more jumps in the sequence
                     Board8x8 next_board = *board;
                     next_board.board[jump_y][jump_x] = CB_EMPTY;
-                    visited[current_square] = 1;
                     find_captures_recursive(&next_board, movelist, mm, land_x, land_y, d + 1, n, color, next_is_king, visited);
-                    visited[current_square] = 0;
                 }
             }
         }
     }
 
     if (!found_another_jump && d > 0) {
-        char log_msg[512];
-        sprintf(log_msg, "find_captures_recursive: adding move, from: (%d,%d), to: (%d,%d), jumps: %d", m.from.x, m.from.y, m.to.x, m.to.y, m.jumps);
-        log_c(LOG_LEVEL_DEBUG, log_msg);
-        movelist[*n] = m;
-        (*n)++;
+        // char log_msg[512];
+        // sprintf(log_msg, "find_captures_recursive: adding move, from: (%d,%d), to: (%d,%d), jumps: %d", m.from.x, m.from.y, m.to.x, m.to.y, m.jumps);
+        // log_c(LOG_LEVEL_DEBUG, log_msg);
+        if (*n < MAXMOVES) {
+            movelist[*n] = m;
+            (*n)++;
+        } else {
+            // qWarning() << "MAXMOVES exceeded in find_captures_recursive (not found_another_jump)"; // Re-enable custom logging first
+        }
     }
 }
 
 
 void makemovelist(const Board8x8* board, int color, CBmove movelist[MAXMOVES], int *isjump, int *n)
 {
-    // char log_msg[200]; // Removed
-    // sprintf(log_msg, "makemovelist: Entry. Finding moves for color: %d", color); // Removed
-    // log_c(LOG_LEVEL_DEBUG, log_msg); // Removed
-
     int i;
     CBmove m = {0};
     *isjump = 0;
@@ -664,8 +656,6 @@ void makemovelist(const Board8x8* board, int color, CBmove movelist[MAXMOVES], i
     }
 
     if (ncaptures > 0) {
-        // sprintf(log_msg, "makemovelist: %d captures found. Prioritizing captures.", ncaptures); // Removed
-        // log_c(LOG_LEVEL_DEBUG, log_msg); // Removed
         *isjump = 1;
         int max_jumps = 0;
         for (i = 0; i < ncaptures; ++i) {
@@ -676,17 +666,15 @@ void makemovelist(const Board8x8* board, int color, CBmove movelist[MAXMOVES], i
 
         for (i = 0; i < ncaptures; ++i) {
             if (captures[i].jumps == max_jumps) {
-                movelist[*n] = captures[i];
-                (*n)++;
+                if (*n < MAXMOVES) {
+                    movelist[*n] = captures[i];
+                    (*n)++;
+                }
             }
         }
         for(i=0; i<*n; ++i) movelist[i].is_capture = true;
         return;
     }
-
-    // sprintf(log_msg, "makemovelist: No captures found. Total ncaptures: %d.", ncaptures); // Removed
-    // log_c(LOG_LEVEL_DEBUG, log_msg); // Removed
-    // log_c(LOG_LEVEL_DEBUG, "makemovelist: Entering regular move generation phase (no captures found)."); // Removed
 
     // --- 2. If no captures, find all regular moves ---
     for (int r = 0; r < 8; ++r) {
@@ -698,36 +686,36 @@ void makemovelist(const Board8x8* board, int color, CBmove movelist[MAXMOVES], i
             int is_king = (piece & CB_KING) ? 1 : 0;
 
             if (piece_color == color) {
-                int fwd = (color == CB_WHITE) ? 1 : -1; // White moves y+1, Black moves y-1
+                int fwd = (color == CB_WHITE) ? 1 : -1; 
                 int dx[] = {-1, 1};
                 
-                // Men moves (forward only)
                 if (!is_king) {
                     for (i = 0; i < 2; ++i) {
                         int to_c = c + dx[i];
                         int to_r = r + fwd;
                         if (to_c >= 0 && to_c < 8 && to_r >= 0 && to_r < 8 && board->board[to_r][to_c] == CB_EMPTY) {
-                            movelist[*n].jumps = 0;
-                            movelist[*n].from.x = c;
-                            movelist[*n].from.y = r;
-                            movelist[*n].to.x = to_c;
-                            movelist[*n].to.y = to_r;
-                            movelist[*n].path[0].x = c;
-                            movelist[*n].path[0].y = r;
-                            movelist[*n].path[1].x = to_c;
-                            movelist[*n].path[1].y = to_r;
-                            movelist[*n].del[0].x = -1;
-                            movelist[*n].oldpiece = piece;
-                            if ((color == CB_WHITE && to_r == 7) || (color == CB_BLACK && to_r == 0)) {
-                                movelist[*n].newpiece = piece | CB_KING;
-                            } else {
-                                movelist[*n].newpiece = piece;
+                            if (*n < MAXMOVES) {
+                                movelist[*n].jumps = 0;
+                                movelist[*n].from.x = c;
+                                movelist[*n].from.y = r;
+                                movelist[*n].to.x = to_c;
+                                movelist[*n].to.y = to_r;
+                                movelist[*n].path[0].x = c;
+                                movelist[*n].path[0].y = r;
+                                movelist[*n].path[1].x = to_c;
+                                movelist[*n].path[1].y = to_r;
+                                movelist[*n].del[0].x = -1;
+                                movelist[*n].oldpiece = piece;
+                                if ((color == CB_WHITE && to_r == 7) || (color == CB_BLACK && to_r == 0)) {
+                                    movelist[*n].newpiece = piece | CB_KING;
+                                } else {
+                                    movelist[*n].newpiece = piece;
+                                }
+                                (*n)++;
                             }
-                            (*n)++;
                         }
                     }
                 }
-                // King moves (all 4 diagonal directions)
                 else {
                     int king_dy[] = {1, 1, -1, -1};
                     int king_dx[] = {-1, 1, -1, 1};
@@ -735,19 +723,21 @@ void makemovelist(const Board8x8* board, int color, CBmove movelist[MAXMOVES], i
                         int to_c = c + king_dx[i];
                         int to_r = r + king_dy[i];
                         if (to_c >= 0 && to_c < 8 && to_r >= 0 && to_r < 8 && board->board[to_r][to_c] == CB_EMPTY) {
-                            movelist[*n].jumps = 0;
-                            movelist[*n].from.x = c;
-                            movelist[*n].from.y = r;
-                            movelist[*n].to.x = to_c;
-                            movelist[*n].to.y = to_r;
-                            movelist[*n].path[0].x = c;
-                            movelist[*n].path[0].y = r;
-                            movelist[*n].path[1].x = to_c;
-                            movelist[*n].path[1].y = to_r;
-                            movelist[*n].del[0].x = -1;
-                            movelist[*n].oldpiece = piece;
-                            movelist[*n].newpiece = piece; // Kings don't change type on non-capture moves
-                            (*n)++;
+                            if (*n < MAXMOVES) {
+                                movelist[*n].jumps = 0;
+                                movelist[*n].from.x = c;
+                                movelist[*n].from.y = r;
+                                movelist[*n].to.x = to_c;
+                                movelist[*n].to.y = to_r;
+                                movelist[*n].path[0].x = c;
+                                movelist[*n].path[0].y = r;
+                                movelist[*n].path[1].x = to_c;
+                                movelist[*n].path[1].y = to_r;
+                                movelist[*n].del[0].x = -1;
+                                movelist[*n].oldpiece = piece;
+                                movelist[*n].newpiece = piece;
+                                (*n)++;
+                            }
                         }
                     }
                 }
@@ -1011,6 +1001,11 @@ void domove_c(const CBmove *move, Board8x8 *board)
         return;
     }
 
+    // Check bounds for jumps as well
+    if (move->jumps < 0 || move->jumps > 12) {
+        log_c(LOG_LEVEL_ERROR, "domove_c: Invalid number of jumps!");
+        return;
+    }
 
     int i;
 
@@ -1019,7 +1014,9 @@ void domove_c(const CBmove *move, Board8x8 *board)
 
     if (move->jumps > 0) {
         for (i = 0; i < move->jumps; i++) {
-            board->board[move->del[i].y][move->del[i].x] = CB_EMPTY;
+            if (move->del[i].y >= 0 && move->del[i].y < 8 && move->del[i].x >= 0 && move->del[i].x < 8) {
+                board->board[move->del[i].y][move->del[i].x] = CB_EMPTY;
+            }
         }
     }
 
@@ -1032,8 +1029,8 @@ void domove_c(const CBmove *move, Board8x8 *board)
     char fen[256];
     board8toFEN(board, fen, CB_WHITE, GT_ENGLISH); // Color doesn't matter for the board state part of FEN
     char log_msg[512];
-    snprintf(log_msg, sizeof(log_msg), "domove_c: (%d,%d)->(%d,%d) jumps: %d. FEN: %s", from_x, from_y, to_x, to_y, move->jumps, fen);
-    log_c(LOG_LEVEL_TRACE, log_msg);
+//    snprintf(log_msg, sizeof(log_msg), "domove_c: (%d,%d)->(%d,%d) jumps: %d. FEN: %s", from_x, from_y, to_x, to_y, move->jumps, fen);
+//    log_c(LOG_LEVEL_TRACE, log_msg);
 }
 
 void unmake_move_c(const CBmove *move, Board8x8* board) {

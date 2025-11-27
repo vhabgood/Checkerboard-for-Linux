@@ -20,6 +20,7 @@ public:
     bool startEngine();
     void stopEngine();
     bool sendCommand(const QString& command, QString& reply);
+    void sendCommandAsync(const QString& command);
     void setEnginePath(const QString& path);
     QString getEnginePath() const { return m_enginePath; }
 
@@ -27,8 +28,9 @@ signals:
     void engineOutput(const QString& output);
     void engineError(const QString& error);
     void engineReady();
-    void bestMoveFound(const CBmove& move);
+    void bestMoveFound(const QString& moveString);
     void evaluationUpdate(int score, int depth);
+    void engineResponse(const QString& response);
 
 private slots:
     void readStandardOutput();
