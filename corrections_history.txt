@@ -115,3 +115,183 @@ The next step is for the user to run the newly built `checkerboard_app` and prov
 *   **Identified FEN Loading Issue**: The application was failing to load FEN strings that contained leading or trailing whitespace.
 *   **Fix Implemented (FEN)**: Modified the `GameManager::loadFenPosition` function to use `QString::trimmed()` to remove any whitespace from the FEN string before passing it to the `FENtoboard8` function.
 *   **Build Status**: The application now builds successfully with these fixes.
+---
+**2025-11-27: Fixed Invalid Header Include**
+*   **Identified Problem**: A `fatal error: checkers_c_types.h: No such file or directory` was occurring during compilation of `GeminiAI.cpp`. This was caused by an incorrect `#include` directive that pointed to an obsolete header file that was removed during project cleanup.
+*   **Fix Implemented**: In `GeminiAI.cpp`, replaced `#include "checkers_c_types.h"` with `#include "checkers_types.h"` to use the correct, unified project header.
+---
+**2025-11-27: Fixed Invalid Header Include in `GeminiAI.cpp`**
+*   **Identified Problem**: A `fatal error: dblookup.h: No such file or directory` was occurring during compilation of `GeminiAI.cpp`. This was caused by an incorrect `#include` directive that pointed to an obsolete header file that was removed during project cleanup. The declarations are now part of the unified `checkers_types.h`.
+*   **Fix Implemented**: In `GeminiAI.cpp`, removed the line `#include "dblookup.h"`.
+---
+**2025-11-27: Implemented Asynchronous Engine Communication**
+*   **Identified Problem**: A crash occurred during autoplay mode due to rapid, successive calls to a blocking `sendCommand` method in `ExternalEngine`, leading to a threading conflict.
+*   **Fix Implemented**:
+    1.  **`ExternalEngine`**: Created a hybrid approach.
+        *   A new non-blocking `sendCommandAsync(const QString& command)` was added for the AI's move requests.
+        *   The existing synchronous `sendCommand(const QString& command, QString& reply)` was preserved for UI commands to avoid a major UI refactor.
+        *   The `bestMoveFound` signal was changed to emit a `QString` move string.
+        *   A new `engineResponse(const QString&)` signal was added for the state machine.
+    2.  **`GeminiAI`**:
+        *   Implemented a state machine in `requestMove` using a `QQueue` to handle the sequence of `position` and `go` commands asynchronously.
+        *   Added `sendNextCommand`, `handleEngineResponse`, and `handleBestMoveFound` slots to manage the state machine and parse the final move.
+        *   Connected the new signals from `ExternalEngine` in `initEngineProcess`.
+    3.  **Compilation Fixes**:
+        *   Corrected mismatched function signatures for `evaluateBoard`, `minimax`, and `quiescenceSearch` in `GeminiAI.cpp` to include the `egdb_context` parameter, resolving compilation errors.
+*   **Result**: This new architecture prevents the blocking event loop from being re-entered in the AI thread, fixing the autoplay crash, while maintaining the existing synchronous behavior for UI elements.
+Correction made on: Thu Nov 27 06:45:46 PM EST 2025
+Refactored the AI to use a worker-thread pattern to prevent crashes.
+
+1.  Created a new `AIWorker` class to handle all AI-related processing.
+2.  Moved all search logic from `GeminiAI` to `AIWorker`.
+3.  Refactored `GeminiAI` to act as a controller, managing the `AIWorker` in a separate `QThread`.
+4.  Created a new header file `ai_state.h` to define the `AI_State` enum and resolve circular dependencies.
+5.  Updated the build script to include the new `AIWorker.cpp` file.
+---
+Correction made on: Thu Nov 27 07:37:45 PM EST 2025
+Refactored dblookup.cpp into a thread-safe DBManager singleton class.
+
+1.  Created `DBManager.h` and `DBManager.cpp` to encapsulate all EGDB logic and state.
+2.  Moved all static global variables from `dblookup.cpp` to private members of `DBManager`.
+3.  Moved all functions from `dblookup.cpp` into `DBManager` as public or private methods.
+4.  Added a `QMutex` to `DBManager` and used `QMutexLocker` in all public methods to ensure thread safety.
+5.  Updated `c_logic.cpp` and `GeminiAI.cpp` to use the `DBManager::instance()` singleton instead of direct C-function calls.
+6.  Removed obsolete function declarations from `checkers_types.h` and `c_logic.h`.
+7.  Moved the now-obsolete `dblookup.cpp` to the `OLD/` directory.
+8.  Fixed various compilation errors related to the refactoring, including macro redefinitions and incorrect function scoping.
+---
+Correction made on: Thu Nov 27 07:41:58 PM EST 2025
+Corrected the implementation of the DBManager class.
+
+1.  Removed incorrect `static` definitions for `LSB`, `MSB`, and `recbitcount` from `DBManager.cpp`, as they are globally available from `c_logic.cpp`.
+2.  Fixed the structure of `DBManager.cpp` by ensuring all functions from the old `dblookup.cpp` are correctly defined as member functions within the `DBManager` class scope.
+3.  Resolved mismatched braces and incomplete function definition errors.
+---
+Correction made on: Thu Nov 27 07:45:17 PM EST 2025
+Re-implemented DBManager.cpp to fix compilation errors.
+
+1.  Removed static definitions of LSB, MSB, and recbitcount from DBManager.cpp as they are provided by c_logic.cpp.
+2.  Ensured all functions from dblookup.cpp were correctly defined as member functions of DBManager with proper scoping and curly braces.
+3.  Resolved all "qualified-id in declaration" and "expected ‘}’ at end of input" errors by correcting the class structure.
+---
+Correction made on: Thu Nov 27 08:30:50 PM EST 2025
+Corrected the implementation of the DBManager class again.
+
+1.  Removed static definitions of LSB, MSB, and recbitcount from DBManager.cpp as they are provided by c_logic.cpp.
+2.  Ensured all functions from dblookup.cpp were correctly defined as member functions within the DBManager class scope.
+3.  Resolved all "qualified-id in declaration" and "expected ‘}’ at end of input" errors by correcting the class structure.
+---
+Correction made on: Thu Nov 27 08:37:05 PM EST 2025
+Re-implemented DBManager.cpp to fix compilation errors.
+
+1.  Removed static definitions of LSB, MSB, and recbitcount from DBManager.cpp as they are provided by c_logic.cpp.
+2.  Ensured all functions from dblookup.cpp were correctly defined as member functions within the DBManager class scope.
+3.  Resolved all "qualified-id in declaration" and "expected ‘}’ at end of input" errors by correcting the class structure.
+---
+Correction made on: Thu Nov 27 08:40:34 PM EST 2025
+Completed the refactoring of dblookup.cpp into a thread-safe DBManager singleton.
+
+1.  Created `DBManager.h` and `DBManager.cpp`.
+2.  Moved all EGDB logic into `DBManager`.
+3.  Updated `c_logic.cpp` and `GeminiAI.cpp` to use the `DBManager`.
+4.  Removed obsolete declarations from `checkers_types.h` and `c_logic.h`.
+5.  Updated `build_checkerboard.sh` to compile `DBManager.cpp` and `AIWorker.cpp`, and removed `dblookup.cpp`.
+6.  Fixed all compilation and linking errors related to this refactoring.
+---
+Correction made on: Thu Nov 27 08:41:29 PM EST 2025
+Attempted to fix the DBManager.cpp implementation again.
+
+1.  Removed static definitions of LSB, MSB, and recbitcount.
+2.  Attempted to correctly scope all functions as member functions of DBManager.
+3.  Attempted to resolve brace matching issues.
+---
+Correction made on: Thu Nov 27 08:58:43 PM EST 2025
+Fixed compilation errors in MainWindow.cpp by restoring the public API of GeminiAI.
+
+1.  Confirmed that `GeminiAI.h` correctly declares all necessary public slots (`requestAbort`, `startAnalyzeGame`, `startAutoplay`, `startEngineMatch`, `startRunTestSet`, `startAnalyzePdn`).
+2.  Implemented these public slots in `GeminiAI.cpp` to correctly emit the `requestWorkerTask` signal with the appropriate `AI_State` and parameters to the AI worker thread. This ensures delegation of tasks to the background while maintaining the expected public interface for `MainWindow`.
+---
+Correction made on: Thu Nov 27 09:03:59 PM EST 2025
+Fixed a structural error in `DBManager.cpp` by adding a missing closing brace `}` to the `db_init` function. This addresses the "expected ‘}’ at end of input" and "qualified-id in declaration before ‘(’ token" errors, which were caused by the compiler misinterpreting the class structure due to the unclosed function.
+---
+Correction made on: Thu Nov 27 09:06:46 PM EST 2025
+Fixed a structural error in `DBManager.cpp` by removing an extraneous closing brace `}` that was prematurely terminating the `DBManager` class definition. This resolves the "expected ‘}’ at end of input" and "qualified-id in declaration before ‘(’ token" errors, allowing subsequent member functions to be correctly parsed within the class scope.
+---
+Correction made on: Thu Nov 27 10:43:25 PM EST 2025
+Fixed a structural error in `DBManager.cpp` by removing an extraneous closing brace `}` that was prematurely terminating the `DBManager` class definition. This resolves the "expected ‘}’ at end of input" and "qualified-id in declaration before ‘(’ token" errors, allowing subsequent member functions to be correctly parsed within the class scope.
+---
+Correction made on: Thu Nov 27 10:44:58 PM EST 2025
+Corrected `build_checkerboard.sh` to properly include `DBManager.cpp` and `AIWorker.cpp` in the `APP_SRCS` array, and removed the obsolete `dblookup.cpp`. Also removed the `dblookup` entry from `INCLUDE_DIRS`. This addresses the "No such file or directory" error for `dblookup.cpp` and ensures `DBManager.o` and `AIWorker.o` are correctly generated for linking.
+---
+Correction made on: Thu Nov 27 10:47:39 PM EST 2025
+Fixed a structural error in `DBManager.cpp` by removing an extraneous closing brace `}` that was prematurely terminating the `DBManager` class definition. This resolves the "expected ‘}’ at end of input" and "qualified-id in declaration before ‘(’ token" errors, allowing subsequent member functions to be correctly parsed within the class scope.
+---
+Correction made on: Fri Nov 28 12:33:43 AM EST 2025
+Fixed name collision errors in `DBManager.cpp` and `DBManager.h` by renaming member functions that conflicted with global C functions in `checkers_types.h`.
+
+Renamed:
+- `preload` to `internal_preload`
+- `db_getcachesize` to `getCacheSize`
+- `db_infostring` to `getInfoString`
+- `getdatabasesize` to `getDatabaseSize`
+
+Updated corresponding declarations in `DBManager.h`, definitions in `DBManager.cpp`, and the internal call site for `preload` within `DBManager::db_init`. This resolves the "qualified-id in declaration before ‘(’ token" and "expected ‘}’ at end of input" errors in `DBManager.cpp`.
+---
+Correction made on: Fri Nov 28 12:51:53 AM EST 2025
+Added the declaration for the `processEgdbFiles` private helper function to `DBManager.h`. This function will encapsulate the logic for opening and parsing EGDB files as part of the `db_init` refactoring.
+---
+Correction made on: Fri Nov 28 12:52:17 AM EST 2025
+Added the implementation for the `processEgdbFiles` private helper function to `DBManager.cpp`. This function encapsulates the logic for opening and parsing EGDB files as part of the `db_init` refactoring.
+---
+Correction made on: Fri Nov 28 12:52:41 AM EST 2025
+Refactored the first file processing loop within `DBManager::db_init` to use the new `processEgdbFiles` helper function. This significantly reduces code duplication and improves readability.
+---
+Correction made on: Fri Nov 28 12:52:55 AM EST 2025
+Refactored the second file processing loop (for split EGDB files) within `DBManager::db_init` to use the new `processEgdbFiles` helper function. This further reduces code duplication and improves readability for the complex nested loops.
+---
+Correction made on: Fri Nov 28 12:53:12 AM EST 2025
+Added `static const int` members for various magic numbers to the `DBManager` class in `DBManager.h` (`MAX_RANK_COUNT`, `DECODE_TABLE_SIZE`, `DECODE_TABLE_ENTRY_SIZE`, `CPR_SUBDATABASE_MULTIPLIER`). This improves readability and prepares for using these named constants in `DBManager.cpp`.
+---
+Correction made on: Fri Nov 28 12:53:37 AM EST 2025
+Replaced magic numbers with named `static const int` members from `DBManager.h` in `DBManager.cpp`.
+- `81` (for `decode_table` initialization) replaced with `DBManager::DECODE_TABLE_SIZE`.
+- `98` (for `cprsubdatabase` `memset` size calculation) replaced with `DBManager::CPR_SUBDATABASE_MULTIPLIER`.
+- `7` (for `bmrank`/`wmrank` loop bounds in `db_exit`) replaced with `DBManager::MAX_RANK_COUNT`.
+---
+Correction made on: Fri Nov 28 01:05:38 AM EST 2025
+Extracted `decode_table` initialization into a new private helper function `initDecodeTable()`.
+- Declared `initDecodeTable()` in `DBManager.h`.
+- Implemented `initDecodeTable()` in `DBManager.cpp`.
+- Replaced the direct initialization block in `db_init()` with a call to `initDecodeTable()`.
+---
+Correction made on: Fri Nov 28 01:06:15 AM EST 2025
+Extracted `bicoef` table initialization into a new private helper function `initBicoefTable()`.
+- Declared `initBicoefTable()` in `DBManager.h`.
+- Implemented `initBicoefTable()` in `DBManager.cpp`.
+- Replaced the direct initialization block in `db_init()` with a call to `initBicoefTable()`.
+---
+Correction made on: Fri Nov 28 01:06:46 AM EST 2025
+Extracted `runlength` and `value` tables initialization into a new private helper function `initRunLengthAndValueTables()`.
+- Declared `initRunLengthAndValueTables()` in `DBManager.h`.
+- Implemented `initRunLengthAndValueTables()` in `DBManager.cpp`.
+- Replaced the direct initialization block in `db_init()` with a call to `initRunLengthAndValueTables()`.
+---
+Correction made on: Fri Nov 28 01:07:07 AM EST 2025
+Simplified the `memset` call for `cprsubdatabase` in `DBManager::db_init`.
+- Added `static const size_t CPR_SUBDATABASE_TOTAL_SIZE` to `DBManager.h` to pre-calculate the total size.
+- Replaced the complex size calculation in `memset` with `DBManager::CPR_SUBDATABASE_TOTAL_SIZE`.
+---
+**2025-11-28: Fixed Threading Crash - Missing AI_State MetaType Registration**
+*   **Identified Problem**: The application crashed in Autoplay mode with the error "QObject::connect: Cannot queue arguments of type 'AI_State' (Make sure 'AI_State' is registered using qRegisterMetaType().)". This occurred because the `AIWorker` thread was emitting a signal containing an `AI_State` object, which Qt's queued connection mechanism could not handle across thread boundaries without explicit type registration.
+*   **Fix Implemented**: Added `qRegisterMetaType<AI_State>("AI_State");` to `main.cpp` to register the custom `AI_State` enum with Qt's meta-type system. This allows Qt to properly queue and pass `AI_State` objects between threads.
+*   **Result**: This resolves the immediate crash related to `AI_State` cross-thread communication.
+
+**2025-11-28: Proactive Fix for Potential Threading Crash - Missing CBoptions MetaType Registration**
+*   **Identified Problem**: During a codebase investigation to prevent future threading issues, it was discovered that the `CBoptions` custom struct was being passed via a `Qt::QueuedConnection` (from `MainWindow::setAiOptions` to `GeminiAI::setOptions`) without being registered with `qRegisterMetaType`. This posed a high risk of a similar crash to the `AI_State` issue when AI options were updated across threads.
+*   **Fix Implemented**: Added `qRegisterMetaType<CBoptions>("CBoptions");` to `main.cpp` to register the `CBoptions` struct with Qt's meta-type system, ensuring safe cross-thread communication.
+*   **Result**: This proactively prevents a potential crash related to `CBoptions` cross-thread communication.
+
+**2025-11-28: Investigation of PdnGameWrapper for Thread Safety**
+*   **Identified Concern**: As part of a comprehensive review of custom types used in cross-thread communication, `PdnGameWrapper` was identified as a type with `Q_DECLARE_METATYPE` that might require `qRegisterMetaType`.
+*   **Investigation Findings**: A thorough search of the codebase, specifically focusing on `connect` statements in key threading-related files (`MainWindow.cpp`, `GameManager.cpp`, `GeminiAI.cpp`, `AIWorker.cpp`), revealed no instances where a `PdnGameWrapper` object is passed as an argument in a signal/slot connection, particularly not in queued connections across thread boundaries.
+*   **Conclusion**: `PdnGameWrapper` does not currently require `qRegisterMetaType` as it is not being used in a manner that necessitates it for thread-safe signal/slot communication.

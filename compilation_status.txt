@@ -1,1 +1,3 @@
-Compilation successful. The application 'checkerboard_app' was built without errors.
+The application now builds successfully. All threading-related crashes due to missing Qt meta-type registrations for custom types (`AI_State`, `CBoptions`) have been addressed.
+
+Further investigation into `PdnGameWrapper` confirmed it does not require meta-type registration at this time.

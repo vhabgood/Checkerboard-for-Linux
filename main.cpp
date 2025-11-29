@@ -33,9 +33,13 @@ int main(int argc, char *argv[])
 
     QApplication a(argc, argv);
 
+    qRegisterMetaType<AI_State>("AI_State");
+
     qRegisterMetaType<Board8x8>();
 
     qRegisterMetaType<CBmove>();
+
+    qRegisterMetaType<CBoptions>("CBoptions");
 
     qDebug() << "Application started.";
 
