@@ -39,13 +39,13 @@ QT_MOC_LITERAL(3, 29, 6), // "output"
 QT_MOC_LITERAL(4, 36, 11), // "engineError"
 QT_MOC_LITERAL(5, 48, 5), // "error"
 QT_MOC_LITERAL(6, 54, 11), // "engineReady"
-QT_MOC_LITERAL(7, 66, 14), // "engineResponse"
-QT_MOC_LITERAL(8, 81, 8), // "response"
-QT_MOC_LITERAL(9, 90, 13), // "bestMoveFound"
-QT_MOC_LITERAL(10, 104, 10), // "moveString"
-QT_MOC_LITERAL(11, 115, 16), // "evaluationUpdate"
-QT_MOC_LITERAL(12, 132, 5), // "score"
-QT_MOC_LITERAL(13, 138, 5), // "depth"
+QT_MOC_LITERAL(7, 66, 13), // "bestMoveFound"
+QT_MOC_LITERAL(8, 80, 10), // "moveString"
+QT_MOC_LITERAL(9, 91, 16), // "evaluationUpdate"
+QT_MOC_LITERAL(10, 108, 5), // "score"
+QT_MOC_LITERAL(11, 114, 5), // "depth"
+QT_MOC_LITERAL(12, 120, 14), // "engineResponse"
+QT_MOC_LITERAL(13, 135, 8), // "response"
 QT_MOC_LITERAL(14, 144, 18), // "readStandardOutput"
 QT_MOC_LITERAL(15, 163, 17), // "readStandardError"
 QT_MOC_LITERAL(16, 181, 14), // "processStarted"
@@ -59,9 +59,9 @@ QT_MOC_LITERAL(22, 274, 22) // "QProcess::ProcessError"
     },
     "ExternalEngine\0engineOutput\0\0output\0"
     "engineError\0error\0engineReady\0"
-    "engineResponse\0response\0bestMoveFound\0"
-    "moveString\0evaluationUpdate\0score\0"
-    "depth\0readStandardOutput\0readStandardError\0"
+    "bestMoveFound\0moveString\0evaluationUpdate\0"
+    "score\0depth\0engineResponse\0response\0"
+    "readStandardOutput\0readStandardError\0"
     "processStarted\0processFinished\0exitCode\0"
     "QProcess::ExitStatus\0exitStatus\0"
     "processErrorOccurred\0QProcess::ProcessError"
@@ -86,8 +86,8 @@ static const uint qt_meta_data_ExternalEngine[] = {
        4,    1,   72,    2, 0x06 /* Public */,
        6,    0,   75,    2, 0x06 /* Public */,
        7,    1,   76,    2, 0x06 /* Public */,
-       9,    1,   79,    2, 0x06 /* Public */,
-      11,    2,   82,    2, 0x06 /* Public */,
+       9,    2,   79,    2, 0x06 /* Public */,
+      12,    1,   84,    2, 0x06 /* Public */,
 
  // slots: name, argc, parameters, tag, flags
       14,    0,   87,    2, 0x08 /* Private */,
@@ -101,8 +101,8 @@ static const uint qt_meta_data_ExternalEngine[] = {
     QMetaType::Void, QMetaType::QString,    5,
     QMetaType::Void,
     QMetaType::Void, QMetaType::QString,    8,
-    QMetaType::Void, QMetaType::QString,   10,
-    QMetaType::Void, QMetaType::Int, QMetaType::Int,   12,   13,
+    QMetaType::Void, QMetaType::Int, QMetaType::Int,   10,   11,
+    QMetaType::Void, QMetaType::QString,   13,
 
  // slots: parameters
     QMetaType::Void,
@@ -123,9 +123,9 @@ void ExternalEngine::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _
         case 0: _t->engineOutput((*reinterpret_cast< const QString(*)>(_a[1]))); break;
         case 1: _t->engineError((*reinterpret_cast< const QString(*)>(_a[1]))); break;
         case 2: _t->engineReady(); break;
-        case 3: _t->engineResponse((*reinterpret_cast< const QString(*)>(_a[1]))); break;
-        case 4: _t->bestMoveFound((*reinterpret_cast< const QString(*)>(_a[1]))); break;
-        case 5: _t->evaluationUpdate((*reinterpret_cast< int(*)>(_a[1])),(*reinterpret_cast< int(*)>(_a[2]))); break;
+        case 3: _t->bestMoveFound((*reinterpret_cast< const QString(*)>(_a[1]))); break;
+        case 4: _t->evaluationUpdate((*reinterpret_cast< int(*)>(_a[1])),(*reinterpret_cast< int(*)>(_a[2]))); break;
+        case 5: _t->engineResponse((*reinterpret_cast< const QString(*)>(_a[1]))); break;
         case 6: _t->readStandardOutput(); break;
         case 7: _t->readStandardError(); break;
         case 8: _t->processStarted(); break;
@@ -158,21 +158,21 @@ void ExternalEngine::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _
         }
         {
             using _t = void (ExternalEngine::*)(const QString & );
-            if (*reinterpret_cast<_t *>(_a[1]) == static_cast<_t>(&ExternalEngine::engineResponse)) {
-                *result = 3;
-                return;
-            }
-        }
-        {
-            using _t = void (ExternalEngine::*)(const QString & );
             if (*reinterpret_cast<_t *>(_a[1]) == static_cast<_t>(&ExternalEngine::bestMoveFound)) {
-                *result = 4;
+                *result = 3;
                 return;
             }
         }
         {
             using _t = void (ExternalEngine::*)(int , int );
             if (*reinterpret_cast<_t *>(_a[1]) == static_cast<_t>(&ExternalEngine::evaluationUpdate)) {
+                *result = 4;
+                return;
+            }
+        }
+        {
+            using _t = void (ExternalEngine::*)(const QString & );
+            if (*reinterpret_cast<_t *>(_a[1]) == static_cast<_t>(&ExternalEngine::engineResponse)) {
                 *result = 5;
                 return;
             }
@@ -241,23 +241,23 @@ void ExternalEngine::engineReady()
 }
 
 // SIGNAL 3
-void ExternalEngine::engineResponse(const QString & _t1)
+void ExternalEngine::bestMoveFound(const QString & _t1)
 {
     void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))) };
     QMetaObject::activate(this, &staticMetaObject, 3, _a);
 }
 
 // SIGNAL 4
-void ExternalEngine::bestMoveFound(const QString & _t1)
+void ExternalEngine::evaluationUpdate(int _t1, int _t2)
 {
-    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))) };
+    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t2))) };
     QMetaObject::activate(this, &staticMetaObject, 4, _a);
 }
 
 // SIGNAL 5
-void ExternalEngine::evaluationUpdate(int _t1, int _t2)
+void ExternalEngine::engineResponse(const QString & _t1)
 {
-    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t2))) };
+    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))) };
     QMetaObject::activate(this, &staticMetaObject, 5, _a);
 }
 QT_WARNING_POP

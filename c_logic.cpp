@@ -1,6 +1,7 @@
 #include "c_logic.h"
 #include "checkers_types.h" // Includes checkers_c_types.h via conditional logic
 #include "log.h"
+#include "DBManager.h"
 
 // Global variables defined here, declared extern in checkers_c_types.h
 char bitsinword[65536]; 
@@ -1060,7 +1061,7 @@ int egdb_wrapper_init(const char* egdb_path) {
     // Safely copy the path to a mutable buffer
     strncpy(path_buffer, egdb_path, sizeof(path_buffer));
     path_buffer[sizeof(path_buffer) - 1] = '\0'; // Ensure null-termination
-    return db_init(64, path_buffer, egdb_path); // Pass egdb_path as the third argument
+    return DBManager::instance()->db_init(64, path_buffer, egdb_path); // Pass egdb_path as the third argument
 }
 
 // Implementation for Kingsrow EGDB lookup
@@ -1076,7 +1077,7 @@ int egdb_wrapper_lookup(pos* p, int side_to_move) {
     egdb_pos.wk = p->wk;
 
     // Call the actual Kingsrow EGDB lookup function
-    int result = dblookup(&egdb_pos, side_to_move);
+    int result = DBManager::instance()->dblookup(&egdb_pos, side_to_move);
     // If dblookup returns DB_NOT_LOOKED_UP, it means the position was not in cache during conditional lookup.
     // We don't log this as an error, but rather as debug info.
     log_c(LOG_LEVEL_DEBUG, log_msg);
@@ -1086,7 +1087,7 @@ int egdb_wrapper_lookup(pos* p, int side_to_move) {
 // Implementation for Kingsrow EGDB exit
 int egdb_wrapper_exit() {
     log_c(LOG_LEVEL_INFO, "EGDB Wrapper: Exiting EGDB.");
-    return db_exit();
+    return DBManager::instance()->db_exit();
 }
 
 char* read_text_file_c(const char* filename, enum READ_TEXT_FILE_ERROR_TYPE* etype) {

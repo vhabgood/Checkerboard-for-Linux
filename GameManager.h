@@ -46,6 +46,7 @@ public:
     CBmove getLastMove() const;
     void handleSquareClick(int x, int y);
     void loadPdnGame(const QString &filename);
+    void resumePlay();
 
 
 

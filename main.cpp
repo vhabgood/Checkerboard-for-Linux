@@ -4,6 +4,8 @@
 #include <QMessageBox>
 #include <QSharedMemory>
 #include "checkers_types.h" // Include the new Qt-specific types header
+#include <QMetaType>
+#include "ai_state.h"
 
 #include <QDebug>
 #include <QTimer>
@@ -24,6 +26,8 @@ void messageHandler(QtMsgType type, const QMessageLogContext &context, const QSt
 
 int main(int argc, char *argv[])
 {
+    qRegisterMetaType<AI_State>("AI_State");
+
     g_programStatusWord |= STATUS_APP_START;
 
     // Set application name for QStandardPaths
@@ -32,8 +36,6 @@ int main(int argc, char *argv[])
     // qInstallMessageHandler(messageHandler);
 
     QApplication a(argc, argv);
-
-    qRegisterMetaType<AI_State>("AI_State");
 
     qRegisterMetaType<Board8x8>();
 
@@ -69,9 +71,9 @@ int main(int argc, char *argv[])
 
     int result = a.exec();
 
-    // if (sharedMemory.isAttached()) {
-    //     sharedMemory.detach();
-    // }
+    if (sharedMemory.isAttached()) {
+        sharedMemory.detach();
+    }
 
     qDebug() << "Application finished.";
 

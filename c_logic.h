@@ -67,10 +67,7 @@ void unmake_move_c(const CBmove *move, Board8x8* board);
 void find_captures_recursive(const Board8x8* board, CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n, int color, int is_king, const int* visited_parent);
 void makemovelist(const Board8x8* board, int color, CBmove movelist[MAXMOVES], int *isjump, int *n);
 
-// Explicitly declare functions from dblookup.h
-int db_init(int, char*, const char*);
-int db_exit();
-int dblookup(pos*, int);
+
 
 #ifdef __cplusplus
 }

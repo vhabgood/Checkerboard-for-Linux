@@ -183,10 +183,15 @@ private slots:
     void handleGameOver(int result); 
 
 signals:
+    void appStateChangeRequested(AppState newState);
     void setPrimaryEnginePath(const QString& path);
     void setSecondaryEnginePath(const QString& path);
     void setEgdbPath(const QString& path); // Add this new signal
     void setAiOptions(const CBoptions& options); // New signal to send options to AI
+
+private slots:
+    void onAppStateChangeRequested(AppState newState);
+
 private:
     // Setup Methods
     void createMenus();

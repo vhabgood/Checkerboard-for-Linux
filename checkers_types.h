@@ -12,6 +12,8 @@
 #include <QString>
 #include <QMetaType>
 
+#include "ai_state.h"
+
 // --- C-Compatible Type Definitions --- //
 
 // Coordinate struct
@@ -48,6 +50,7 @@ typedef struct {
     int oldpiece;
     int newpiece;
     bool is_capture;
+    char comment[256];
 } CBmove;
 Q_DECLARE_METATYPE(CBmove)
 
@@ -56,13 +59,6 @@ typedef struct userbookentry {
 	pos position;
 	CBmove move;
 } userbookentry;
-
-// PDN Move data
-typedef struct {
-    int from_square;
-    int to_square;
-    char comment[256];
-} PDNmove;
 
 // PDN Game structure (C-compatible)
 typedef struct {
@@ -78,7 +74,6 @@ typedef struct {
     int gametype;
     int num_moves;
     int movesindex;
-    PDNmove *moves; // Pointer to dynamically allocated moves (managed by C++ wrapper)
 } PDNgame;
 
 // Engine match statistics
@@ -413,54 +408,17 @@ extern uint32_t g_programStatusWord;
 // C++ wrapper for PDNgame
 struct PdnGameWrapper {
     PDNgame game; // The underlying C-style PDNgame struct
-    QList<PDNmove> moves; // C++ friendly storage for moves
+    QList<CBmove> moves; // C++ friendly storage for moves
 
-    // Constructor to initialize from a PDNgame
+    // Constructor to initialize
     PdnGameWrapper() {
         memset(&game, 0, sizeof(PDNgame)); // Initialize C-struct to zeros
-        game.moves = nullptr; // Ensure the pointer is null
     }
 
-    // Copy constructor
-    PdnGameWrapper(const PdnGameWrapper& other) : game(other.game), moves(other.moves) {
-        // Deep copy the C-style moves array if it exists
-        if (other.game.moves && other.game.num_moves > 0) {
-            game.moves = new PDNmove[other.game.num_moves];
-            memcpy(game.moves, other.game.moves, other.game.num_moves * sizeof(PDNmove));
-        } else {
-            game.moves = nullptr;
-        }
-    }
-
-    // Assignment operator
-    PdnGameWrapper& operator=(const PdnGameWrapper& other) {
-        if (this != &other) {
-            // Clean up existing moves if any
-            if (game.moves) {
-                delete[] game.moves;
-            }
-
-            game = other.game;
-            moves = other.moves;
-
-            // Deep copy the C-style moves array if it exists
-            if (other.game.moves && other.game.num_moves > 0) {
-                game.moves = new PDNmove[other.game.num_moves];
-                memcpy(game.moves, other.game.moves, other.game.num_moves * sizeof(PDNmove));
-            } else {
-                game.moves = nullptr;
-            }
-        }
-        return *this;
-    }
-
-    // Destructor
-    ~PdnGameWrapper() {
-        if (game.moves) {
-            delete[] game.moves;
-            game.moves = nullptr;
-        }
-    }
+    // Default copy/assignment/destructor are sufficient now
+    PdnGameWrapper(const PdnGameWrapper& other) = default;
+    PdnGameWrapper& operator=(const PdnGameWrapper& other) = default;
+    ~PdnGameWrapper() = default;
 };
 Q_DECLARE_METATYPE(PdnGameWrapper)
 
@@ -487,10 +445,7 @@ extern "C" {
     int MSB(int32 x);
     int revert(int32 n);
     int recbitcount(int32 n);
-    int db_init(int suggestedMB, char out[256], const char* EGTBdirectory);
-    int dblookup(pos *q,int cl);
-    int db_exit(void);
-    int preload(char out[256], FILE *db_fp[], int fp_count);
+        int preload(char out[256], FILE *db_fp[], int fp_count);
     int db_getcachesize(void);
     void db_infostring(char *str);
     int64_t getdatabasesize(int bm, int bk, int wm, int wk, int bmrank, int wmrank);

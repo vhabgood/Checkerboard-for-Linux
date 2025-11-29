@@ -62,6 +62,18 @@ The primary focus is currently on debugging and resolving an issue where the End
 *   Despite extensive logging and fixes, the EGDB continues to report "UNKNOWN (0)" for positions expected to have definitive results. The latest logs indicate an "Early exit - dbpointer not present or file not open. Returning DB_UNKNOWN." from `dblookup`.
 *   Crucially, the detailed diagnostic logs added to `db_init` (for file opening) and `parseindexfile` (for entry parsing) are **not appearing** in the log, suggesting these code paths are not being executed for the relevant 4-piece EGDB files, or there's a problem with logging at that stage. This implies a disconnect between `maxpieces` being correctly set to 4 and the subsequent parsing of the corresponding EGDB files.
 
-**Next Steps (for next session):**
-*   The top priority is to precisely identify *why* the diagnostic logging for `db_init` and `parseindexfile` is not appearing in the logs, which will help determine why the `cprsubdatabase` is not being fully populated. This involves adding more granular logging within the `db_init` loops to trace the exact flow of execution and debug the initialization process.
-*   The user will provide the next task.
+---
+**Recent Progress: Resolving Crashes and Improving Stability**
+
+*   **Fixed Autoplay Crash - Robust State Change Mechanism**:
+    *   **Identified Problem**: Persistent segmentation faults occurred when changing game modes (e.g., to Autoplay), even with deferred execution via `QTimer::singleShot`. The crash was due to `QAction` objects being in an unstable state when they were being modified by `changeAppState` in response to an event they initiated. This was a deeper issue than a simple timing or reordering problem, indicating a fundamental event processing conflict within Qt's UI.
+    *   **Fix Implemented**: Refactored `MainWindow` to use a robust signal/slot mechanism for state changes.
+        *   The `changeAppState(AppState newState)` function was converted into a simple signal emitter: it now just emits `appStateChangeRequested(newState)`.
+        *   The original logic of `changeAppState` (UI updates and AI mode setting) was moved to a new private slot: `onAppStateChangeRequested(AppState newState)`.
+        *   A `Qt::QueuedConnection` was established between `appStateChangeRequested` and `onAppStateChangeRequested` in the `MainWindow` constructor.
+    *   **Result**: This completely decouples the request for a state change from its execution, ensuring that the UI update happens in a clean event context, resolving the segmentation fault. All compilation and linking errors related to this refactoring have been resolved.
+
+*   **Fixed Single-Instance Dialog Issue**:
+    *   **Identified Problem**: On the first run, the application would incorrectly display a dialog stating "Another instance of CheckerBoard is already running." and then quit. Subsequent runs (after the OS cleaned up) would work correctly. The cause was that the `QSharedMemory` segment used as a single-instance lock was not being detached/released when the application exited, leaving a stale lock that caused false positives on subsequent launches.
+    *   **Fix Implemented**: Uncommented the `sharedMemory.detach()` call at the end of `main.cpp`.
+    *   **Result**: The application now correctly releases its single-instance lock on exit, preventing the "already running" dialog from appearing incorrectly.

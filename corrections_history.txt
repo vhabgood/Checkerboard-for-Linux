@@ -50,17 +50,6 @@ The next step is for the user to run the newly built `checkerboard_app` and prov
     *   The absence of explicit `STATUS_EGDB_LOOKUP_HIT` or `STATUS_EGDB_LOOKUP_MISS` logs suggests that either no endgame positions were reached in the last run, or the status word logging for these events needs to be explicitly printed to `app.txt`.
     *   The application crashing before the final `g_programStatusWord` could be printed means the status word did not provide full post-mortem analysis.
 ---
-**2025-11-24: EGDB Integration and `STATUS_CRITICAL_ERROR` Investigation Prep**
-*   **EGDB Integration**:
-    *   Added `int countPieces(const Board8x8& board) const;` declaration to `GeminiAI.h`.
-    *   Implemented `int countPieces(const Board8x8& board) const` in `GeminiAI.cpp`.
-    *   Integrated `dblookup` logic into the `minimax` function in `GeminiAI.cpp`. The `minimax` function now checks the piece count, and if it's within the `m_maxEGDBPieces` limit, it calls `dblookup`. If a result is found (`DB_NOT_LOOKED_UP`), the EGDB score is returned.
-    *   Added `qDebug()` statements to log when `dblookup` is checked, the piece count, and the result (hit/miss) in `minimax`.
-*   **`STATUS_CRITICAL_ERROR` Investigation**:
-    *   Confirmed that `STATUS_CRITICAL_ERROR` is *only* set in `main.cpp` when shared memory creation fails, which should lead to an immediate exit with a message box.
-    *   User reported that no critical error messages were displayed, contradicting the presence of `STATUS_CRITICAL_ERROR` in the PSW from a completed game. This suggests a deeper issue or misunderstanding of the event that set this flag.
-    *   **Next step for `STATUS_CRITICAL_ERROR`**: Need more specific logging in `main.cpp` around the shared memory creation and `STATUS_CRITICAL_ERROR` setting, and possibly in the program exit path, to understand why the flag was set without the expected critical error message.
----
 **2025-11-25: Crash Fix and EGDB Integration Refinement**
 *   **Identified Root Cause**: The previous segmentation fault was due to an infinite recursion in the `minimax` function. This was caused by an incorrect interpretation of endgame database (EGDB) lookup results. The `dblookup` function returned scores (0, 1, 2, 3 for UNKNOWN, WIN, LOSS, DRAW respectively), but the `minimax` function was checking against `EGDB_WIN_SCORE` (1,000,000), `EGDB_LOSS_SCORE` (-1,000,000), and `EGDB_DRAW_SCORE` (0), causing it to ignore valid EGDB results and continue searching.
 *   **Memory Leak Fix**:
@@ -295,3 +284,10 @@ Simplified the `memset` call for `cprsubdatabase` in `DBManager::db_init`.
 *   **Identified Concern**: As part of a comprehensive review of custom types used in cross-thread communication, `PdnGameWrapper` was identified as a type with `Q_DECLARE_METATYPE` that might require `qRegisterMetaType`.
 *   **Investigation Findings**: A thorough search of the codebase, specifically focusing on `connect` statements in key threading-related files (`MainWindow.cpp`, `GameManager.cpp`, `GeminiAI.cpp`, `AIWorker.cpp`), revealed no instances where a `PdnGameWrapper` object is passed as an argument in a signal/slot connection, particularly not in queued connections across thread boundaries.
 *   **Conclusion**: `PdnGameWrapper` does not currently require `qRegisterMetaType` as it is not being used in a manner that necessitates it for thread-safe signal/slot communication.
+---
+Correction made on: Fri Nov 28 11:47:00 PM EST 2025
+Fixed a crash and race condition in mode-changing logic.
+
+1.  **Identified Problem**: When changing game modes (e.g., to Autoplay), the application would crash. The root cause was that the `newGame()` function was called before `changeAppState()`. This `newGame()` call was indirectly destroying and recreating the main window's menus, invalidating the `QAction` pointers that `changeAppState()` would then immediately try to use.
+2.  **Fix Implemented**: Reordered the calls in the mode-changing slots in `MainWindow.cpp` (`cmAutoplay`, `cmNormal`, etc.). The `changeAppState()` function is now called *before* `newGame()`.
+3.  **Result**: This change ensures that the UI state is updated and menu items are disabled *before* the menus are potentially rebuilt by `newGame()`, preventing the dangling pointer crash. It also fixes a subtle race condition where the AI could be asked to move before its internal mode was correctly set for the new game.

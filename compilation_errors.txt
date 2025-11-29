@@ -1,0 +1,258 @@
+Running moc on BoardWidget.h...
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/moc_BoardWidget.cpp...
+Running moc on Dialogs.h...
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/moc_Dialogs.cpp...
+Running moc on engine_wrapper.h...
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/moc_engine_wrapper.cpp...
+Running moc on GameManager.h...
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/moc_GameManager.cpp...
+Running moc on GeminiAI.h...
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/moc_GeminiAI.cpp...
+Running moc on MainWindow.h...
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/moc_MainWindow.cpp...
+Running uic on UI files...
+Running uic on EngineOptionsDialog.ui...
+Running uic on FindCRDialog.ui...
+Running uic on FindPositionDialog.ui...
+Running uic on GameDatabaseDialog.ui...
+Running rcc on resources.qrc...
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/resources.qrc: Warning: potential duplicate alias detected: 'move.wav'
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/resources.qrc: Warning: potential duplicate alias detected: 'win.wav'
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/resources.qrc: Warning: potential duplicate alias detected: 'loss.wav'
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/resources.qrc: Warning: potential duplicate alias detected: 'draw.wav'
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/resources.qrc: Warning: potential duplicate alias detected: 'capture.wav'
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/resources.qrc: Warning: potential duplicate alias detected: 'invalid_move.wav'
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/resources.cpp...
+Compiling application source files...
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/main.cpp...
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/MainWindow.cpp...
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/GameManager.cpp...
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/c_logic.cpp...
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/c_logic.cpp: In function ‘int FENtoboard8(Board8x8*, const char*, int*, int)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/c_logic.cpp:241:95: warning: ‘%s’ directive output may be truncated writing up to 255 bytes into a region of size 216 [-Wformat-truncation=]
+  241 |     snprintf(log_msg_buffer, sizeof(log_msg_buffer), "FENtoboard8: Board state after parsing: %s", board_fen_after_parse);
+      |                                                                                               ^~   ~~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/include/stdio.h:980,
+                 from /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/checkers_types.h:3,
+                 from /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/c_logic.h:3,
+                 from /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/c_logic.cpp:1:
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘int FENtoboard8(Board8x8*, const char*, int*, int)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/c_logic.cpp:241:13:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 41 and 296 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp...
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp: In function ‘int parseindexfile(const char*, char*, int, int)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:621:111: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 200 [-Wformat-truncation=]
+  621 |     snprintf(log_msg_buffer, sizeof(log_msg_buffer), "dblookup: parseindexfile - Attempting to open IDX file: %s", fullpath);
+      |                                                                                                               ^~   ~~~~~~~~
+In file included from /usr/include/stdio.h:980,
+                 from /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/checkers_types.h:3,
+                 from /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:1:
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘int parseindexfile(const char*, char*, int, int)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:621:13:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 57 and 568 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp: In function ‘int parseindexfile(const char*, char*, int, int)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:634:136: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 201 [-Wformat-truncation=]
+  634 |     snprintf(log_msg_buffer_success_read, sizeof(log_msg_buffer_success_read), "dblookup: parseindexfile - Successfully read IDX file: %s (size: %ld)", fullpath, fsize);
+      |                                                                                                                                        ^~               ~~~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘int parseindexfile(const char*, char*, int, int)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:634:13:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 66 and 596 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp: In function ‘int parseindexfile(const char*, char*, int, int)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:468:129: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 206 [-Wformat-truncation=]
+  468 |         snprintf(log_msg_buffer_fail_open, sizeof(log_msg_buffer_fail_open), "dblookup: read_entire_file - Failed to open file: %s (errno: %d)", fullpath, errno);
+      |                                                                                                                                 ^~
+......
+  625 |     char *file_content = read_entire_file(fullpath, &fsize);
+      |                                           ~~~~~~~~                                                                               
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘char* read_entire_file(const char*, long int*)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:468:17,
+    inlined from ‘int parseindexfile(const char*, char*, int, int)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:625:42:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 62 and 583 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp: In function ‘int parseindexfile(const char*, char*, int, int)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:628:131: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 204 [-Wformat-truncation=]
+  628 |         snprintf(log_msg_buffer_fail_read, sizeof(log_msg_buffer_fail_read), "dblookup: parseindexfile - Failed to read IDX file: %s", fullpath);
+      |                                                                                                                                   ^~   ~~~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘int parseindexfile(const char*, char*, int, int)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:628:17:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 53 and 564 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp: In function ‘int db_init(int, char*, const char*)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:705:122: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 194 [-Wformat-truncation=]
+  705 |         snprintf(log_msg_buffer, sizeof(log_msg_buffer), "dblookup: db_init - Attempting to open IDX file for pieces %d: %s", n, fullpath);
+      |                                                                                                                          ^~      ~~~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘int db_init(int, char*, const char*)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:705:17:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 63 and 574 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp: In function ‘int db_init(int, char*, const char*)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:719:122: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 198 [-Wformat-truncation=]
+  719 |             snprintf(log_msg_buffer, sizeof(log_msg_buffer), "dblookup: db_init - Failed to open IDX file for pieces %d: %s (errno: %d)", n, fullpath, errno);
+      |                                                                                                                          ^~                  ~~~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘int db_init(int, char*, const char*)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:719:21:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 70 and 591 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp: In function ‘int db_init(int, char*, const char*)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:710:127: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 193 [-Wformat-truncation=]
+  710 |             snprintf(log_msg_buffer, sizeof(log_msg_buffer), "dblookup: db_init - Successfully opened IDX file for pieces %d: %s", n, fullpath);
+      |                                                                                                                               ^~      ~~~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘int db_init(int, char*, const char*)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:710:21:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 64 and 575 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp: In function ‘int db_init(int, char*, const char*)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:790:108: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 207 [-Wformat-truncation=]
+  790 |         snprintf(log_msg_buffer, sizeof(log_msg_buffer), "dblookup: db_init - Attempting to open CPR file: %s", fullpath);
+      |                                                                                                            ^~   ~~~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘int db_init(int, char*, const char*)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:790:17:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 50 and 561 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp: In function ‘int db_init(int, char*, const char*)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:815:106: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 221 [-Wformat-truncation=]
+  815 |                     snprintf(log_msg_buffer, sizeof(log_msg_buffer), "dblookup: Failed to open CPR file: %s (errno: %d)", fullpath, errno);
+      |                                                                                                          ^~               ~~~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘int db_init(int, char*, const char*)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:815:29:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 47 and 568 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp: In function ‘int db_init(int, char*, const char*)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:796:111: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 216 [-Wformat-truncation=]
+  796 |                     snprintf(log_msg_buffer, sizeof(log_msg_buffer), "dblookup: Successfully opened CPR file: %s", fullpath);
+      |                                                                                                               ^~   ~~~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘int db_init(int, char*, const char*)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:796:29:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 41 and 552 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp: In function ‘int db_init(int, char*, const char*)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:801:136: warning: ‘%s’ directive output may be truncated writing up to 255 bytes into a region of size 209 [-Wformat-truncation=]
+  801 |                     snprintf(log_msg_buffer_idx_call, sizeof(log_msg_buffer_idx_call), "dblookup: Calling parseindexfile for IDX file: %s", dbname);
+      |                                                                                                                                        ^~   ~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘int db_init(int, char*, const char*)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:801:29:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 48 and 303 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp: In function ‘int db_init(int, char*, const char*)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:841:152: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 211 [-Wformat-truncation=]
+  841 |                     snprintf(log_msg_buffer_split_cpr_attempt, sizeof(log_msg_buffer_split_cpr_attempt), "dblookup: Attempting to open split CPR file: %s", fullpath);
+      |                                                                                                                                                        ^~   ~~~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘int db_init(int, char*, const char*)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:841:29:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 46 and 557 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp: In function ‘int db_init(int, char*, const char*)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:864:146: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 215 [-Wformat-truncation=]
+  864 |                         snprintf(log_msg_buffer_split_cpr_fail, sizeof(log_msg_buffer_split_cpr_fail), "dblookup: Failed to open split CPR file: %s", fullpath);
+      |                                                                                                                                                  ^~   ~~~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘int db_init(int, char*, const char*)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:864:33:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 42 and 553 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp: In function ‘int db_init(int, char*, const char*)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:846:161: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 210 [-Wformat-truncation=]
+  846 |                             snprintf(log_msg_buffer_split_cpr_success, sizeof(log_msg_buffer_split_cpr_success), "dblookup: Successfully opened split CPR file: %s", fullpath);
+      |                                                                                                                                                                 ^~   ~~~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘int db_init(int, char*, const char*)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:846:37:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 47 and 558 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp: In function ‘int db_init(int, char*, const char*)’:
+/home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:851:162: warning: ‘%s’ directive output may be truncated writing up to 255 bytes into a region of size 203 [-Wformat-truncation=]
+  851 |                             snprintf(log_msg_buffer_split_idx_call, sizeof(log_msg_buffer_split_idx_call), "dblookup: Calling parseindexfile for split IDX file: %s", dbname);
+      |                                                                                                                                                                  ^~   ~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘int db_init(int, char*, const char*)’ at /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/dblookup.cpp:851:37:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 54 and 309 bytes into a destination of size 256
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/BoardWidget.cpp...
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/engine_wrapper.cpp...
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/Dialogs.cpp...
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/GeminiAI.cpp...
+Compiling /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/log.cpp...
+Linking application...
+Application built successfully: /home/victor/Desktop/checkers/Programs/checkers_project/ResourceFiles/checkerboard_app
+Build process completed successfully.

@@ -128,110 +128,12 @@ int GameManager::PDNparseGetnextgame(char **start, char *game, int maxlen)
 }
 
 
-static int PDNparseMove(char *token, Squarelist &squares)
-{
-    squares.clear();
-    const char *p = token;
-    int num = 0;
-    bool num_found = false;
-
-    while (*p) {
-        if (isdigit(*p)) {
-            num = num * 10 + (*p - '0');
-            num_found = true;
-        } else if (num_found) {
-            squares.append(num);
-            num = 0;
-            num_found = false;
-        }
-        p++;
-    }
-
-    if (num_found) {
-        squares.append(num);
-    }
-    return squares.size(); // Add this line to return a value
-}
-
-static void PDNgametoPDNstring(PdnGameWrapper &game, std::string &pdnstring, const char *lineterm) {
-    pdnstring.clear();
-
-    pdnstring += "[Event \"" + std::string(game.game.event) + "]" + lineterm;
-    pdnstring += "[Site \"" + std::string(game.game.site) + "]" + lineterm;
-    pdnstring += "[Date \"" + std::string(game.game.date) + "]" + lineterm;
-    pdnstring += "[Round \"" + std::string(game.game.round) + "]" + lineterm;
-    pdnstring += "[White \"" + std::string(game.game.white) + "]" + lineterm;
-    pdnstring += "[Black \"" + std::string(game.game.black) + "]" + lineterm;
-    pdnstring += "[Result \"" + std::string(game.game.resultstring) + "]" + lineterm;
-
-    if (strlen(game.game.FEN) > 0) {
-        pdnstring += "[FEN \"" + std::string(game.game.FEN) + "]" + lineterm;
-    }
-
-    pdnstring += lineterm;
-
-    for (size_t i = 0; i < game.moves.size(); ++i) {
-        if (i % 2 == 0) {
-            pdnstring += std::to_string((i / 2) + 1) + ". ";
-        }
-        // Reconstruct board state up to this move to determine capture and jumps
-        Board8x8 tempBoard;
-        newgame(&tempBoard); // Start with initial board
-        for (size_t j = 0; j < i; ++j) {
-            CBmove prevMove;
-            numbertocoors(game.moves[j].from_square, &prevMove.from.x, &prevMove.from.y, game.game.gametype);
-            numbertocoors(game.moves[j].to_square, &prevMove.to.x, &prevMove.to.y, game.game.gametype);
-            // For previous moves, we assume is_capture and jumps were correctly determined or are not needed for board reconstruction
-            prevMove.is_capture = false; // Placeholder for now
-            prevMove.jumps = 0; // Placeholder for now
-            domove_c(&prevMove, &tempBoard);
-        }
-
-        // Now, determine is_capture and jumps for the current move
-        CBmove currentCbMove;
-        numbertocoors(game.moves[i].from_square, &currentCbMove.from.x, &currentCbMove.from.y, game.game.gametype);
-        numbertocoors(game.moves[i].to_square, &currentCbMove.to.x, &currentCbMove.to.y, game.game.gametype);
-
-        CBmove legalMoves[MAXMOVES];
-        int nmoves_val = 0;
-        int isjump_val = 0;
-        bool dummy_can_continue_multijump = false;
-        get_legal_moves_c(&tempBoard, (i % 2 == 0) ? CB_BLACK : CB_WHITE, legalMoves, &nmoves_val, &isjump_val, NULL, &dummy_can_continue_multijump);
-
-        bool moveFound = false;
-        for (int k = 0; k < nmoves_val; ++k) {
-            if (legalMoves[k].from.x == currentCbMove.from.x &&
-                legalMoves[k].from.y == currentCbMove.from.y &&
-                legalMoves[k].to.x == currentCbMove.to.x &&
-                legalMoves[k].to.y == currentCbMove.to.y) {
-                currentCbMove.is_capture = legalMoves[k].is_capture;
-                currentCbMove.jumps = legalMoves[k].jumps;
-                moveFound = true;
-                break;
-            }
-        }
-        if (!moveFound) {
-            qWarning() << QString("PDNgametoPDNstring: Could not find legal move for PDN move %1-%2. Defaulting is_capture=false, jumps=0.").arg(game.moves[i].from_square).arg(game.moves[i].to_square);
-        }
-
-        char move_notation[80];
-        move4tonotation(&currentCbMove, move_notation);
-        pdnstring += std::string(move_notation) + " ";
-
-        if (strlen(game.moves[i].comment) > 0) {
-            pdnstring += "{" + std::string(game.moves[i].comment) + "} ";
-        }
-    }
-} // Closing brace for PDNgametoPDNstring
-
-static int PDNparseGetnumberofgames(char *filename);
-
 void GameManager::parsePdnGameString(char* game_str, PdnGameWrapper& game) {
-    char game_str_copy[10000]; // Create a copy as strtok modifies the string
+    char game_str_copy[10000]; 
     strncpy(game_str_copy, game_str, sizeof(game_str_copy) - 1);
     game_str_copy[sizeof(game_str_copy) - 1] = '\0';
 
-    char* line = strtok(game_str_copy, "\n");
+    char* line = strtok(game_str_copy, "\n\r");
     while (line != NULL) {
         if (line[0] == '[') {
             // Parse header
@@ -245,51 +147,56 @@ void GameManager::parsePdnGameString(char* game_str, PdnGameWrapper& game) {
                     char* value_end = strchr(value_start, '"');
                     if (value_end) {
                         *value_end = '\0';
-                        if (strcmp(key_start, "Event") == 0) strcpy(game.game.event, value_start);
-                        else if (strcmp(key_start, "Site") == 0) strcpy(game.game.site, value_start);
-                        else if (strcmp(key_start, "Date") == 0) strcpy(game.game.date, value_start);
-                        else if (strcmp(key_start, "Round") == 0) strcpy(game.game.round, value_start);
-                        else if (strcmp(key_start, "White") == 0) strcpy(game.game.white, value_start);
-                        else if (strcmp(key_start, "Black") == 0) strcpy(game.game.black, value_start);
-                        else if (strcmp(key_start, "Result") == 0) strcpy(game.game.resultstring, value_start);
-                        else if (strcmp(key_start, "FEN") == 0) strcpy(game.game.FEN, value_start);
+                        if (strcmp(key_start, "Event") == 0) strncpy(game.game.event, value_start, sizeof(game.game.event)-1);
+                        else if (strcmp(key_start, "Site") == 0) strncpy(game.game.site, value_start, sizeof(game.game.site)-1);
+                        else if (strcmp(key_start, "Date") == 0) strncpy(game.game.date, value_start, sizeof(game.game.date)-1);
+                        else if (strcmp(key_start, "Round") == 0) strncpy(game.game.round, value_start, sizeof(game.game.round)-1);
+                        else if (strcmp(key_start, "White") == 0) strncpy(game.game.white, value_start, sizeof(game.game.white)-1);
+                        else if (strcmp(key_start, "Black") == 0) strncpy(game.game.black, value_start, sizeof(game.game.black)-1);
+                        else if (strcmp(key_start, "Result") == 0) strncpy(game.game.resultstring, value_start, sizeof(game.game.resultstring)-1);
+                        else if (strcmp(key_start, "FEN") == 0) strncpy(game.game.FEN, value_start, sizeof(game.game.FEN)-1);
                     }
                 }
             }
-        } else if (isdigit(line[0])) {
+        } else if (isdigit(line[0]) || line[0] == '{') {
             // Parse moves
-            char* move_token = strtok(line, " ");
+            char* context = nullptr;
+            char* move_token = strtok_r(line, " ", &context);
             while (move_token != NULL) {
-                if (strchr(move_token, '.') == NULL) { // Not a move number
-                    PDNmove pdnMove;
-                    char* dash = strchr(move_token, '-');
-                    char* comment_start = strchr(move_token, '{');
-                    char* comment_end = nullptr;
-
-                    if (comment_start) {
-                        *comment_start = '\0'; // Temporarily null-terminate to parse move before comment
-                        comment_start++; // Move past '{'
-                        comment_end = strchr(comment_start, '}');
-                        if (comment_end) {
-                            *comment_end = '\0'; // Null-terminate comment
-                            strncpy(pdnMove.comment, comment_start, sizeof(pdnMove.comment) - 1);
-                            pdnMove.comment[sizeof(pdnMove.comment) - 1] = '\0';
-                        }
-                    } else {
-                        pdnMove.comment[0] = '\0'; // No comment
-                    }
-
-                    if (dash) {
-                        *dash = '\0';
-                        pdnMove.from_square = atoi(move_token);
-                        pdnMove.to_square = atoi(dash + 1);
-                        game.moves.push_back(pdnMove);
-                    }
+                if (strchr(move_token, '.') != NULL) { // Is a move number, skip it
+                     move_token = strtok_r(NULL, " ", &context);
+                     continue;
                 }
-                move_token = strtok(NULL, " ");
+                
+                CBmove temp_move = {0}; // Create a temporary move
+                if (move_token[0] == '{') { 
+                    // This is a comment, find the end and store it
+                    char* end_comment = strchr(move_token, '}');
+                    if(end_comment) *end_comment = '\0';
+                    strncpy(temp_move.comment, move_token + 1, sizeof(temp_move.comment) - 1);
+                    // We need to associate this with the PREVIOUS move
+                    if (!game.moves.isEmpty()) {
+                        strcpy(game.moves.last().comment, temp_move.comment);
+                    }
+                     move_token = strtok_r(NULL, " ", &context);
+                     continue;
+                }
+
+                int from = 0, to = 0;
+                sscanf(move_token, "%d", &from);
+                char* sep = strpbrk(move_token, "-x");
+                if (sep) {
+                    sscanf(sep + 1, "%d", &to);
+                }
+                
+                numbertocoors(from, &temp_move.from.x, &temp_move.from.y, GT_ENGLISH);
+                numbertocoors(to, &temp_move.to.x, &temp_move.to.y, GT_ENGLISH);
+                game.moves.push_back(temp_move);
+                
+                move_token = strtok_r(NULL, " ", &context);
             }
         }
-        line = strtok(NULL, "\n");
+        line = strtok(NULL, "\n\r");
     }
 }
 
@@ -312,6 +219,78 @@ int GameManager::PDNparseGetnumberofgames(char *filename)
 
     free(buffer);
     return(ngames);
+}
+
+void GameManager::loadPdnGame(const QString &filename)
+{
+    QFile file(filename);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qCritical() << "Failed to open PDN file:" << filename;
+        g_programStatusWord |= STATUS_FILE_IO_ERROR;
+        return;
+    }
+    QTextStream in(&file);
+    QString fileContent = in.readAll();
+    file.close();
+
+    QByteArray ba = fileContent.toUtf8();
+    char* buffer = ba.data();
+    
+    char game_str[10000];
+    if (PDNparseGetnextgame(&buffer, game_str, sizeof(game_str))) {
+        PdnGameWrapper tempGame;
+        parsePdnGameString(game_str, tempGame);
+        
+        m_currentPdnGame.game = tempGame.game;
+        m_currentPdnGame.moves.clear();
+
+        Board8x8 tempBoard;
+        int currentTurn;
+
+        if (strlen(m_currentPdnGame.game.FEN) > 0) {
+            FENtoboard8(&tempBoard, m_currentPdnGame.game.FEN, &currentTurn, m_currentPdnGame.game.gametype);
+        } else {
+            newgame(&tempBoard);
+            currentTurn = CB_BLACK;
+        }
+
+        for (const CBmove& simpleMove : tempGame.moves) {
+            CBmove legalMoves[MAXMOVES];
+            int nmoves = 0;
+            int isjump = 0;
+            bool can_continue_multijump = false;
+            get_legal_moves_c(&tempBoard, currentTurn, legalMoves, &nmoves, &isjump, NULL, &can_continue_multijump);
+
+            bool moveFound = false;
+            for (int i = 0; i < nmoves; ++i) {
+                if (legalMoves[i].from.x == simpleMove.from.x &&
+                    legalMoves[i].from.y == simpleMove.from.y &&
+                    legalMoves[i].to.x == simpleMove.to.x &&
+                    legalMoves[i].to.y == simpleMove.to.y) {
+                    
+                    m_currentPdnGame.moves.push_back(legalMoves[i]);
+                    domove_c(&legalMoves[i], &tempBoard);
+                    currentTurn = (currentTurn == CB_WHITE) ? CB_BLACK : CB_WHITE;
+                    moveFound = true;
+                    break;
+                }
+            }
+            if (!moveFound) {
+                qWarning() << "Could not reconstruct legal move from PDN. History may be incomplete.";
+                break;
+            }
+        }
+
+        m_currentBoard = tempBoard;
+        m_currentColorToMove = currentTurn;
+        m_currentPdnGame.game.movesindex = m_currentPdnGame.moves.size();
+        
+        emit boardUpdated(m_currentBoard);
+        emit gameMessage(QString("Loaded game: %1").arg(m_currentPdnGame.game.event));
+        g_programStatusWord |= STATUS_GAME_LOAD_PDN_OK;
+    } else {
+        qCritical() << "Failed to parse any games from PDN file:" << filename;
+    }
 }
 
 GameManager::GameManager(QObject *parent) : QObject(parent),
@@ -436,14 +415,8 @@ void GameManager::makeMove(const CBmove& move)
         m_currentPdnGame.moves.erase(m_currentPdnGame.moves.begin() + m_currentPdnGame.game.movesindex, m_currentPdnGame.moves.end());
     }
 
-    // Create a PDNmove from the CBmove
-    PDNmove pdnMove;
-    pdnMove.from_square = coorstonumber(move.from.x, move.from.y, m_currentPdnGame.game.gametype);
-    pdnMove.to_square = coorstonumber(move.to.x, move.to.y, m_currentPdnGame.game.gametype);
-    pdnMove.comment[0] = '\0'; // Initialize comment as empty
-
-    // Add the move to the PDN game history
-    m_currentPdnGame.moves.push_back(pdnMove);
+    // Add the move to the game history
+    m_currentPdnGame.moves.push_back(move);
     m_currentPdnGame.game.movesindex++;
 
     // Update half-move count for 50-move rule
@@ -514,105 +487,7 @@ void GameManager::handleGameOverResult(int result)
     qDebug() << QString("GameManager: Updated PDN game result string to: %1").arg(m_currentPdnGame.game.resultstring);
 }
 
-void GameManager::loadPdnGame(const QString &filename)
-{
-    std::vector<PdnGameWrapper> loadedGames;
 
-    QFile file(filename);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qCritical() << QString("Failed to open file: %1 %2").arg(filename).arg(file.errorString());
-        emit gameMessage(QString("Failed to load PDN file: %1").arg(filename));
-        g_programStatusWord |= STATUS_FILE_IO_ERROR; // Set status flag for file I/O error
-        return;
-    }
-
-    QTextStream in(&file);
-    QString fileContent = in.readAll();
-    file.close();
-
-    QByteArray ba = fileContent.toUtf8();
-    char* buffer = ba.data();
-    char* current_pos = buffer;
-
-    loadedGames.clear();
-
-    char game_str[10000];
-    while (PDNparseGetnextgame(&current_pos, game_str, sizeof(game_str))) {
-        PdnGameWrapper game; // Create a new PdnGameWrapper object for each game
-        parsePdnGameString(game_str, game); // Parse game_str into game object
-        loadedGames.push_back(game);
-    }
-    qInfo() << QString("GameManager: Parsed %1 games from PDN file.").arg(loadedGames.size());
-
-    if (!loadedGames.empty()) {
-        m_currentPdnGame = loadedGames[0]; // Load the first game
-        qInfo() << QString("GameManager: Loading first game: %1").arg(m_currentPdnGame.game.event);
-
-        // Apply starting FEN to the board
-        if (strlen(m_currentPdnGame.game.FEN) > 0) {
-            loadFenPosition(QString::fromUtf8(m_currentPdnGame.game.FEN));
-        } else {
-            // If no FEN, start a new standard game
-            newGame(m_currentPdnGame.game.gametype);
-        }
-
-        // Apply all moves in the loaded game
-        Board8x8 tempBoard; // Use a temporary board to reconstruct state for move validation
-        newgame(&tempBoard); // Start with initial board
-        if (strlen(m_currentPdnGame.game.FEN) > 0) {
-            int color_to_move; // Dummy variable
-            FENtoboard8(&tempBoard, m_currentPdnGame.game.FEN, &color_to_move, m_currentPdnGame.game.gametype);
-        }
-
-        int currentColor = CB_BLACK; // Assuming black starts for PDN moves unless FEN specifies otherwise
-        if (strlen(m_currentPdnGame.game.FEN) > 0) {
-            int color_to_move_from_fen; // Dummy variable
-            FENtoboard8(&tempBoard, m_currentPdnGame.game.FEN, &color_to_move_from_fen, m_currentPdnGame.game.gametype);
-            currentColor = color_to_move_from_fen;
-        }
-
-        for (const auto& pdnMove : m_currentPdnGame.moves) {
-            CBmove cbMove;
-            numbertocoors(pdnMove.from_square, &cbMove.from.x, &cbMove.from.y, m_currentPdnGame.game.gametype);
-            numbertocoors(pdnMove.to_square, &cbMove.to.x, &cbMove.to.y, m_currentPdnGame.game.gametype);
-
-            CBmove legalMoves[MAXMOVES];
-            int nmoves_val = 0;
-            int isjump_val = 0;
-            bool dummy_can_continue_multijump = false;
-            get_legal_moves_c(&tempBoard, currentColor, legalMoves, &nmoves_val, &isjump_val, NULL, &dummy_can_continue_multijump);
-
-            bool moveFound = false;
-            for (int k = 0; k < nmoves_val; ++k) {
-                if (legalMoves[k].from.x == cbMove.from.x &&
-                    legalMoves[k].from.y == cbMove.from.y &&
-                    legalMoves[k].to.x == cbMove.to.x &&
-                    legalMoves[k].to.y == cbMove.to.y) {
-                    cbMove.is_capture = legalMoves[k].is_capture;
-                    cbMove.jumps = legalMoves[k].jumps;
-                    moveFound = true;
-                    break;
-                }
-            }
-            if (!moveFound) {
-                qWarning() << QString("loadPdnGame: Could not find legal move for PDN move %1-%2. Defaulting is_capture=false, jumps=0.").arg(pdnMove.from_square).arg(pdnMove.to_square);
-            }
-
-            domove_c(&cbMove, &tempBoard);
-            currentColor = (currentColor == CB_WHITE) ? CB_BLACK : CB_WHITE;
-        }
-        m_currentBoard = tempBoard; // Set the main board to the final state of the loaded game
-        m_currentColorToMove = currentColor; // Set the current color to move
-        m_currentPdnGame.game.movesindex = m_currentPdnGame.moves.size(); // Set history to the end
-        emit boardUpdated(m_currentBoard);
-        emit gameMessage(QString("Loaded game: %1").arg(m_currentPdnGame.game.event));
-        g_programStatusWord |= STATUS_GAME_LOAD_PDN_OK; // Set status flag for successful PDN load
-    }
-    else {
-        qCritical() << QString("GameManager: Failed to load PDN file: %1").arg(filename);
-        emit gameMessage(QString("Failed to load PDN file: %1").arg(filename));
-    }
-}
 
 
 int GameManager::read_match_stats_internal() {
@@ -715,12 +590,11 @@ void GameManager::savePdnGame(const QString &filename) {
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         qCritical() << QString("GameManager: Could not open file for writing: %1 %2").arg(filename).arg(file.errorString());
         emit gameMessage(QString("Failed to save game to %1.").arg(filename));
-        g_programStatusWord |= STATUS_FILE_IO_ERROR; // Set status flag for file I/O error
+        g_programStatusWord |= STATUS_FILE_IO_ERROR;
         return;
     }
 
     QTextStream out(&file);
-    // Get actual game data (headers, moves) from current game state
     out << "[Event \"" << m_currentPdnGame.game.event << "]\n";
     out << "[Site \"" << m_currentPdnGame.game.site << "]\n";
     out << "[Date \"" << m_currentPdnGame.game.date << "]\n";
@@ -731,73 +605,42 @@ void GameManager::savePdnGame(const QString &filename) {
     if (strlen(m_currentPdnGame.game.FEN) > 0) {
         out << "[FEN \"" << m_currentPdnGame.game.FEN << "]\n";
     }
-
     out << "\n";
 
-    // Format moves into PDN string
     int moveNumber = 1;
-    Board8x8 tempBoard; // Use a temporary board to reconstruct state for move validation
-    newgame(&tempBoard); // Start with initial board
+    
+    // Determine starting color from FEN, default to Black if no FEN
+    int turn = CB_BLACK;
     if (strlen(m_currentPdnGame.game.FEN) > 0) {
-        int color_to_move; // Dummy variable
-        FENtoboard8(&tempBoard, m_currentPdnGame.game.FEN, &color_to_move, m_currentPdnGame.game.gametype);
+        if (toupper(m_currentPdnGame.game.FEN[0]) == 'W') {
+            turn = CB_WHITE;
+        }
     }
 
-    int currentColor = CB_BLACK; // Assuming black starts for PDN moves unless FEN specifies otherwise
-    if (strlen(m_currentPdnGame.game.FEN) > 0) {
-        int color_to_move_from_fen; // Dummy variable
-        FENtoboard8(&tempBoard, m_currentPdnGame.game.FEN, &color_to_move_from_fen, m_currentPdnGame.game.gametype);
-        currentColor = color_to_move_from_fen;
-    }
-
-    for (size_t i = 0; i < m_currentPdnGame.moves.size(); ++i) {
-        if (i % 2 == 0) { // White's move
+    for (const CBmove& cbMove : m_currentPdnGame.moves) {
+        if (turn == CB_BLACK) {
             out << moveNumber << ". ";
-            moveNumber++;
-        }
-        char pdn_c[40];
-        CBmove cbMove;
-        numbertocoors(m_currentPdnGame.moves[i].from_square, &cbMove.from.x, &cbMove.from.y, m_currentPdnGame.game.gametype);
-        numbertocoors(m_currentPdnGame.moves[i].to_square, &cbMove.to.x, &cbMove.to.y, m_currentPdnGame.game.gametype);
-
-        CBmove legalMoves[MAXMOVES];
-        int nmoves_val = 0;
-        int isjump_val = 0;
-        bool dummy_can_continue_multijump = false;
-        get_legal_moves_c(&tempBoard, currentColor, legalMoves, &nmoves_val, &isjump_val, NULL, &dummy_can_continue_multijump);
-
-        bool moveFound = false;
-        for (int k = 0; k < nmoves_val; ++k) {
-            if (legalMoves[k].from.x == cbMove.from.x &&
-                legalMoves[k].from.y == cbMove.from.y &&
-                legalMoves[k].to.x == cbMove.to.x &&
-                legalMoves[k].to.y == cbMove.to.y) {
-                cbMove.is_capture = legalMoves[k].is_capture;
-                cbMove.jumps = legalMoves[k].jumps;
-                moveFound = true;
-                break;
-            }
-        }
-        if (!moveFound) {
-            qWarning() << QString("savePdnGame: Could not find legal move for PDN move %1-%2. Defaulting is_capture=false, jumps=0.").arg(m_currentPdnGame.moves[i].from_square).arg(m_currentPdnGame.moves[i].to_square);
         }
 
         char move_notation[80];
-        move4tonotation(&cbMove, pdn_c);
-        out << pdn_c << " "; // Corrected output
+        move4tonotation(&cbMove, move_notation);
+        out << move_notation << " ";
 
-        if (strlen(m_currentPdnGame.moves[i].comment) > 0) {
-            out << "{" << m_currentPdnGame.moves[i].comment << "} ";
+        if (strlen(cbMove.comment) > 0) {
+            out << "{" << cbMove.comment << "} ";
         }
-        domove_c(&cbMove, &tempBoard); // Apply move to tempBoard for next iteration
-        currentColor = (currentColor == CB_WHITE) ? CB_BLACK : CB_WHITE; // Update color for next iteration
+
+        if (turn == CB_WHITE) {
+            moveNumber++;
+        }
+        turn = (turn == CB_BLACK) ? CB_WHITE : CB_BLACK;
     }
     out << m_currentPdnGame.game.resultstring << "\n";
 
     file.close();
     emit gameMessage(QString("Game saved to %1.").arg(filename));
     qInfo() << "GameManager: PDN game saved.";
-    g_programStatusWord |= STATUS_GAME_SAVE_PDN_OK; // Set status flag for successful PDN save
+    g_programStatusWord |= STATUS_GAME_SAVE_PDN_OK;
 }
 
 QString GameManager::getFenPosition() {
@@ -1130,35 +973,7 @@ void GameManager::reconstructBoardState(int move_index) {
 
     // 2. Apply moves up to the target index
     for (int i = 0; i < move_index; ++i) {
-        const PDNmove& pdnMove = m_currentPdnGame.moves[i];
-        CBmove cbMove;
-        numbertocoors(pdnMove.from_square, &cbMove.from.x, &cbMove.from.y, m_currentPdnGame.game.gametype);
-        numbertocoors(pdnMove.to_square, &cbMove.to.x, &cbMove.to.y, m_currentPdnGame.game.gametype);
-
-        // We need to determine if the move was a capture to apply it correctly.
-        // This requires getting legal moves for the state *before* this move.
-        CBmove legalMoves[MAXMOVES];
-        int nmoves_val = 0;
-        int isjump_val = 0;
-        get_legal_moves_c(&m_currentBoard, m_currentColorToMove, legalMoves, &nmoves_val, &isjump_val, NULL, NULL);
-
-        bool moveFound = false;
-        for (int k = 0; k < nmoves_val; ++k) {
-            if (legalMoves[k].from.x == cbMove.from.x &&
-                legalMoves[k].from.y == cbMove.from.y &&
-                legalMoves[k].to.x == cbMove.to.x &&
-                legalMoves[k].to.y == cbMove.to.y) {
-                cbMove = legalMoves[k]; // Use the full move data
-                moveFound = true;
-                break;
-            }
-        }
-        if (!moveFound) {
-             qWarning() << QString("reconstructBoardState: Could not find legal move for PDN move %1-%2. Applying as non-capture.").arg(pdnMove.from_square).arg(pdnMove.to_square);
-             cbMove.is_capture = 0;
-             cbMove.jumps = 0;
-        }
-
+        const CBmove& cbMove = m_currentPdnGame.moves[i];
         domove_c(&cbMove, &m_currentBoard);
         m_currentColorToMove = (m_currentColorToMove == CB_WHITE) ? CB_BLACK : CB_WHITE;
     }
@@ -1173,8 +988,19 @@ void GameManager::reconstructBoardState(int move_index) {
 void GameManager::goBack() {
     qDebug() << "GameManager: goBack called.";
     if (m_currentPdnGame.game.movesindex > 0) {
+        // Get the last move from the history
+        const CBmove& lastMove = m_currentPdnGame.moves[m_currentPdnGame.game.movesindex - 1];
+
+        // Unmake the move on the current board
+        unmake_move_c(&lastMove, &m_currentBoard);
+
+        // Decrement the move index
         m_currentPdnGame.game.movesindex--;
-        reconstructBoardState(m_currentPdnGame.game.movesindex);
+
+        // Update whose turn it is by looking at the color of the piece that was moved
+        m_currentColorToMove = (lastMove.oldpiece & CB_WHITE) ? CB_WHITE : CB_BLACK;
+
+        emit boardUpdated(m_currentBoard);
         emit gameMessage(QString("Moved back to move %1.").arg(m_currentPdnGame.game.movesindex));
     } else {
         emit gameMessage("Already at the beginning of the game.");
@@ -1183,9 +1009,20 @@ void GameManager::goBack() {
 
 void GameManager::goForward() {
     qDebug() << "GameManager: goForward called.";
-    if (m_currentPdnGame.game.movesindex < m_currentPdnGame.moves.size()) { 
+    if (m_currentPdnGame.game.movesindex < m_currentPdnGame.moves.size()) {
+        // Get the next move from the history
+        const CBmove& nextMove = m_currentPdnGame.moves[m_currentPdnGame.game.movesindex];
+
+        // Apply the move
+        domove_c(&nextMove, &m_currentBoard);
+
+        // Increment the move index
         m_currentPdnGame.game.movesindex++;
-        reconstructBoardState(m_currentPdnGame.game.movesindex);
+
+        // Update whose turn it is
+        m_currentColorToMove = (nextMove.oldpiece & CB_WHITE) ? CB_BLACK : CB_WHITE;
+
+        emit boardUpdated(m_currentBoard);
         emit gameMessage(QString("Moved forward to move %1.").arg(m_currentPdnGame.game.movesindex));
     } else {
         emit gameMessage("Already at the end of the game.");
@@ -1209,7 +1046,7 @@ void GameManager::goForwardAll() {
 void GameManager::sendGameHistory() {
     qDebug() << "GameManager: sendGameHistory called.";
     std::string pdn_history_str;
-    PDNgametoPDNstring(m_currentPdnGame, pdn_history_str, "\n");
+    // PDNgametoPDNstring(m_currentPdnGame, pdn_history_str, "\n");
     QString history = QString::fromStdString(pdn_history_str);
     qDebug() << history;
 
@@ -1278,11 +1115,14 @@ void GameManager::detectDraws() {
 void GameManager::addComment(const QString& comment) {
     qDebug() << QString("GameManager: addComment called with: %1").arg(comment);
     if (m_currentPdnGame.game.movesindex > 0 && m_currentPdnGame.game.movesindex <= m_currentPdnGame.moves.size()) {
+        // Get a reference to the move to modify it
+        CBmove &move_to_comment = m_currentPdnGame.moves[m_currentPdnGame.game.movesindex - 1];
+
         // Add comment to the current move
-        strncpy(m_currentPdnGame.moves[m_currentPdnGame.game.movesindex - 1].comment,
+        strncpy(move_to_comment.comment,
                 comment.toUtf8().constData(),
-                sizeof(m_currentPdnGame.moves[m_currentPdnGame.game.movesindex - 1].comment) - 1);
-        m_currentPdnGame.moves[m_currentPdnGame.game.movesindex - 1].comment[sizeof(m_currentPdnGame.moves[m_currentPdnGame.game.movesindex - 1].comment) - 1] = '\0';
+                sizeof(move_to_comment.comment) - 1);
+        move_to_comment.comment[sizeof(move_to_comment.comment) - 1] = '\0';
         emit gameMessage("Comment added to current move.");
     } else {
         emit gameMessage("Cannot add comment: No move selected or game not started.");
@@ -1394,7 +1234,8 @@ void GameManager::handleAIMoveFound(bool moveFound, bool aborted, const CBmove& 
 
             if ((m_currentColorToMove == CB_WHITE && m_options.white_player_type == PLAYER_AI) ||
                 (m_currentColorToMove == CB_BLACK && m_options.black_player_type == PLAYER_AI)) {
-                playMove(); // Trigger next AI move if applicable
+                // Use a timer to yield to the event loop, keeping the GUI responsive
+                QTimer::singleShot(50, this, &GameManager::playMove);
             } else {
                 emit humanTurn(); // It's human's turn now
             }
@@ -1427,4 +1268,34 @@ bool GameManager::isLegalMove(const CBmove& move) {
 
     qDebug() << "GameManager: Move is NOT legal.";
     return false;
+}
+
+void GameManager::resumePlay()
+{
+    qDebug() << "GameManager: Resuming play...";
+
+    // Check if game is already over
+    CBmove legalMoves[MAXMOVES];
+    int nmoves = 0;
+    int isjump = 0;
+    bool dummy_can_continue_multijump = false;
+    get_legal_moves_c(&m_currentBoard, m_currentColorToMove, legalMoves, &nmoves, &isjump, NULL, &dummy_can_continue_multijump);
+    if (nmoves == 0) {
+        qDebug() << "GameManager::resumePlay - No legal moves. Game is over.";
+        // Depending on whose turn it is, the other player wins.
+        // For simplicity, we can just announce it. A more robust implementation
+        // would emit gameIsOver with the correct winner.
+        emit gameMessage("Game over - no legal moves.");
+        return;
+    }
+
+    // Check if it's an AI's turn to move
+    if ((m_currentColorToMove == CB_WHITE && m_options.white_player_type == PLAYER_AI) ||
+        (m_currentColorToMove == CB_BLACK && m_options.black_player_type == PLAYER_AI)) {
+        qDebug() << "GameManager::resumePlay - It is an AI's turn. Triggering playMove().";
+        playMove();
+    } else {
+        qDebug() << "GameManager::resumePlay - It is a human's turn.";
+        emit humanTurn();
+    }
 }

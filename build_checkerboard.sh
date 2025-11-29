@@ -59,13 +59,12 @@ QT_LIBS=$(pkg-config --libs Qt5Widgets Qt5Gui Qt5Core Qt5Multimedia)
 INCLUDE_DIRS=(
     "${RESOURCE_FILES_DIR}"
     "${RESOURCE_FILES_DIR}/CB172source"
-    "${RESOURCE_FILES_DIR}/dblookup"
 )
 
 INCLUDE_FLAGS="$(printf -- "-I%s " "${INCLUDE_DIRS[@]}")"
 
 # All source files for the main application
-APP_SRCS=("${RESOURCE_FILES_DIR}/main.cpp" "${RESOURCE_FILES_DIR}/MainWindow.cpp" "${RESOURCE_FILES_DIR}/GameManager.cpp" "${RESOURCE_FILES_DIR}/c_logic.cpp" "${RESOURCE_FILES_DIR}/dblookup.cpp" "${RESOURCE_FILES_DIR}/BoardWidget.cpp" "${RESOURCE_FILES_DIR}/engine_wrapper.cpp" "${RESOURCE_FILES_DIR}/Dialogs.cpp" "${RESOURCE_FILES_DIR}/GeminiAI.cpp" "${RESOURCE_FILES_DIR}/log.cpp")
+APP_SRCS=("${RESOURCE_FILES_DIR}/main.cpp" "${RESOURCE_FILES_DIR}/MainWindow.cpp" "${RESOURCE_FILES_DIR}/GameManager.cpp" "${RESOURCE_FILES_DIR}/c_logic.cpp" "${RESOURCE_FILES_DIR}/DBManager.cpp" "${RESOURCE_FILES_DIR}/BoardWidget.cpp" "${RESOURCE_FILES_DIR}/engine_wrapper.cpp" "${RESOURCE_FILES_DIR}/Dialogs.cpp" "${RESOURCE_FILES_DIR}/GeminiAI.cpp" "${RESOURCE_FILES_DIR}/AIWorker.cpp" "${RESOURCE_FILES_DIR}/log.cpp")
 
 # Object files for the main application
 APP_OBJS=()

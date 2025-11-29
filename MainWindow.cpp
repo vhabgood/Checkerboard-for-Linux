@@ -43,6 +43,10 @@ MainWindow::MainWindow(GameManager *gameManager, QWidget *parent) : m_gameManage
 
     loadSettings();
 
+    // Force normal mode on startup, overriding saved settings
+    m_options.white_player_type = PLAYER_AI;
+    m_options.black_player_type = PLAYER_HUMAN;
+
 
 
     // Create AI after settings are loaded
@@ -147,6 +151,8 @@ MainWindow::MainWindow(GameManager *gameManager, QWidget *parent) : m_gameManage
 
 
 
+        connect(this, &MainWindow::appStateChangeRequested, this, &MainWindow::onAppStateChangeRequested, Qt::QueuedConnection);
+
         QTimer::singleShot(0, this, &MainWindow::startGame);
 
 
@@ -217,6 +223,11 @@ AI_State MainWindow::mapAppStatetoAIState(AppState appState)
 }
 
 void MainWindow::changeAppState(AppState newState)
+{
+    emit appStateChangeRequested(newState);
+}
+
+void MainWindow::onAppStateChangeRequested(AppState newState)
 {
     // qDebug() << QString("changeAppState called with newState: %1").arg(newState); // Removed verbose log
     m_currentState = newState;
@@ -596,28 +607,58 @@ void MainWindow::displayMirror()
 }
 void MainWindow::cmNormal()
 {
-    changeAppState(STATE_NORMAL);
-    setStatusBarText("Mode changed to Normal.");
+    QTimer::singleShot(0, this, [this]() {
+        m_options.white_player_type = PLAYER_AI;
+        m_options.black_player_type = PLAYER_HUMAN;
+        m_gameManager->setOptions(m_options);
+        emit setAiOptions(m_options);
+        changeAppState(STATE_NORMAL);
+        setStatusBarText("Mode changed to Normal.");
+        m_gameManager->resumePlay();
+    });
 }
 void MainWindow::cmAnalysis()
 {
-    changeAppState(STATE_ANALYSIS);
-    setStatusBarText("Mode changed to Analysis.");
+    QTimer::singleShot(0, this, [this]() {
+        changeAppState(STATE_ANALYSIS);
+        setStatusBarText("Mode changed to Analysis.");
+    });
 }
 void MainWindow::cmAutoplay()
 {
-    changeAppState(STATE_AUTOPLAY);
-    setStatusBarText("Mode changed to Autoplay.");
+    QTimer::singleShot(0, this, [this]() {
+        m_options.white_player_type = PLAYER_AI;
+        m_options.black_player_type = PLAYER_AI;
+        m_gameManager->setOptions(m_options);
+        emit setAiOptions(m_options);
+        changeAppState(STATE_AUTOPLAY);
+        setStatusBarText("Mode changed to Autoplay.");
+        m_gameManager->resumePlay();
+    });
 }
 void MainWindow::cm2Player()
 {
-    changeAppState(STATE_2PLAYER);
-    setStatusBarText("Mode changed to 2-Player.");
+    QTimer::singleShot(0, this, [this]() {
+        m_options.white_player_type = PLAYER_HUMAN;
+        m_options.black_player_type = PLAYER_HUMAN;
+        m_gameManager->setOptions(m_options);
+        emit setAiOptions(m_options);
+        changeAppState(STATE_2PLAYER);
+        setStatusBarText("Mode changed to 2-Player.");
+        m_gameManager->resumePlay();
+    });
 }
 void MainWindow::engineVsEngine()
 {
-    changeAppState(STATE_ENGINE_MATCH);
-    setStatusBarText("Mode changed to Engine vs. Engine.");
+    QTimer::singleShot(0, this, [this]() {
+        m_options.white_player_type = PLAYER_AI;
+        m_options.black_player_type = PLAYER_AI;
+        m_gameManager->setOptions(m_options);
+        emit setAiOptions(m_options);
+        changeAppState(STATE_ENGINE_MATCH);
+        setStatusBarText("Mode changed to Engine vs. Engine.");
+        m_gameManager->resumePlay();
+    });
 }
 
 void MainWindow::bookModeView()
