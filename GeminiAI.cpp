@@ -1,37 +1,34 @@
 #include "GeminiAI.h"
-#include <QDebug>
 #include "DBManager.h"
+#include "core_types.h"
+#include <QDebug>
+#include <QCoreApplication>
+#include "log.h"
 
-extern "C" {
-#include "checkers_types.h"
-#include "c_logic.h"
-}
-
-GeminiAI::GeminiAI(const QString& egdbPath, QObject *parent) : QObject(parent),
-    m_aiThread(new QThread(this)),
-    m_worker(new AIWorker()),
-    m_egdbPath(egdbPath),
-    m_egdbInitialized(false),
-    m_maxEGDBPieces(0),
-    m_mode(Idle),
-    m_handicap(0),
-    m_primaryExternalEngine(nullptr),
-    m_secondaryExternalEngine(nullptr),
-    m_useExternalEngine(false),
-    m_externalEnginePath(""),
-    m_secondaryExternalEnginePath(""),
-    m_lastEvaluationScore(0),
-    m_lastSearchDepth(0)
+GeminiAI::GeminiAI(const QString& egdbPath, QObject *parent)
+    : QObject(parent),
+      m_aiThread(new QThread(this)),
+      m_worker(new AIWorker()),
+      m_egdbPath(egdbPath),
+      m_egdbInitialized(false),
+      m_maxEGDBPieces(0),
+      m_mode(Autoplay),
+      m_handicap(0),
+      m_primaryExternalEngine(nullptr),
+      m_secondaryExternalEngine(nullptr),
+      m_useExternalEngine(false),
+      m_lastEvaluationScore(0),
+      m_lastSearchDepth(0),
+      m_pendingMoveRequest(false)
 {
     m_worker->moveToThread(m_aiThread);
-
-    // Connect signals for starting and stopping the thread
     connect(m_aiThread, &QThread::finished, m_worker, &QObject::deleteLater);
     connect(this, &GeminiAI::requestWorkerTask, m_worker, &AIWorker::performTask);
     connect(m_worker, &AIWorker::searchFinished, this, &GeminiAI::handleWorkerSearchFinished);
     connect(m_worker, &AIWorker::evaluationReady, this, &GeminiAI::handleWorkerEvaluation);
-
     m_aiThread->start();
+
+
 }
 
 GeminiAI::~GeminiAI()
@@ -39,42 +36,46 @@ GeminiAI::~GeminiAI()
     m_aiThread->quit();
     m_aiThread->wait();
 
-    if (m_primaryExternalEngine) {
-        delete m_primaryExternalEngine;
-        m_primaryExternalEngine = nullptr;
-    }
-    if (m_secondaryExternalEngine) {
-        delete m_secondaryExternalEngine;
-        m_secondaryExternalEngine = nullptr;
-    }
-    DBManager::instance()->db_exit();
 }
 
 void GeminiAI::init()
 {
-    qInfo() << "GeminiAI: Initializing EGDB with path: " << m_egdbPath;
-    char db_init_msg_buffer[256];
-    db_init_msg_buffer[0] = '\0';
-    int initializedPieces = DBManager::instance()->db_init(256, db_init_msg_buffer, m_egdbPath.toUtf8().constData());
-    if (initializedPieces > 0) {
+    qDebug() << "GeminiAI: Initializing EGDB with path: " << m_egdbPath;
+    updateProgramStatusWord(STATUS_EGDB_INIT_START);
+
+    char db_init_output[256];
+    int suggestedMB = 64; // Default value, can be made configurable later if needed
+
+    int success = DBManager::instance()->db_init(suggestedMB, db_init_output, m_egdbPath.toUtf8().constData());
+
+    if (success) {
         m_egdbInitialized = true;
-        m_maxEGDBPieces = initializedPieces;
-        qInfo() << "GeminiAI: EGDB initialized successfully. Max pieces: " << m_maxEGDBPieces << " Message: " << db_init_msg_buffer;
+        updateProgramStatusWord(STATUS_EGDB_INIT_OK);
+        // Assuming DBManager::db_init populates its internal m_maxpieces variable
+        // which can then be retrieved or is available through other means.
+        // For now, m_maxEGDBPieces will remain at its default of 0 unless updated by a separate mechanism.
+        // This should be verified by checking DBManager.cpp.
+        qDebug() << "GeminiAI: EGDB initialized successfully. Output: " << db_init_output;
     } else {
         m_egdbInitialized = false;
-        m_maxEGDBPieces = 0;
-        qWarning() << "GeminiAI: Failed to initialize EGDB with path: " << m_egdbPath << ". EGDB will be disabled. Message: " << db_init_msg_buffer;
+        updateProgramStatusWord(STATUS_EGDB_INIT_FAIL);
+        qWarning() << "GeminiAI: EGDB initialization failed. Output: " << db_init_output;
     }
+
+    // The logic to process pending move requests should not re-call requestMove here,
+    // as requestMove now directly emits requestWorkerTask without deferring based on EGDB status.
+    // The m_pendingMoveRequest flag is effectively no longer needed in this context.
+    // However, if the intent was to ensure a move request is re-triggered if it was deferred *before*
+    // EGDB init completed, this block is where that logic would live if deferral was still active.
+    // For now, we'll keep it simple as requestMove now directly emits.
+    // m_pendingMoveRequest = false; // Reset pending request if it was used for deferred calls
 }
 
-void GeminiAI::requestMove(Board8x8 board, int colorToMove, double timeLimit)
+
+
+void GeminiAI::requestMove(bitboard_pos board, int colorToMove, double timeLimit)
 {
-    qDebug() << "GeminiAI: requestMove called. Color: " << colorToMove << ", Time Limit: " << timeLimit;
-    if (m_useExternalEngine && m_primaryExternalEngine) {
-        // External engine logic remains the same
-    } else {
-        emit requestWorkerTask(m_mode, board, colorToMove, timeLimit);
-    }
+    emit requestWorkerTask(m_mode, board, colorToMove, timeLimit);
 }
 
 void GeminiAI::abortSearch()
@@ -82,28 +83,28 @@ void GeminiAI::abortSearch()
     QMetaObject::invokeMethod(m_worker, "requestAbort", Qt::QueuedConnection);
 }
 
-void GeminiAI::startAnalyzeGame(const Board8x8& board, int colorToMove)
+void GeminiAI::startAnalyzeGame(const bitboard_pos& board, int colorToMove)
 {
     emit requestWorkerTask(AnalyzeGame, board, colorToMove, m_options.time_per_move);
 }
 
-void GeminiAI::startAutoplay(const Board8x8& board, int colorToMove)
+void GeminiAI::startAutoplay(const bitboard_pos& board, int colorToMove)
 {
     emit requestWorkerTask(Autoplay, board, colorToMove, m_options.time_per_move);
 }
 
-void GeminiAI::startEngineMatch(int numGames, const Board8x8& board, int colorToMove)
+void GeminiAI::startEngineMatch(int numGames, const bitboard_pos& board, int colorToMove)
 {
     // numGames is not directly used here but could be passed to the worker if needed
     emit requestWorkerTask(EngineMatch, board, colorToMove, m_options.time_per_move);
 }
 
-void GeminiAI::startRunTestSet(const Board8x8& board, int colorToMove)
+void GeminiAI::startRunTestSet(const bitboard_pos& board, int colorToMove)
 {
     emit requestWorkerTask(RunTestSet, board, colorToMove, m_options.time_per_move);
 }
 
-void GeminiAI::startAnalyzePdn(const Board8x8& board, int colorToMove)
+void GeminiAI::startAnalyzePdn(const bitboard_pos& board, int colorToMove)
 {
     emit requestWorkerTask(AnalyzePdn, board, colorToMove, m_options.time_per_move);
 }
@@ -154,7 +155,7 @@ void GeminiAI::setEgdbPath(const QString& path)
 }
 
 // User book and external engine methods remain unchanged
-void GeminiAI::addMoveToUserBook(const Board8x8& board, const CBmove& move) { Q_UNUSED(board); Q_UNUSED(move); }
+void GeminiAI::addMoveToUserBook(const bitboard_pos& board, const CBmove& move) { Q_UNUSED(board); Q_UNUSED(move); }
 void GeminiAI::deleteCurrentEntry() {}
 void GeminiAI::deleteAllEntriesFromUserBook() {}
 void GeminiAI::navigateToNextEntry() {}

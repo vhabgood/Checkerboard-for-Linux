@@ -34,46 +34,28 @@ The C/C++ application must be compiled first. The build process is managed by a 
 
 ## Project Status
 
-The project is at a solid proof-of-concept stage. We have successfully:
+The project has achieved a major milestone by successfully integrating the Endgame Database (EGDB) and resolving critical bugs.
 
-*   Ported the core application from its Windows-specific origins to a cross-platform C++/Qt framework.
-*   Established a working build system that compiles the application on Linux.
-*   Implemented a basic GUI with a functional checkerboard.
-*   Integrated a functional AI that can play a full game.
-*   Resolved several critical bugs related to AI evaluation logic and state management.
-*   **Implemented a comprehensive status word system** to track program execution and critical events, significantly enhancing debuggability and post-mortem analysis capabilities.
-*   **Fixed FEN Loading**: Corrected bugs in the FEN parsing and coordinate conversion logic, allowing for reliable loading of test positions.
-*   **Verified EGDB in Gameplay**: Analyzed logs to confirm that the AI correctly uses the EGDB to make winning moves in endgame positions.
+*   **Ported Core Application**: The application has been successfully ported from its Windows-specific origins to a cross-platform C++/Qt framework.
+*   **Working Build System**: A reliable build system (`build_checkerboard.sh`) is in place.
+*   **Functional GUI and AI**: The application features a functional GUI, a working checkerboard, and an integrated AI that can complete a game.
+*   **Comprehensive Status Word**: A 32-bit Program Status Word (PSW) effectively tracks program execution and critical events, aiding in diagnostics.
+*   **EGDB is ONLINE and STABLE**: All critical EGDB issues have been resolved. This includes:
+    *   The primary initialization and parsing bug (a one-character string comparison error in the index file parser).
+    *   The "decode_value forward search failed - blocknumber out of bounds" error. This was resolved by meticulously debugging the combinatorial indexing logic in `calculate_index` and `calculate_lsb_index`. The fix involved correcting the `occupied_mask` used during black king indexing to prevent overcounting of occupied squares, and refining the combinatorial bounds check from `x < 0` to `x < i - 1` within `calculate_lsb_index`.
+    *   A "double free or corruption" crash on exit, which was fixed by implementing a shutdown guard in `db_exit()`.
 
-### Current Focus: Debugging Endgame Database (EGDB) Initialization and Lookup
+The EGDB is now fully functional and stable, performing lookups and returning correct win/loss/draw values without errors.
 
-The primary focus is currently on debugging and resolving an issue where the Endgame Database (EGDB) consistently returns an "UNKNOWN (0)" score, even for positions that should yield definitive results. This indicates a problem with either the EGDB initialization process or the interpretation of its data.
+### Current Focus:
+With the EGDB fully integrated and stable, the immediate focus shifts to other tasks to enhance the application.
 
-**Today's Progress:**
-*   **Refactored `dblookup.cpp`**: The `dblookup` module has been refactored for improved readability, defensive programming, and micro-optimizations. This included breaking down large functions into smaller, more manageable units (`calculate_index`, `get_disk_block`, `decode_value`).
-*   **Optimized Bit Manipulation**: The `recbitcount` function in `c_logic.cpp` was optimized using `__builtin_popcount`.
-*   **Optimized EGDB Decoding**: The `decode_value` function in `dblookup.cpp` was optimized with a lookup table (`decode_table`) to speed up base-3 decoding.
-*   **Enhanced PSW Usage**: Program Status Word (PSW) flags related to EGDB initialization and lookup were reviewed and updated to ensure proper error signaling and status tracking. A bug where `STATUS_EGDB_LOOKUP_HIT` was not cleared was addressed.
-*   **Improved Logging**: Extensive diagnostic logging has been added to `dblookup.cpp` (in `dblookup`, `decode_value`, and `db_init` loops) and `GeminiAI.cpp` (using `egdbScoreToString`) to provide more detailed insights into the EGDB lookup process and return values. Specific logging was also added to `parseindexfile` but its output is not appearing in the logs.
-*   **Fixed Critical Bug**: A logical error in `dblookup.cpp` where `diskblock` (a pointer) was incorrectly compared to `DB_NOT_LOOKED_UP` (an integer) was identified and fixed. This dead code was removed, and the handling of `nullptr` returns from `get_disk_block` was updated to correctly signal `DB_NOT_LOOKED_UP`.
-*   **Refined Log Output**: The `handleAIMoveFound` log message in `GameManager.cpp` was updated to display moves in ACF (Algebraic Checkers Notation) format for better readability.
-
-**Ongoing Issue:**
-*   Despite extensive logging and fixes, the EGDB continues to report "UNKNOWN (0)" for positions expected to have definitive results. The latest logs indicate an "Early exit - dbpointer not present or file not open. Returning DB_UNKNOWN." from `dblookup`.
-*   Crucially, the detailed diagnostic logs added to `db_init` (for file opening) and `parseindexfile` (for entry parsing) are **not appearing** in the log, suggesting these code paths are not being executed for the relevant 4-piece EGDB files, or there's a problem with logging at that stage. This implies a disconnect between `maxpieces` being correctly set to 4 and the subsequent parsing of the corresponding EGDB files.
-
----
-**Recent Progress: Resolving Crashes and Improving Stability**
-
-*   **Fixed Autoplay Crash - Robust State Change Mechanism**:
-    *   **Identified Problem**: Persistent segmentation faults occurred when changing game modes (e.g., to Autoplay), even with deferred execution via `QTimer::singleShot`. The crash was due to `QAction` objects being in an unstable state when they were being modified by `changeAppState` in response to an event they initiated. This was a deeper issue than a simple timing or reordering problem, indicating a fundamental event processing conflict within Qt's UI.
-    *   **Fix Implemented**: Refactored `MainWindow` to use a robust signal/slot mechanism for state changes.
-        *   The `changeAppState(AppState newState)` function was converted into a simple signal emitter: it now just emits `appStateChangeRequested(newState)`.
-        *   The original logic of `changeAppState` (UI updates and AI mode setting) was moved to a new private slot: `onAppStateChangeRequested(AppState newState)`.
-        *   A `Qt::QueuedConnection` was established between `appStateChangeRequested` and `onAppStateChangeRequested` in the `MainWindow` constructor.
-    *   **Result**: This completely decouples the request for a state change from its execution, ensuring that the UI update happens in a clean event context, resolving the segmentation fault. All compilation and linking errors related to this refactoring have been resolved.
-
-*   **Fixed Single-Instance Dialog Issue**:
-    *   **Identified Problem**: On the first run, the application would incorrectly display a dialog stating "Another instance of CheckerBoard is already running." and then quit. Subsequent runs (after the OS cleaned up) would work correctly. The cause was that the `QSharedMemory` segment used as a single-instance lock was not being detached/released when the application exited, leaving a stale lock that caused false positives on subsequent launches.
-    *   **Fix Implemented**: Uncommented the `sharedMemory.detach()` call at the end of `main.cpp`.
-    *   **Result**: The application now correctly releases its single-instance lock on exit, preventing the "already running" dialog from appearing incorrectly.
+### Recent Progress:
+*   **Database Refactoring (Templatization):**
+    *   Successfully refactored all duplicated WLD (Win/Loss/Draw) and MTC (Mate-to-Capture) database functions (`parse_single_base_entry`, `parseindexfile`, `processEgdbFiles`, `get_disk_block`, `decode_value`, `dblookup`) into generic, templated functions (`*_generic<T>`). This significantly reduces code duplication and improves maintainability.
+    *   Updated the build system (`build_checkerboard.sh`) to use C++17 standard (`-std=c++17`) to support `if constexpr` and `std::is_same::value` for robust templated programming.
+*   **Program Status Word (PSW) Integration:**
+    *   Integrated `updateProgramStatusWord()` and `clearProgramStatusWordFlags()` into the new generic database functions and `db_init`, replacing direct bitwise manipulation of `g_programStatusWord`. This provides a more encapsulated and safer way to manage critical application status.
+*   **Decompression Scheme Verification:**
+    *   Investigated and confirmed that the two decompression schemes used in the `DBManager` (Tunstall-like run-length encoding for values > 80 and direct table lookup for values <= 80) are correctly implemented and consistent with the original logic found in historical code (`OLD/dblookup.cpp`).
+    *   Confirmed that the available EGDB files (`.idx` files in the `db/` directory) do not utilize a "haspartials" feature, meaning the current decompression logic is sufficient and no additional schemes are required at this time.

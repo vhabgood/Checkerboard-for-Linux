@@ -6,6 +6,13 @@
 #include "engine_wrapper.h"
 #include "checkers_types.h"
 
+
+struct PendingMove {
+    bitboard_pos board;
+    int color;
+    double timeLimit;
+};
+
 class GeminiAI : public QObject
 {
     Q_OBJECT
@@ -18,7 +25,7 @@ public:
     void setHandicap(int handicap);
     bool sendCommand(const QString& command, QString& reply);
     // User book functions remain as they are not thread-critical
-    void addMoveToUserBook(const Board8x8& board, const CBmove& move);
+    void addMoveToUserBook(const bitboard_pos& board, const CBmove& move);
     void deleteCurrentEntry();
     void deleteAllEntriesFromUserBook();
     void navigateToNextEntry();
@@ -32,18 +39,18 @@ public:
 
 public slots:
     void init();
-    void requestMove(Board8x8 board, int colorToMove, double timeLimit);
+    void requestMove(bitboard_pos board, int colorToMove, double timeLimit);
     void abortSearch();
     void setExternalEnginePath(const QString& path);
     void setSecondaryExternalEnginePath(const QString& path);
     void setOptions(const CBoptions& options);
     void setEgdbPath(const QString& path);
     void handleWorkerEvaluation(int score, int depth);
-    void startAnalyzeGame(const Board8x8& board, int colorToMove);
-    void startAutoplay(const Board8x8& board, int colorToMove);
-    void startEngineMatch(int numGames, const Board8x8& board, int colorToMove);
-    void startRunTestSet(const Board8x8& board, int colorToMove);
-    void startAnalyzePdn(const Board8x8& board, int colorToMove);
+    void startAnalyzeGame(const bitboard_pos& board, int colorToMove);
+    void startAutoplay(const bitboard_pos& board, int colorToMove);
+    void startEngineMatch(int numGames, const bitboard_pos& board, int colorToMove);
+    void startRunTestSet(const bitboard_pos& board, int colorToMove);
+    void startAnalyzePdn(const bitboard_pos& board, int colorToMove);
     void requestAbort();
 
 
@@ -52,7 +59,7 @@ signals:
     void engineError(const QString& errorMessage);
     void evaluationReady(int score, int depth);
     // Signal to start a task in the worker thread
-    void requestWorkerTask(AI_State task, const Board8x8& board, int color, double maxtime);
+    void requestWorkerTask(AI_State task, const bitboard_pos& board, int color, double maxtime);
 
 
 private slots:
@@ -61,6 +68,7 @@ private slots:
 private:
     QThread* m_aiThread;
     AIWorker* m_worker;
+
 
     QString m_egdbPath;
     bool m_egdbInitialized;
@@ -78,6 +86,7 @@ private:
     
     int m_lastEvaluationScore;
     int m_lastSearchDepth;
+
+    bool m_pendingMoveRequest;
+    PendingMove m_pendingMove;
 };
-
-

@@ -12,6 +12,7 @@
 #include <QThread>
 #include <QMessageBox>
 #include <QDesktopServices> // Required for QDesktopServices
+#include "Dialogs.h" // Include for custom dialogs
 
 #include "GeminiAI.h"
 
@@ -19,7 +20,7 @@
 
 
 
-MainWindow::MainWindow(GameManager *gameManager, QWidget *parent) : m_gameManager(gameManager), QMainWindow(parent), m_aiThread(new QThread(this)){
+MainWindow::MainWindow(GameManager *gameManager, QWidget *parent) : m_gameManager(gameManager), QMainWindow(parent) {
 
     setWindowTitle("Checkerboard for Linux");
 
@@ -49,69 +50,7 @@ MainWindow::MainWindow(GameManager *gameManager, QWidget *parent) : m_gameManage
 
 
 
-    // Create AI after settings are loaded
 
-    m_ai = new GeminiAI(QString(m_options.EGTBdirectory), nullptr); // Pass egdbPath from options
-
-    m_ai->moveToThread(m_aiThread);
-
-
-
-    // Connect AI signals/slots
-
-    connect(m_aiThread, &QThread::started, m_ai, &GeminiAI::init);
-
-    connect(m_aiThread, &QThread::finished, m_ai, &QObject::deleteLater); // Clean up AI object on thread finish
-
-
-
-    // Connect signals from AI to GameManager and MainWindow
-
-    connect(m_ai, &GeminiAI::evaluationReady, this, &MainWindow::updateEvaluationDisplay, Qt::QueuedConnection);
-
-    connect(m_ai, &GeminiAI::searchFinished, m_gameManager, &GameManager::handleAIMoveFound, Qt::QueuedConnection);
-
-    connect(m_ai, &GeminiAI::engineError, this, [this](const QString& errorMessage){
-
-        QMessageBox::critical(this, tr("Engine Error"), errorMessage);
-
-        setStatusBarText(QString("Engine Error: %1").arg(errorMessage));
-
-    }, Qt::QueuedConnection);
-
-
-
-    // Connect signals from GameManager to AI
-
-    connect(m_gameManager, &GameManager::requestEngineSearch, m_ai, &GeminiAI::requestMove, Qt::QueuedConnection);
-
-    connect(m_gameManager, &GameManager::sendEngineCommand, this, [this](const QString& command){
-
-        QString reply; // Dummy reply for the AI's sendCommand slot
-
-        m_ai->sendCommand(command, reply);
-
-    }, Qt::QueuedConnection);
-
-
-
-    // Connect MainWindow signals to AI slots
-
-    connect(this, &MainWindow::setAiOptions, m_ai, &GeminiAI::setOptions, Qt::QueuedConnection);
-
-
-
-    // Ensure GameManager's options are set before newGame is called (even if deferred)
-
-    m_gameManager->setOptions(m_options);
-
-    emit setAiOptions(m_options); // Pass options to the AI instance via signal
-
-
-
-    // Start the AI thread
-
-    m_aiThread->start();
 
 
 
@@ -139,19 +78,21 @@ MainWindow::MainWindow(GameManager *gameManager, QWidget *parent) : m_gameManage
 
 
 
-        connect(this, &MainWindow::setPrimaryEnginePath, m_ai, &GeminiAI::setExternalEnginePath, Qt::QueuedConnection);
+        connect(this, &MainWindow::setPrimaryEnginePath, m_gameManager->getAi(), &GeminiAI::setExternalEnginePath, Qt::QueuedConnection);
 
 
 
-        connect(this, &MainWindow::setSecondaryEnginePath, m_ai, &GeminiAI::setSecondaryExternalEnginePath, Qt::QueuedConnection);
+        connect(this, &MainWindow::setSecondaryEnginePath, m_gameManager->getAi(), &GeminiAI::setSecondaryExternalEnginePath, Qt::QueuedConnection);
 
 
 
-        connect(this, &MainWindow::setEgdbPath, m_ai, &GeminiAI::setEgdbPath, Qt::QueuedConnection); // Connect the new signal
+        connect(this, &MainWindow::setEgdbPath, m_gameManager->getAi(), &GeminiAI::setEgdbPath, Qt::QueuedConnection); // Connect the new signal
+        connect(m_gameManager, &GameManager::requestEngineSearch, m_gameManager->getAi(), &GeminiAI::requestMove, Qt::QueuedConnection); // Connect GameManager's request to AI's move request
 
 
 
         connect(this, &MainWindow::appStateChangeRequested, this, &MainWindow::onAppStateChangeRequested, Qt::QueuedConnection);
+        connect(m_gameManager, &GameManager::requestClearSelectedPiece, m_boardWidget, &BoardWidget::clearSelectedPiece);
 
         QTimer::singleShot(0, this, &MainWindow::startGame);
 
@@ -166,14 +107,6 @@ void MainWindow::startGame()
 
 MainWindow::~MainWindow()
 {
-    // Clean up AI thread
-    if (m_aiThread->isRunning()) {
-        m_ai->requestAbort(); // Request AI to stop gracefully
-        m_aiThread->quit();   // Ask the thread to exit
-        m_aiThread->wait();   // Wait for the thread to finish
-    }
-    delete m_aiThread; // Delete the QThread object
-    // m_ai is deleted automatically when m_aiThread finishes due to QObject::deleteLater
 }
 
 // /**
@@ -229,39 +162,53 @@ void MainWindow::changeAppState(AppState newState)
 
 void MainWindow::onAppStateChangeRequested(AppState newState)
 {
-    // qDebug() << QString("changeAppState called with newState: %1").arg(newState); // Removed verbose log
     m_currentState = newState;
-    m_ai->setMode(mapAppStatetoAIState(newState));
+    m_gameManager->getAi()->setMode(mapAppStatetoAIState(newState));
+
+    // Defer the UI update to a separate event loop cycle
+    QTimer::singleShot(0, this, &MainWindow::updateUiForState);
+}
+
+void MainWindow::updateUiForState()
+{
+    // Use the now-stable m_currentState to update the UI
+    AppState currentState = m_currentState;
 
     // Define state groups
-    bool isNormal = (newState == STATE_NORMAL);
-    bool isEngineThinking = (newState == STATE_ENGINE_THINKING);
-    bool isSetup = (newState == STATE_SETUP);
-    bool isAnalysis = (newState == STATE_ANALYZEGAME || newState == STATE_ANALYZEPDN);
-    bool isEngineMatch = (newState == STATE_ENGINE_MATCH);
-    bool isRunTestSet = (newState == STATE_RUNTESTSET);
-    bool isBookMode = (newState == STATE_BOOKADD || newState == STATE_BOOKDELETE || newState == STATE_BOOKVIEW);
-    bool is2Player = (newState == STATE_2PLAYER);
-    bool isAutoplay = (newState == STATE_AUTOPLAY);
+    bool isNormal = (currentState == STATE_NORMAL);
+    bool isEngineThinking = (currentState == STATE_ENGINE_THINKING);
+    bool isSetup = (currentState == STATE_SETUP);
+    bool isAnalysis = (currentState == STATE_ANALYZEGAME || currentState == STATE_ANALYZEPDN);
+    bool isEngineMatch = (currentState == STATE_ENGINE_MATCH);
+    bool isRunTestSet = (currentState == STATE_RUNTESTSET);
+    bool isBookMode = (currentState == STATE_BOOKADD || currentState == STATE_BOOKDELETE || currentState == STATE_BOOKVIEW);
+    bool is2Player = (currentState == STATE_2PLAYER);
+    bool isAutoplay = (currentState == STATE_AUTOPLAY);
 
     bool engineIsActive = isEngineThinking || isAnalysis || isEngineMatch || isRunTestSet;
     bool gameInProgress = isNormal || isEngineThinking || isAnalysis || isEngineMatch || is2Player || isAutoplay;
 
     // File Menu Actions
+    qDebug() << "Updating File Menu Actions...";
     m_newGameAction->setEnabled(isNormal || isSetup);
     m_game3MoveAction->setEnabled(isNormal);
     m_gameLoadAction->setEnabled(isNormal);
     m_gameSaveAction->setEnabled(isNormal || isAnalysis);
 
-    // Game Menu Actions
-    m_gameAnalyzeAction->setEnabled(isNormal);
-    m_gameCopyAction->setEnabled(gameInProgress || isSetup || isAnalysis);
+                    // Game Menu Actions
+
+                    qDebug() << "Updating Game Menu Actions...";
+
+                    // m_gameAnalyzeAction->setEnabled(isNormal); // This was commented out in previous step
+
+                    m_gameCopyAction->setEnabled(gameInProgress || isSetup || isAnalysis);    m_gameCopyAction->setEnabled(gameInProgress || isSetup || isAnalysis);
     m_gamePasteAction->setEnabled(isNormal || isSetup);
     m_gameFenToClipboardAction->setEnabled(gameInProgress || isSetup || isAnalysis);
     m_gameFenFromClipboardAction->setEnabled(isNormal || isSetup);
     m_gameAnalyzePdnAction->setEnabled(isNormal);
 
     // Moves Menu Actions
+    qDebug() << "Updating Moves Menu Actions...";
     m_movesPlayAction->setEnabled(isNormal);
     m_movesBackAction->setEnabled(gameInProgress || isAnalysis);
     m_movesForwardAction->setEnabled(gameInProgress || isAnalysis);
@@ -272,6 +219,7 @@ void MainWindow::onAppStateChangeRequested(AppState newState)
     m_abortEngineAction->setEnabled(engineIsActive);
 
     // Options Menu Actions
+    qDebug() << "Updating Options Menu Actions...";
     m_optionsHighlightAction->setEnabled(true);
     m_optionsSoundAction->setEnabled(true);
     m_displayInvertAction->setEnabled(true);
@@ -288,6 +236,7 @@ void MainWindow::onAppStateChangeRequested(AppState newState)
     m_bookModeDeleteAction->setEnabled(isNormal || isBookMode);
 
     // Engine Menu Actions
+    qDebug() << "Updating Engine Menu Actions...";
     m_engineSelectAction->setEnabled(isNormal);
     m_engineOptionsAction->setEnabled(isNormal);
     m_engineEvalAction->setEnabled(isNormal);
@@ -296,11 +245,15 @@ void MainWindow::onAppStateChangeRequested(AppState newState)
     m_cmEngineCommandAction->setEnabled(true);
     m_cmRunTestSetAction->setEnabled(true);
     
-    // Ponder and other actions can be enabled/disabled based on engine capabilities
-    // m_engineMenu->addAction(tr("Ponder"), this, &MainWindow::enginePonder);
-
-}
-void MainWindow::helpAbout() {
+        // Ponder and other actions can be enabled/disabled based on engine capabilities
+    
+        // m_engineMenu->addAction(tr("Ponder"), this, &MainWindow::enginePonder);
+    
+        qDebug() << "Updating Setup Menu Actions...";
+    
+    }
+    
+    void MainWindow::helpAbout() {
     qInfo() << "Help About action triggered.";
     QMessageBox::about(this, tr("About Checkerboard"),
                        tr("Checkerboard for Linux\n\n" 
@@ -314,57 +267,97 @@ void MainWindow::createMenus()
 {
     QMenu *fileMenu = menuBar()->addMenu(tr("&File"));
     m_newGameAction = fileMenu->addAction(tr("&New Game"), this, &MainWindow::newGame);
+    qDebug() << "m_newGameAction created: " << (m_newGameAction != nullptr);
     fileMenu->addAction(tr("E&xit"), this, &MainWindow::exitApplication);
 
     QMenu *gameMenu = menuBar()->addMenu(tr("&Game"));
     m_game3MoveAction = gameMenu->addAction(tr("&3-Move"), this, &MainWindow::game3Move);
+    qDebug() << "m_game3MoveAction created: " << (m_game3MoveAction != nullptr);
     m_gameLoadAction = gameMenu->addAction(tr("&Load"), this, &MainWindow::gameLoad);
+    qDebug() << "m_gameLoadAction created: " << (m_gameLoadAction != nullptr);
     m_gameSaveAction = gameMenu->addAction(tr("&Save"), this, &MainWindow::gameSave);
+    qDebug() << "m_gameSaveAction created: " << (m_gameSaveAction != nullptr);
     gameMenu->addSeparator();
     m_gameAnalyzeAction = gameMenu->addAction(tr("&Analyze"), this, &MainWindow::gameAnalyze);
+    qDebug() << "m_gameAnalyzeAction created: " << (m_gameAnalyzeAction != nullptr);
     m_gameCopyAction = gameMenu->addAction(tr("&Copy"), this, &MainWindow::gameCopy);
+    qDebug() << "m_gameCopyAction created: " << (m_gameCopyAction != nullptr);
     m_gamePasteAction = gameMenu->addAction(tr("&Paste"), this, &MainWindow::gamePaste);
+    qDebug() << "m_gamePasteAction created: " << (m_gamePasteAction != nullptr);
     m_gameFenToClipboardAction = gameMenu->addAction(tr("FEN to Clipboard"), this, &MainWindow::gameFenToClipboard);
+    qDebug() << "m_gameFenToClipboardAction created: " << (m_gameFenToClipboardAction != nullptr);
     m_gameFenFromClipboardAction = gameMenu->addAction(tr("FEN from Clipboard"), this, &MainWindow::gameFenFromClipboard);
+    qDebug() << "m_gameFenFromClipboardAction created: " << (m_gameFenFromClipboardAction != nullptr);
+    m_gameAnalyzePdnAction = gameMenu->addAction(tr("&Analyze PDN"), this, &MainWindow::gameAnalyzePdn);
+    qDebug() << "m_gameAnalyzePdnAction created: " << (m_gameAnalyzePdnAction != nullptr);
 
     QMenu *movesMenu = menuBar()->addMenu(tr("&Moves"));
     m_movesPlayAction = movesMenu->addAction(tr("&Play"), this, &MainWindow::movesPlay);
+    qDebug() << "m_movesPlayAction created: " << (m_movesPlayAction != nullptr);
     m_movesBackAction = movesMenu->addAction(tr("&Back"), this, &MainWindow::movesBack);
+    qDebug() << "m_movesBackAction created: " << (m_movesBackAction != nullptr);
     m_movesForwardAction = movesMenu->addAction(tr("&Forward"), this, &MainWindow::movesForward);
+    qDebug() << "m_movesForwardAction created: " << (m_movesForwardAction != nullptr);
     m_movesBackAllAction = movesMenu->addAction(tr("Back &All"), this, &MainWindow::movesBackAll);
+    qDebug() << "m_movesBackAllAction created: " << (m_movesBackAllAction != nullptr);
     m_movesForwardAllAction = movesMenu->addAction(tr("Forward A&ll"), this, &MainWindow::movesForwardAll);
+    qDebug() << "m_movesForwardAllAction created: " << (m_movesForwardAllAction != nullptr);
     m_movesCommentAction = movesMenu->addAction(tr("&Comment"), this, &MainWindow::movesComment);
+    qDebug() << "m_movesCommentAction created: " << (m_movesCommentAction != nullptr);
     movesMenu->addSeparator();
     m_interruptEngineAction = movesMenu->addAction(tr("&Interrupt Engine"), this, &MainWindow::interruptEngine);
+    qDebug() << "m_interruptEngineAction created: " << (m_interruptEngineAction != nullptr);
     m_abortEngineAction = movesMenu->addAction(tr("A&bort Engine"), this, &MainWindow::abortEngine);
+    qDebug() << "m_abortEngineAction created: " << (m_abortEngineAction != nullptr);
 
     QMenu *optionsMenu = menuBar()->addMenu(tr("&Options"));
     m_optionsHighlightAction = optionsMenu->addAction(tr("&Highlight"), this, &MainWindow::optionsHighlight);
+    qDebug() << "m_optionsHighlightAction created: " << (m_optionsHighlightAction != nullptr);
     m_optionsSoundAction = optionsMenu->addAction(tr("&Sound"), this, &MainWindow::optionsSound);
+    qDebug() << "m_optionsSoundAction created: " << (m_optionsSoundAction != nullptr);
     QMenu *displayMenu = optionsMenu->addMenu(tr("&Display"));
     m_displayInvertAction = displayMenu->addAction(tr("&Invert Board"), this, &MainWindow::displayInvert);
+    qDebug() << "m_displayInvertAction created: " << (m_displayInvertAction != nullptr);
     m_displayNumbersAction = displayMenu->addAction(tr("&Numbers"), this, &MainWindow::displayNumbers);
+    qDebug() << "m_displayNumbersAction created: " << (m_displayNumbersAction != nullptr);
     m_displayMirrorAction = displayMenu->addAction(tr("&Mirror"), this, &MainWindow::displayMirror);
+    qDebug() << "m_displayMirrorAction created: " << (m_displayMirrorAction != nullptr);
     QMenu *modeMenu = optionsMenu->addMenu(tr("&Mode"));
     m_cmNormalAction = modeMenu->addAction(tr("&Normal"), this, &MainWindow::cmNormal);
+    qDebug() << "m_cmNormalAction created: " << (m_cmNormalAction != nullptr);
     m_cmAnalysisAction = modeMenu->addAction(tr("&Analysis"), this, &MainWindow::cmAnalysis);
+    qDebug() << "m_cmAnalysisAction created: " << (m_cmAnalysisAction != nullptr);
     m_cmAutoplayAction = modeMenu->addAction(tr("A&utoplay"), this, &MainWindow::cmAutoplay);
+    qDebug() << "m_cmAutoplayAction created: " << (m_cmAutoplayAction != nullptr);
     m_cm2PlayerAction = modeMenu->addAction(tr("&2 Player"), this, &MainWindow::cm2Player);
+    qDebug() << "m_cm2PlayerAction created: " << (m_cm2PlayerAction != nullptr);
     m_engineVsEngineAction = modeMenu->addAction(tr("&Engine vs Engine"), this, &MainWindow::engineVsEngine);
+    qDebug() << "m_engineVsEngineAction created: " << (m_engineVsEngineAction != nullptr);
     QMenu *bookMenu = optionsMenu->addMenu(tr("&Book"));
     m_bookModeViewAction = bookMenu->addAction(tr("&View"), this, &MainWindow::bookModeView);
+    qDebug() << "m_bookModeViewAction created: " << (m_bookModeViewAction != nullptr);
     m_bookModeAddAction = bookMenu->addAction(tr("&Add"), this, &MainWindow::bookModeAdd);
+    qDebug() << "m_bookModeAddAction created: " << (m_bookModeAddAction != nullptr);
     m_bookModeDeleteAction = bookMenu->addAction(tr("&Delete"), this, &MainWindow::bookModeDelete);
+    qDebug() << "m_bookModeDeleteAction created: " << (m_bookModeDeleteAction != nullptr);
     m_bookModeDeleteAllAction = bookMenu->addAction(tr("Delete &All"), this, &MainWindow::bookModeDeleteAll);
+    qDebug() << "m_bookModeDeleteAllAction created: " << (m_bookModeDeleteAllAction != nullptr);
     
     m_engineMenu = menuBar()->addMenu(tr("&Engine"));
     m_engineSelectAction = m_engineMenu->addAction(tr("&Select"), this, &MainWindow::engineSelect);
+    qDebug() << "m_engineSelectAction created: " << (m_engineSelectAction != nullptr);
     m_engineOptionsAction = m_engineMenu->addAction(tr("&Options"), this, &MainWindow::engineOptions);
+    qDebug() << "m_engineOptionsAction created: " << (m_engineOptionsAction != nullptr);
     m_engineEvalAction = m_engineMenu->addAction(tr("&Eval"), this, &MainWindow::engineEval);
+    qDebug() << "m_engineEvalAction created: " << (m_engineEvalAction != nullptr);
     m_cmEngineMatchAction = m_engineMenu->addAction(tr("Eng&ine Match"), this, &MainWindow::cmEngineMatch);
+    qDebug() << "m_cmEngineMatchAction created: " << (m_cmEngineMatchAction != nullptr);
     m_cmAddCommentAction = m_engineMenu->addAction(tr("Add &Comment"), this, &MainWindow::cmAddComment);
+    qDebug() << "m_cmAddCommentAction created: " << (m_cmAddCommentAction != nullptr);
     m_cmEngineCommandAction = m_engineMenu->addAction(tr("Engine &Command"), this, &MainWindow::cmEngineCommand);
+    qDebug() << "m_cmEngineCommandAction created: " << (m_cmEngineCommandAction != nullptr);
     m_cmRunTestSetAction = m_engineMenu->addAction(tr("&Run Test Set"), this, &MainWindow::cmRunTestSet);
+    qDebug() << "m_cmRunTestSetAction created: " << (m_cmRunTestSetAction != nullptr);
     m_engineMenu->addAction(tr("&Handicap"), this, &MainWindow::cmHandicap);
     m_engineMenu->addSeparator();
     m_engineMenu->addAction(tr("&About"), this, &MainWindow::engineAbout);
@@ -380,11 +373,16 @@ void MainWindow::createMenus()
     
     QMenu *setupMenu = menuBar()->addMenu(tr("&Setup"));
     m_setupModeAction = setupMenu->addAction(tr("Setup &Mode"), this, &MainWindow::setupMode);
+    qDebug() << "m_setupModeAction created: " << (m_setupModeAction != nullptr);
     setupMenu->addSeparator();
     m_setupClearAction = setupMenu->addAction(tr("&Clear"), this, &MainWindow::setupClear);
+    qDebug() << "m_setupClearAction created: " << (m_setupClearAction != nullptr);
     m_setupBlackAction = setupMenu->addAction(tr("&Black"), this, &MainWindow::setupBlack);
+    qDebug() << "m_setupBlackAction created: " << (m_setupBlackAction != nullptr);
     m_setupWhiteAction = setupMenu->addAction(tr("&White"), this, &MainWindow::setupWhite);
+    qDebug() << "m_setupWhiteAction created: " << (m_setupWhiteAction != nullptr);
     m_setupCcAction = setupMenu->addAction(tr("&Change Color"), this, &MainWindow::setupCc);
+    qDebug() << "m_setupCcAction created: " << (m_setupCcAction != nullptr);
 
     QMenu *helpMenu = menuBar()->addMenu(tr("&Help"));
     helpMenu->addAction(tr("Help"), this, &MainWindow::helpHelp);
@@ -607,58 +605,48 @@ void MainWindow::displayMirror()
 }
 void MainWindow::cmNormal()
 {
-    QTimer::singleShot(0, this, [this]() {
-        m_options.white_player_type = PLAYER_AI;
-        m_options.black_player_type = PLAYER_HUMAN;
-        m_gameManager->setOptions(m_options);
-        emit setAiOptions(m_options);
-        changeAppState(STATE_NORMAL);
-        setStatusBarText("Mode changed to Normal.");
-        m_gameManager->resumePlay();
-    });
+    m_options.white_player_type = PLAYER_AI;
+    m_options.black_player_type = PLAYER_HUMAN;
+    m_gameManager->setOptions(m_options);
+    emit setAiOptions(m_options);
+    changeAppState(STATE_NORMAL);
+    setStatusBarText("Mode changed to Normal.");
+    m_gameManager->resumePlay();
 }
 void MainWindow::cmAnalysis()
 {
-    QTimer::singleShot(0, this, [this]() {
-        changeAppState(STATE_ANALYSIS);
-        setStatusBarText("Mode changed to Analysis.");
-    });
+    changeAppState(STATE_ANALYSIS);
+    setStatusBarText("Mode changed to Analysis.");
 }
 void MainWindow::cmAutoplay()
 {
-    QTimer::singleShot(0, this, [this]() {
-        m_options.white_player_type = PLAYER_AI;
-        m_options.black_player_type = PLAYER_AI;
-        m_gameManager->setOptions(m_options);
-        emit setAiOptions(m_options);
-        changeAppState(STATE_AUTOPLAY);
-        setStatusBarText("Mode changed to Autoplay.");
-        m_gameManager->resumePlay();
-    });
+    m_options.white_player_type = PLAYER_AI;
+    m_options.black_player_type = PLAYER_AI;
+    m_gameManager->setOptions(m_options);
+    emit setAiOptions(m_options);
+    changeAppState(STATE_AUTOPLAY);
+    setStatusBarText("Mode changed to Autoplay.");
+    m_gameManager->resumePlay();
 }
 void MainWindow::cm2Player()
 {
-    QTimer::singleShot(0, this, [this]() {
-        m_options.white_player_type = PLAYER_HUMAN;
-        m_options.black_player_type = PLAYER_HUMAN;
-        m_gameManager->setOptions(m_options);
-        emit setAiOptions(m_options);
-        changeAppState(STATE_2PLAYER);
-        setStatusBarText("Mode changed to 2-Player.");
-        m_gameManager->resumePlay();
-    });
+    m_options.white_player_type = PLAYER_HUMAN;
+    m_options.black_player_type = PLAYER_HUMAN;
+    m_gameManager->setOptions(m_options);
+    emit setAiOptions(m_options);
+    changeAppState(STATE_2PLAYER);
+    setStatusBarText("Mode changed to 2-Player.");
+    m_gameManager->resumePlay();
 }
 void MainWindow::engineVsEngine()
 {
-    QTimer::singleShot(0, this, [this]() {
-        m_options.white_player_type = PLAYER_AI;
-        m_options.black_player_type = PLAYER_AI;
-        m_gameManager->setOptions(m_options);
-        emit setAiOptions(m_options);
-        changeAppState(STATE_ENGINE_MATCH);
-        setStatusBarText("Mode changed to Engine vs. Engine.");
-        m_gameManager->resumePlay();
-    });
+    m_options.white_player_type = PLAYER_AI;
+    m_options.black_player_type = PLAYER_AI;
+    m_gameManager->setOptions(m_options);
+    emit setAiOptions(m_options);
+    changeAppState(STATE_ENGINE_MATCH);
+    setStatusBarText("Mode changed to Engine vs. Engine.");
+    m_gameManager->resumePlay();
 }
 
 void MainWindow::bookModeView()
@@ -670,12 +658,12 @@ void MainWindow::bookModeView()
 
 void MainWindow::bookModeAdd()
 {
-    m_ai->addMoveToUserBook(m_gameManager->getCurrentBoard(), m_gameManager->getLastMove());
+    m_gameManager->getAi()->addMoveToUserBook(m_gameManager->getCurrentBoard(), m_gameManager->getLastMove());
     setStatusBarText("Current move added to user book.");
 }
 void MainWindow::bookModeDelete()
 {
-    m_ai->deleteCurrentEntry();
+    m_gameManager->getAi()->deleteCurrentEntry();
     setStatusBarText("Current entry deleted from user book.");
 }
 
@@ -684,7 +672,7 @@ void MainWindow::bookModeDeleteAll()
     if (QMessageBox::question(this, tr("Delete All User Book Entries"),
                               tr("Are you sure you want to delete ALL entries from the user book? This action cannot be undone."),
                               QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
-        m_ai->deleteAllEntriesFromUserBook();
+        m_gameManager->getAi()->deleteAllEntriesFromUserBook();
         setStatusBarText("All entries deleted from user book.");
     } else {
         setStatusBarText("Deletion of all user book entries cancelled.");
@@ -715,7 +703,7 @@ void MainWindow::engineSelect()
 void MainWindow::engineAbout()
 {
     QString reply;
-    if (m_ai->sendCommand("about", reply)) {
+    if (m_gameManager->getAi()->sendCommand("about", reply)) {
         QMessageBox::information(this, tr("About Engine"), reply);
         setStatusBarText("Engine information displayed.");
     } else {
@@ -725,7 +713,7 @@ void MainWindow::engineAbout()
 void MainWindow::engineHelp()
 {
     QString reply;
-    if (m_ai->sendCommand("help", reply)) {
+    if (m_gameManager->getAi()->sendCommand("help", reply)) {
         QMessageBox::information(this, tr("Engine Help"), reply);
         setStatusBarText("Engine help displayed.");
     } else {
@@ -750,11 +738,11 @@ void MainWindow::engineOptions()
 void MainWindow::engineAnalyze()
 {
     if (!m_isAnalyzing) {
-        m_ai->startAnalyzeGame(m_gameManager->getCurrentBoard(), m_gameManager->getCurrentPlayer());
+        m_gameManager->getAi()->startAnalyzeGame(m_gameManager->getCurrentBoard(), m_gameManager->getCurrentPlayer());
         m_isAnalyzing = true;
         setStatusBarText("Engine analysis started.");
     } else {
-        m_ai->abortSearch();
+        m_gameManager->getAi()->abortSearch();
         m_isAnalyzing = false;
         setStatusBarText("Engine analysis stopped.");
     }
@@ -791,14 +779,14 @@ void MainWindow::enginePonder()
 {
     QString reply;
     if (!m_isPondering) {
-        if (m_ai->sendCommand("ponder on", reply)) {
+        if (m_gameManager->getAi()->sendCommand("ponder on", reply)) {
             m_isPondering = true;
             setStatusBarText(QString("Engine pondering enabled. Reply: %1").arg(reply));
         } else {
             setStatusBarText("Failed to enable engine pondering.");
         }
     } else {
-        if (m_ai->sendCommand("ponder off", reply)) {
+        if (m_gameManager->getAi()->sendCommand("ponder off", reply)) {
             m_isPondering = false;
             setStatusBarText(QString("Engine pondering disabled. Reply: %1").arg(reply));
         } else {
@@ -827,7 +815,7 @@ void MainWindow::cmAddComment()
 void MainWindow::engineEval()
 {
     if (!m_isAnalyzing) {
-        m_ai->startAnalyzeGame(m_gameManager->getCurrentBoard(), m_gameManager->getCurrentPlayer());
+        m_gameManager->getAi()->startAnalyzeGame(m_gameManager->getCurrentBoard(), m_gameManager->getCurrentPlayer());
         m_isAnalyzing = true;
         setStatusBarText("Engine evaluation started.");
     } else {
@@ -842,7 +830,7 @@ void MainWindow::cmEngineCommand()
                                             "", &ok);
     if (ok && !command.isEmpty()) {
         QString reply;
-        if (m_ai->sendCommand(command, reply)) {
+        if (m_gameManager->getAi()->sendCommand(command, reply)) {
             QMessageBox::information(this, tr("Engine Reply"), reply);
             setStatusBarText("Engine command sent.");
         } else {
@@ -854,7 +842,7 @@ void MainWindow::cmEngineCommand()
 }
 void MainWindow::cmRunTestSet()
 {
-    m_ai->startRunTestSet(m_gameManager->getCurrentBoard(), m_gameManager->getCurrentPlayer());
+    m_gameManager->getAi()->startRunTestSet(m_gameManager->getCurrentBoard(), m_gameManager->getCurrentPlayer());
     setStatusBarText("Engine test set run initiated.");
 }
 void MainWindow::cmHandicap()
@@ -863,7 +851,7 @@ void MainWindow::cmHandicap()
     int handicap = QInputDialog::getInt(this, tr("Set Engine Handicap"),
                                         tr("Handicap (search depth reduction):"), 0, -20, 20, 1, &ok);
     if (ok) {
-        m_ai->setHandicap(handicap);
+        m_gameManager->getAi()->setHandicap(handicap);
         setStatusBarText(QString("Engine handicap set to %1.").arg(handicap));
     } else {
         setStatusBarText("Setting engine handicap cancelled.");
@@ -951,7 +939,7 @@ void MainWindow::helpContents()
     setStatusBarText("Opening help contents in browser.");
 }
 
-void MainWindow::handleBoardUpdated(const Board8x8& board)
+void MainWindow::handleBoardUpdated(const bitboard_pos& board)
 {
     m_boardWidget->setBoard(board);
 }
@@ -962,6 +950,11 @@ void MainWindow::handleGameMessage(const QString& message)
 void MainWindow::handleGameOver(int result)
 {
     qInfo() << "handleGameOver";
+}
+
+void MainWindow::handleClearSelectedPiece()
+{
+    m_boardWidget->clearSelectedPiece();
 }
 
 void MainWindow::pieceSet()
@@ -1038,7 +1031,7 @@ void MainWindow::optionsUserBook()
     UserBookDialog dialog(m_options.book_path, false, this); // 'false' for readOnly
     if (dialog.exec() == QDialog::Accepted) {
         m_options.book_path = dialog.getSelectedUserBookPath();
-        m_ai->loadUserBook(m_options.book_path); // Inform AI about the new user book
+        m_gameManager->getAi()->loadUserBook(m_options.book_path); // Inform AI about the new user book
         m_gameManager->setOptions(m_options);
         setStatusBarText(QString("User book set to '%1'.").arg(m_options.book_path));
         saveSettings();
@@ -1157,13 +1150,11 @@ void MainWindow::gameSave() {
 void MainWindow::gameAnalyze() {
     qInfo() << "Game Analyze action triggered.";
     if (!m_isAnalyzing) {
-        // Start analysis
-        m_ai->startAnalyzeGame(m_gameManager->getCurrentBoard(), m_gameManager->getCurrentPlayer());
-        m_isAnalyzing = true;
+                m_gameManager->getAi()->startAnalyzeGame(m_gameManager->getCurrentBoard(), m_gameManager->getCurrentPlayer());        m_isAnalyzing = true;
         setStatusBarText("Engine analysis started.");
     } else {
         // Stop analysis
-        m_ai->abortSearch();
+        m_gameManager->getAi()->abortSearch();
         m_isAnalyzing = false;
         setStatusBarText("Engine analysis stopped.");
     }
@@ -1184,7 +1175,7 @@ void MainWindow::gamePaste() {
     QString fen = clipboard->text();
     if (!fen.isEmpty()) {
         m_gameManager->loadFenPosition(fen);
-        setStatusBarText("FEN position loaded from clipboard.");
+        setStatusBarText("FEN bitboard_position loaded from clipboard.");
     } else {
         setStatusBarText("Clipboard is empty or does not contain valid FEN.");
     }
@@ -1223,7 +1214,7 @@ void MainWindow::gameSaveAsHtml() {
     if (!fileName.isEmpty()) {
         QMessageBox::information(this, tr("Save Game as HTML"),
                                  tr("Game saved as HTML to '%1' (functionality not yet fully implemented). "
-                                    "This feature will generate an HTML file containing the game notation and possibly an interactive board.").arg(fileName));
+                                    "This feature will generate an HTML file containing the game notation and bitboard_possibly an interactive board.").arg(fileName));
         setStatusBarText(QString("Saving game as HTML to %1.").arg(fileName));
     } else {
         setStatusBarText("Saving game as HTML cancelled.");
@@ -1275,7 +1266,7 @@ void MainWindow::gameFenFromClipboard() {
                                         "", &ok);
     if (ok && !fen.isEmpty()) {
         m_gameManager->loadFenPosition(fen);
-        setStatusBarText("FEN position loaded from input dialog.");
+        setStatusBarText("FEN bitboard_position loaded from input dialog.");
     } else {
         setStatusBarText("FEN loading cancelled.");
     }
@@ -1295,7 +1286,7 @@ void MainWindow::gameSelectUserBook() {
 }
 void MainWindow::gameReSearch() {
     qInfo() << "Game Re-Search action triggered.";
-    m_ai->requestMove(m_gameManager->getCurrentBoard(),
+    m_gameManager->getAi()->requestMove(m_gameManager->getCurrentBoard(),
                       m_gameManager->getCurrentPlayer(),
                       m_gameManager->getOptions().time_per_move);
     setStatusBarText("Engine re-search initiated.");
@@ -1325,7 +1316,7 @@ void MainWindow::gameLoadPrevious() {
 void MainWindow::gameAnalyzePdn() {
     qInfo() << "Game Analyze PDN action triggered.";
     // Set AI parameters for PDN analysis mode
-    m_ai->startAnalyzePdn(m_gameManager->getCurrentBoard(), m_gameManager->getCurrentPlayer()); // Start the AI PDN analysis
+    m_gameManager->getAi()->startAnalyzePdn(m_gameManager->getCurrentBoard(), m_gameManager->getCurrentPlayer()); // Start the AI PDN analysis
     setStatusBarText("Game Analyze PDN: Analysis started.");
 }
 
@@ -1377,8 +1368,8 @@ void MainWindow::movesComment() {
         setStatusBarText("Add Comment cancelled.");
     }
 }
-void MainWindow::interruptEngine() { m_ai->requestAbort(); }
-void MainWindow::abortEngine() { m_ai->requestAbort(); }
+void MainWindow::interruptEngine() { m_gameManager->getAi()->requestAbort(); }
+void MainWindow::abortEngine() { m_gameManager->getAi()->requestAbort(); }
 void MainWindow::levelExact() {
     qInfo() << "Level Exact action triggered.";
     m_gameManager->setTimeContol(LEVEL_INSTANT, true, false, 0, 0); // Example values
@@ -1469,7 +1460,7 @@ void MainWindow::engineInfinite() {
     qInfo() << "Engine Infinite action triggered.";
     QString reply;
     if (!m_isInfiniteAnalyzing) {
-        if (m_ai->sendCommand("infinite on", reply)) { // Assuming "infinite on" is the correct command
+        if (m_gameManager->getAi()->sendCommand("infinite on", reply)) { // Assuming "infinite on" is the correct command
             m_isInfiniteAnalyzing = true;
             setStatusBarText(QString("Engine infinite analysis enabled. Reply: %1").arg(reply));
         }
@@ -1478,7 +1469,7 @@ void MainWindow::engineInfinite() {
         }
     }
     else {
-        if (m_ai->sendCommand("infinite off", reply)) { // Assuming "infinite off" is the correct command
+        if (m_gameManager->getAi()->sendCommand("infinite off", reply)) { // Assuming "infinite off" is the correct command
             m_isInfiniteAnalyzing = false;
             setStatusBarText(QString("Engine infinite analysis disabled. Reply: %1").arg(reply));
         }

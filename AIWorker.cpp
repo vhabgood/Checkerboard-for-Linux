@@ -1,10 +1,12 @@
 #include "AIWorker.h"
+#include "checkers_types.h"
 #include <QDebug>
 #include <QElapsedTimer>
 #include <random>
 #include <chrono>
 #include <algorithm>
 #include "GeminiAI.h"
+#include "DBManager.h"
 
 extern "C" {
 #include "c_logic.h"
@@ -86,7 +88,7 @@ void AIWorker::requestAbort()
     m_abortRequested.storeRelaxed(1);
 }
 
-void AIWorker::performTask(AI_State task, const Board8x8& board, int color, double maxtime)
+void AIWorker::performTask(AI_State task, const bitboard_pos& board, int color, double maxtime)
 {
     switch(task) {
         case Autoplay:
@@ -99,24 +101,33 @@ void AIWorker::performTask(AI_State task, const Board8x8& board, int color, doub
     }
 }
 
-void AIWorker::searchBestMove(Board8x8 board, int color, double maxtime)
+void AIWorker::searchBestMove(bitboard_pos board, int color, double maxtime)
 {
     m_abortRequested.storeRelaxed(0);
-    m_transpositionTable.clear();
+    m_transbitboard_positionTable.clear();
     QElapsedTimer timer;
     timer.start();
 
     char fen_c[256];
-    board8toFEN(&board, fen_c, color, GT_ENGLISH);
+    bitboard_postoFEN(&board, fen_c, color, GT_ENGLISH);
     qDebug() << "AIWorker::searchBestMove: Starting search for FEN: " << fen_c;
 
     CBmove bestMove = {0};
     int bestValue = LOSS_SCORE;
     int actualSearchDepth = 0;
+    int initial_egdb_score = DB_UNKNOWN; // Declare and initialize here
+    int mtc_score = 0; // Declare mtc_score in a higher scope
 
     CBmove legalMoves[MAXMOVES];
     int nmoves = 0;
     int isjump = 0;
+
+    // --- DEBUG: Log FEN before getting legal moves ---
+    char fen_before_moves[256];
+    bitboard_postoFEN(&board, fen_before_moves, color, GT_ENGLISH);
+    qDebug() << "AIWorker::searchBestMove: Board FEN before get_legal_moves_c:" << fen_before_moves;
+    // --- END DEBUG ---
+
     get_legal_moves_c(&board, color, legalMoves, &nmoves, &isjump, NULL, NULL);
 
     if (nmoves == 0) {
@@ -133,6 +144,59 @@ void AIWorker::searchBestMove(Board8x8 board, int color, double maxtime)
         return;
     }
 
+    // Prioritize captures if they exist
+    if (isjump) {
+        // Filter for only capture moves
+        int capture_count = 0;
+        for (int i = 0; i < nmoves; ++i) {
+            if (legalMoves[i].jumps > 0) {
+                legalMoves[capture_count++] = legalMoves[i];
+            }
+        }
+        nmoves = capture_count;
+    } else {
+        // No captures, check EGDB
+        int piece_count = count_pieces(&board);
+        if (piece_count <= 8 && !isjump) {
+            char fen_for_log[256];
+            bitboard_postoFEN(&board, fen_for_log, color, GT_ENGLISH);
+            char log_msg[512];
+            snprintf(log_msg, sizeof(log_msg), "EGDB LOOKUP: FEN: %s", fen_for_log);
+            log_c(LOG_LEVEL_INFO, log_msg);
+
+            initial_egdb_score = DBManager::instance()->dblookup(&board, color);
+            mtc_score = DBManager::instance()->dblookup_mtc(&board);
+            
+            const char* interpretation = "Unknown";
+            if (initial_egdb_score == DB_WIN) interpretation = "Win";
+            else if (initial_egdb_score == DB_LOSS) interpretation = "Loss";
+            else if (initial_egdb_score == DB_DRAW) interpretation = "Draw";
+            snprintf(log_msg, sizeof(log_msg), "EGDB RESULT: WLD_score=%d (Interpretation: %s), MTC_score=%d", initial_egdb_score, interpretation, mtc_score);
+            log_c(LOG_LEVEL_INFO, log_msg);
+            
+            if (initial_egdb_score == DB_WIN || initial_egdb_score == DB_LOSS || initial_egdb_score == DB_DRAW) {
+                for (int i = 0; i < nmoves; ++i) {
+                    CBmove currentMove = legalMoves[i];
+                    bitboard_pos next_board = board;
+                    domove_c(&currentMove, &next_board);
+                    int next_egdb_score = DBManager::instance()->dblookup(&next_board, (color == CB_WHITE) ? CB_BLACK : CB_WHITE);
+                    
+                    if (initial_egdb_score == DB_WIN && next_egdb_score == DB_LOSS) {
+                        char log_msg[512];
+                        snprintf(log_msg, sizeof(log_msg), "EGDB MOVE: Found winning move: %d-%d", 
+                                 coorstonumber(currentMove.from.x, currentMove.from.y, GT_ENGLISH), 
+                                 coorstonumber(currentMove.to.x, currentMove.to.y, GT_ENGLISH));
+                        log_c(LOG_LEVEL_INFO, log_msg);
+                        
+                        emit searchFinished(true, false, currentMove, "Found winning move via EGDB.", 0, "", timer.elapsed() / 1000.0);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+
     std::sort(legalMoves, legalMoves + nmoves, compareMoves);
     bestMove = legalMoves[0]; 
 
@@ -147,15 +211,14 @@ void AIWorker::searchBestMove(Board8x8 board, int color, double maxtime)
         int currentIterationBestValue = LOSS_SCORE;
         int alpha = LOSS_SCORE;
         int beta = WIN_SCORE;
-
         for (int i = 0; i < nmoves; ++i) {
             const auto& move = legalMoves[i];
             if (m_abortRequested.loadRelaxed()) break;
 
-            Board8x8 nextBoard = board;
+            bitboard_pos nextBoard = board;
             domove_c(&move, &nextBoard);
             
-            int moveValue = -minimax(nextBoard, (color == CB_WHITE) ? CB_BLACK : CB_WHITE, current_depth - 1, -beta, -alpha, nullptr, true, DB_UNKNOWN);
+            int moveValue = -minimax(nextBoard, (color == CB_WHITE) ? CB_BLACK : CB_WHITE, current_depth - 1, -beta, -alpha, nullptr, true, initial_egdb_score, mtc_score);
 
             if (moveValue > currentIterationBestValue) {
                 currentIterationBestValue = moveValue;
@@ -181,49 +244,64 @@ void AIWorker::searchBestMove(Board8x8 board, int color, double maxtime)
 
 // ... (minimax, evaluateBoard, and other helper implementations are identical to GeminiAI's)
 // The following are copied from GeminiAI.cpp and adapted for AIWorker
-int AIWorker::evaluateBoard(const Board8x8& board, int colorToMove, int egdb_context) {
+int AIWorker::evaluateBoard(const bitboard_pos& board, int colorToMove, int egdb_context) {
+    // If EGDB context is available and definitive, use it directly
+    if (egdb_context == DB_WIN) {
+        return WIN_SCORE - 1; // Return a score just below the absolute max for WIN
+    }
+    if (egdb_context == DB_LOSS) {
+        return LOSS_SCORE + 1; // Return a score just above the absolute min for LOSS
+    }
+    if (egdb_context == DB_DRAW) {
+        // For a draw, the heuristic evaluation can still be useful to find a "better" draw
+        // or one that puts more pressure, so we let the rest of the function run.
+        // We could return 0 here, but it would remove subtlety.
+    }
+
     int score = 0;
     int white_pieces = 0;
     int black_pieces = 0;
 
     // 1. Material and Positional Score
-    for (int r = 0; r < 8; ++r) {
-        for (int c = 0; c < 8; ++c) {
-            int piece = board.board[r][c];
-            if (piece == CB_EMPTY) continue;
+    for (int bit_bitboard_pos = 0; bit_bitboard_pos < 32; ++bit_bitboard_pos) {
+        int piece = get_piece(&board, bit_bitboard_pos);
+        if (piece == CB_EMPTY) continue;
 
-            int piece_color = (piece & CB_WHITE) ? CB_WHITE : CB_BLACK;
-            bool is_king = (piece & CB_KING);
-            int piece_value = is_king ? KING_VALUE : MAN_VALUE;
+        int coor_x, coor_y;
+        numbertocoors(bit_bitboard_pos + 1, &coor_x, &coor_y, GT_ENGLISH); // Get 0-indexed x,y for PST lookup
 
-            if (piece_color == CB_WHITE) {
-                score += piece_value;
-                score += is_king ? whiteKingPST[r][c] : whiteManPST[r][c];
-                white_pieces++;
-            } else {
-                score -= piece_value;
-                score -= is_king ? blackKingPST[r][c] : blackManPST[r][c];
-                black_pieces++;
-            }
+        int piece_color = (piece & CB_WHITE) ? CB_WHITE : CB_BLACK;
+        bool is_king = (piece & CB_KING);
+        int piece_value = is_king ? KING_VALUE : MAN_VALUE;
+
+        if (piece_color == CB_WHITE) {
+            score += piece_value;
+            score += is_king ? whiteKingPST[coor_y][coor_x] : whiteManPST[coor_y][coor_x];
+            white_pieces++;
+        } else {
+            score -= piece_value;
+            score -= is_king ? blackKingPST[coor_y][coor_x] : blackManPST[coor_y][coor_x];
+            black_pieces++;
         }
     }
 
     // 2. Threat Assessment
-    for (int r = 0; r < 8; ++r) {
-        for (int c = 0; c < 8; ++c) {
-            int piece = board.board[r][c];
-            if (piece == CB_EMPTY) continue;
+    for (int bit_bitboard_pos = 0; bit_bitboard_pos < 32; ++bit_bitboard_pos) {
+        int piece = get_piece(&board, bit_bitboard_pos);
+        if (piece == CB_EMPTY) continue;
 
-            int piece_color = (piece & CB_WHITE) ? CB_WHITE : CB_BLACK;
-            int opponent_color = (piece_color == CB_WHITE) ? CB_BLACK : CB_WHITE;
+        int coor_x, coor_y;
+        numbertocoors(bit_bitboard_pos + 1, &coor_x, &coor_y, GT_ENGLISH);
 
-            if (isSquareAttacked(board, r, c, opponent_color)) {
-                int piece_value = (piece & CB_KING) ? KING_VALUE : MAN_VALUE;
-                if (piece_color == CB_WHITE) {
-                    score -= piece_value / 2; // Penalize white piece being attacked
-                } else {
-                    score += piece_value / 2; // Bonus for black piece being attacked (from white's perspective)
-                }
+        int piece_color = (piece & CB_WHITE) ? CB_WHITE : CB_BLACK;
+        int opponent_color = (piece_color == CB_WHITE) ? CB_BLACK : CB_WHITE;
+
+        if (isSquareAttacked(board, coor_y, coor_x, opponent_color)) {
+            int piece_value = (piece & CB_KING) ? KING_VALUE : MAN_VALUE;
+            if (piece_color == CB_WHITE) {
+                score -= piece_value / 2; // Penalize white piece being attacked
+            } else {
+                score += piece_value / 2; // Bonus for black piece being attacked (from white's perspective)
             }
         }
     }
@@ -252,15 +330,15 @@ int AIWorker::evaluateBoard(const Board8x8& board, int colorToMove, int egdb_con
 }
 
 
-int AIWorker::minimax(Board8x8 board, int color, int depth, int alpha, int beta, CBmove *bestMove, bool allowNull, int egdb_context)
+int AIWorker::minimax(bitboard_pos board, int color, int depth, int alpha, int beta, CBmove *bestMove, bool allowNull, int egdb_context, int mtc_score)
 {
     if (m_abortRequested.loadRelaxed()) {
         return 0;
     }
 
     uint64_t currentKey = generateZobristKey(board, color);
-    if (m_transpositionTable.count(currentKey)) {
-        const TTEntry& entry = m_transpositionTable.at(currentKey);
+    if (m_transbitboard_positionTable.count(currentKey)) {
+        const TTEntry& entry = m_transbitboard_positionTable.at(currentKey);
         if (entry.depth >= depth) {
             if (entry.type == TTEntry::EXACT) return entry.score;
             if (entry.type == TTEntry::ALPHA && entry.score <= alpha) return alpha;
@@ -268,8 +346,22 @@ int AIWorker::minimax(Board8x8 board, int color, int depth, int alpha, int beta,
         }
     }
 
+    // Check MTC score from Endgame Database (MTC)
+    if (mtc_score != MTC_UNKNOWN_VALUE) {
+        if (mtc_score > 0 && mtc_score <= MTC_MAX_MOVES_TO_CONSIDER) {
+            // This is a forced win for the current player, with 'mtc_score' moves to convert.
+            // A smaller mtc_score means a quicker win, so a higher evaluation.
+            // We scale this to fit within our score range, and ensure it beats regular search but isn't max WIN_SCORE
+            return MTC_WIN_VALUE_BASE - mtc_score;
+        } 
+        // If mtc_score indicates a loss for the current side (e.g., opponent wins in N moves, MTC value could be negative or
+        // represent a win for the other side when viewed from the current side's perspective)
+        // For simplicity with current dblookup_mtc that returns 0 for unknown/loss, we might handle losses differently or rely on WLD.
+        // Assuming positive mtc_score means current player to move wins.
+    }
+
     if (depth == 0) {
-        return quiescenceSearch(board, color, alpha, beta, egdb_context);
+        return quiescenceSearch(board, color, alpha, beta, egdb_context, mtc_score);
     }
 
     CBmove legalMoves[MAXMOVES];
@@ -297,10 +389,10 @@ int AIWorker::minimax(Board8x8 board, int color, int depth, int alpha, int beta,
 
     for (int i=0; i<nmoves; ++i) {
         const auto& move = legalMoves[i];
-        Board8x8 newBoard = board;
+        bitboard_pos newBoard = board;
         domove_c(&move, &newBoard);
         
-        int eval = -minimax(newBoard, (color == CB_WHITE) ? CB_BLACK : CB_WHITE, depth - 1, -beta, -alpha, nullptr, true, egdb_context);
+        int eval = -minimax(newBoard, (color == CB_WHITE) ? CB_BLACK : CB_WHITE, depth - 1, -beta, -alpha, nullptr, true, egdb_context, mtc_score);
 
         if (eval > bestEval) {
             bestEval = eval;
@@ -319,19 +411,25 @@ int AIWorker::minimax(Board8x8 board, int color, int depth, int alpha, int beta,
                 m_historyTable[move.from.y][move.from.x][move.to.y][move.to.x] += depth * depth;
             }
             TTEntry newEntry {currentKey, depth, beta, TTEntry::BETA, move};
-            m_transpositionTable[currentKey] = newEntry;
+            m_transbitboard_positionTable[currentKey] = newEntry;
             return beta;
         }
     }
 
     TTEntry newEntry {currentKey, depth, bestEval, type, currentBestMove};
-    m_transpositionTable[currentKey] = newEntry;
+    m_transbitboard_positionTable[currentKey] = newEntry;
 
     return bestEval;
 }
 
-int AIWorker::quiescenceSearch(Board8x8 board, int color, int alpha, int beta, int egdb_context)
+int AIWorker::quiescenceSearch(bitboard_pos board, int color, int alpha, int beta, int egdb_context, int mtc_score)
 {
+    // Check MTC score from Endgame Database (MTC)
+    if (mtc_score != MTC_UNKNOWN_VALUE) {
+        if (mtc_score > 0 && mtc_score <= MTC_MAX_MOVES_TO_CONSIDER) {
+            return MTC_WIN_VALUE_BASE - mtc_score;
+        }
+    }
     int standPat = evaluateBoard(board, color, egdb_context);
 
     if (standPat >= beta) {
@@ -352,10 +450,10 @@ int AIWorker::quiescenceSearch(Board8x8 board, int color, int alpha, int beta, i
 
     for (int i = 0; i < nmoves; ++i) {
         if (legalMoves[i].is_capture) {
-            Board8x8 newBoard = board;
+            bitboard_pos newBoard = board;
             domove_c(&legalMoves[i], &newBoard);
 
-            int score = -quiescenceSearch(newBoard, (color == CB_WHITE) ? CB_BLACK : CB_WHITE, -beta, -alpha, egdb_context);
+            int score = -quiescenceSearch(newBoard, (color == CB_WHITE) ? CB_BLACK : CB_WHITE, -beta, -alpha, egdb_context, mtc_score);
 
             if (score >= beta) {
                 return beta;
@@ -368,10 +466,14 @@ int AIWorker::quiescenceSearch(Board8x8 board, int color, int alpha, int beta, i
     return alpha;
 }
 
-bool AIWorker::isSquareAttacked(const Board8x8& board, int r, int c, int attackerColor)
+bool AIWorker::isSquareAttacked(const bitboard_pos& board, int r, int c, int attackerColor)
 {
     int dr[] = {-1, -1, 1, 1};
     int dc[] = {-1, 1, -1, 1};
+
+    // Square numbers for (r,c) and potential attackers/landing squares
+    int target_square_num = coorstonumber(c, r, GT_ENGLISH);
+    if (target_square_num == 0) return false; // Light square, cannot be attacked by checkers
 
     for (int i = 0; i < 4; ++i) {
         int attacker_r = r - dr[i];
@@ -379,30 +481,40 @@ bool AIWorker::isSquareAttacked(const Board8x8& board, int r, int c, int attacke
         int landing_r = r + dr[i];
         int landing_c = c + dc[i];
 
+        // Check for direct attacks by men (one square away)
+        if (attacker_r >= 0 && attacker_r < 8 && attacker_c >= 0 && attacker_c < 8) {
+            int attacker_square_num = coorstonumber(attacker_c, attacker_r, GT_ENGLISH);
+            if (attacker_square_num != 0) {
+                int attacker_piece = get_piece(&board, attacker_square_num - 1);
+                if ((attacker_piece & attackerColor)) {
+                    if (attacker_piece & CB_KING) return true; // King attacks in all directions
+                    
+                    // Man attacks only forward
+                    if (attackerColor == CB_WHITE && dr[i] == 1) return true; // White man attacks forward (dr=1, increasing row)
+                    if (attackerColor == CB_BLACK && dr[i] == -1) return true; // Black man attacks forward (dr=-1, decreasing row)
+                }
+            }
+        }
+
+        // Check for capture threats (two squares away)
         if (attacker_r >= 0 && attacker_r < 8 && attacker_c >= 0 && attacker_c < 8 &&
             landing_r >= 0 && landing_r < 8 && landing_c >= 0 && landing_c < 8)
         {
-            int attacker_piece = board.board[attacker_r][attacker_c];
-            if (board.board[landing_r][landing_c] == CB_EMPTY && (attacker_piece & attackerColor)) {
+            int attacker_square_num = coorstonumber(attacker_c, attacker_r, GT_ENGLISH);
+            int landing_square_num = coorstonumber(landing_c, landing_c, GT_ENGLISH); // This seems wrong
+            
+            if (attacker_square_num == 0 || landing_square_num == 0) continue;
+
+            int attacker_piece = get_piece(&board, attacker_square_num - 1);
+            int landing_piece = get_piece(&board, landing_square_num - 1);
+
+            if ((attacker_piece & attackerColor) && landing_piece == CB_EMPTY) { // Attacker behind, empty square beyond
                 if (attacker_piece & CB_KING) return true;
-                if (attackerColor == CB_WHITE && landing_r > attacker_r) return true;
-                if (attackerColor == CB_BLACK && landing_r < attacker_r) return true;
+                 if (attackerColor == CB_WHITE && dr[i] == 1) return true;
+                 if (attackerColor == CB_BLACK && dr[i] == -1) return true;
             }
         }
     }
-
-    int forward = (attackerColor == CB_BLACK) ? 1 : -1;
-    for(int i = 2; i<4; ++i) {
-         int threatening_r = r + forward;
-         int threatening_c = c + dc[i];
-         if(threatening_r >= 0 && threatening_r < 8 && threatening_c >= 0 && threatening_c < 8) {
-             int threatening_piece = board.board[threatening_r][threatening_c];
-             if((threatening_piece & attackerColor) && !(threatening_piece & CB_KING)) {
-                 return true;
-             }
-         }
-    }
-
     return false;
 }
 
@@ -414,20 +526,22 @@ bool AIWorker::compareMoves(const CBmove& a, const CBmove& b)
     return false;
 }
 
-uint64_t AIWorker::generateZobristKey(const Board8x8& board, int colorToMove)
+uint64_t AIWorker::generateZobristKey(const bitboard_pos& board, int colorToMove)
 {
     uint64_t hash = 0;
-    for (int r = 0; r < 8; ++r) {
-        for (int c = 0; c < 8; ++c) {
-            int piece = board.board[r][c];
-            int pieceType = 0;
+    for (int bit_bitboard_pos = 0; bit_bitboard_pos < 32; ++bit_bitboard_pos) {
+        int piece = get_piece(&board, bit_bitboard_pos);
+        int coor_x, coor_y;
+        numbertocoors(bit_bitboard_pos + 1, &coor_x, &coor_y, GT_ENGLISH); // Get 0-indexed x,y for ZobristTable lookup
 
-            if (piece == (CB_WHITE | CB_MAN)) pieceType = 1;
-            else if (piece == (CB_WHITE | CB_KING)) pieceType = 2;
-            else if (piece == (CB_BLACK | CB_MAN)) pieceType = 3;
-            else if (piece == (CB_BLACK | CB_KING)) pieceType = 4;
+        int pieceType = 0;
+        if (piece == (CB_WHITE | CB_MAN)) pieceType = 1;
+        else if (piece == (CB_WHITE | CB_KING)) pieceType = 2;
+        else if (piece == (CB_BLACK | CB_MAN)) pieceType = 3;
+        else if (piece == (CB_BLACK | CB_KING)) pieceType = 4;
 
-            hash ^= ZobristTable[r][c][pieceType];
+        if (pieceType != 0) {
+            hash ^= ZobristTable[coor_y][coor_x][pieceType];
         }
     }
 

@@ -6,10 +6,8 @@
 #include <QAtomicInt>
 
 #define MAX_DEPTH 20
-#define WIN_SCORE 100000
-#define LOSS_SCORE -100000
 
-// Transposition Table Entry
+// Transbitboard_position Table Entry
 struct TTEntry {
     uint64_t key;
     int depth;
@@ -27,7 +25,7 @@ public:
     ~AIWorker();
 
 public slots:
-    void performTask(AI_State task, const Board8x8& board, int color, double maxtime);
+    void performTask(AI_State task, const bitboard_pos& board, int color, double maxtime);
     void requestAbort();
 
 signals:
@@ -35,17 +33,17 @@ signals:
     void evaluationReady(int score, int depth);
 
 private:
-    void searchBestMove(Board8x8 board, int color, double maxtime);
-    int evaluateBoard(const Board8x8& board, int color, int egdb_context);
-    int minimax(Board8x8 board, int color, int depth, int alpha, int beta, CBmove *bestMove, bool allowNull, int egdb_context);
-    int quiescenceSearch(Board8x8 board, int color, int alpha, int beta, int egdb_context);
-    bool isSquareAttacked(const Board8x8& board, int r, int c, int attackerColor);
+    void searchBestMove(bitboard_pos board, int color, double maxtime);
+    int evaluateBoard(const bitboard_pos& board, int color, int egdb_context);
+    int minimax(bitboard_pos board, int color, int depth, int alpha, int beta, CBmove* bestMove, bool allowNull, int egdb_context, int mtc_score);
+    int quiescenceSearch(bitboard_pos board, int color, int alpha, int beta, int egdb_context, int mtc_score);
+    bool isSquareAttacked(const bitboard_pos& board, int r, int c, int attackerColor);
     static bool compareMoves(const CBmove& a, const CBmove& b);
-    uint64_t generateZobristKey(const Board8x8& board, int colorToMove);
+    uint64_t generateZobristKey(const bitboard_pos& board, int colorToMove);
     static void initZobristKeys();
 
     QAtomicInt m_abortRequested;
-    std::unordered_map<uint64_t, TTEntry> m_transpositionTable;
+    std::unordered_map<uint64_t, TTEntry> m_transbitboard_positionTable;
     CBmove m_killerMoves[MAX_DEPTH][2];
     int m_historyTable[8][8][8][8];
     int m_lastEvaluationScore;

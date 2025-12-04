@@ -15,11 +15,8 @@ moc_*.o
 ui_*.h
 
 # Log files and temporary output
-app_output.log
-c_compile_error.log
-c_logic.log
-cpp_compile_error.log
-
+*.log
+*.txt
 # Qt resource files
 qrc_*.cpp
 qrc_*.h
@@ -32,8 +29,5 @@ forTestingOnly/
 
 # Other generated files
 resources.cpp
-OLD/OUTPUT.txt
-app.txt
-CRASH_OUTPUT.txt
-gdb_output.txt
-OLD/CRASH_OUTPUT.txt
+OLD/*
+/db/*

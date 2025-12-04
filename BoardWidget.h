@@ -1,8 +1,6 @@
 #pragma once
 
 #include <QWidget>
-#include <QPixmap>
-#include <QMap>
 #include "checkers_types.h"
 
 class BoardWidget : public QWidget
@@ -11,55 +9,62 @@ class BoardWidget : public QWidget
 
 public:
     explicit BoardWidget(QWidget *parent = nullptr);
-    ~BoardWidget();
+    ~BoardWidget(); // Add destructor declaration
+    void setBoard(const bitboard_pos& board);
+    void updatePiece(int square, int piece);
+    void clearHighlights();
+    void highlightSquare(int square, const QColor& color);
 
-    void setBoard(const Board8x8& board);
-    void setInverted(bool inverted);
-    void setShowCoordinates(bool show);
-    void setSetupPieceType(int pieceType);
-    void setTogglePieceColorMode(bool toggle);
-    void setPieceSet(const QString& pieceSet);
-    void setMirror(bool mirrored);
-    void setHighlight(bool highlight);
-
-    QColor getCoordinateColor() const { return m_coordinateColor; }
-    void setCoordinateColor(const QColor& color) { m_coordinateColor = color; update(); }
-
-    QColor getHighlightColor() const { return m_highlightColor; }
-    void setHighlightColor(const QColor& color) { m_highlightColor = color; update(); }
-
-    int getSetupPieceType() const { return m_currentSetupPieceType; }
-    bool isTogglePieceColorMode() const { return m_isTogglePieceColorMode; }
-
-public slots:
+    // New functions for piece selection
     void setSelectedPiece(int x, int y);
     void clearSelectedPiece();
+
+    // New setters for configuration and display
+    void setHighlight(bool highlight);
+    void setInverted(bool inverted);
+    void setShowCoordinates(bool show);
+    void setMirror(bool mirrored);
+
+    // New setters for setup mode
+    void setSetupPieceType(int pieceType);
+    void setTogglePieceColorMode(bool toggle);
+
+    // New setter for piece set
+    void setPieceSet(const QString& pieceSet);
+
+signals:
+    void squareClicked(int x, int y); // Modified to emit x and y coordinates
 
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
 
 private:
-    Board8x8 m_board;
-    QMap<int, QPixmap> m_piecePixmaps;
-    int m_squareSize;
-    bool m_inverted; // New member to store inversion state
-    bool m_showCoordinates; // New member to store coordinate display state
-    QColor m_coordinateColor; // Color for board coordinates
-    QColor m_highlightColor;  // Color for highlighting moves/pieces
-    int m_selectedX; // X-coordinate of the selected piece
-    int m_selectedY; // Y-coordinate of the selected piece
-    bool m_pieceSelected; // Flag to indicate if a piece is selected
-    int m_currentSetupPieceType; // Stores the currently selected piece type for setup mode
-    bool m_isTogglePieceColorMode; // New member to track if in toggle piece color mode
-    QString m_pieceSet; // New member to store the current piece set
-    bool m_mirrored; // New member to store mirroring state
-    bool m_highlight; // New member to store highlight state
-
     void loadPiecePixmaps();
     QPoint boardToScreen(int x, int y) const;
     QPoint screenToBoard(const QPoint& screenPos) const;
+    // Board state
+    bitboard_pos m_board;
+    QVector<QColor> m_highlights; // For highlighting squares
 
-signals:
-    void squareClicked(int x, int y);
+    // Configuration and display
+    int m_squareSize;
+    bool m_inverted;
+    bool m_showCoordinates;
+    bool m_mirrored;
+    bool m_highlight; // Global highlight toggle
+
+    QColor m_coordinateColor;
+    QColor m_highlightColor;
+
+    // Piece drawing
+    QMap<int, QPixmap> m_piecePixmaps; // Stores pixmaps for different piece types
+    QString m_pieceSet; // Current piece set being used (e.g., "standard", "marble")
+
+    // Selection and setup mode
+    int m_selectedX;
+    int m_selectedY;
+    bool m_pieceSelected;
+    int m_currentSetupPieceType; // Used in setup mode
+    bool m_isTogglePieceColorMode; // Used in setup mode
 };

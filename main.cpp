@@ -5,15 +5,19 @@
 #include <QSharedMemory>
 #include "checkers_types.h" // Include the new Qt-specific types header
 #include <QMetaType>
-#include "ai_state.h"
-
 #include <QDebug>
 #include <QTimer>
 #include "log.h"
 #include <cstdio>
+#include "DBManager.h"
+#include "core_types.h" // Include core_types.h for global extern declarations
+
+// Extern declarations for global variables
+extern uint32_t g_programStatusWord;
+extern int g_num_egdb_pieces;
 
 // Global program status word definition
-uint32_t g_programStatusWord = 0;
+
 
 void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
@@ -28,20 +32,19 @@ int main(int argc, char *argv[])
 {
     qRegisterMetaType<AI_State>("AI_State");
 
-    g_programStatusWord |= STATUS_APP_START;
+    updateProgramStatusWord(STATUS_APP_START);
+
+    QApplication a(argc, argv);
 
     // Set application name for QStandardPaths
     QCoreApplication::setApplicationName("CheckerBoard");
-    // init_logging();
-    // qInstallMessageHandler(messageHandler);
-
-    QApplication a(argc, argv);
 
     qRegisterMetaType<Board8x8>();
 
     qRegisterMetaType<CBmove>();
 
     qRegisterMetaType<CBoptions>("CBoptions");
+    qRegisterMetaType<AppState>("AppState");
 
     qDebug() << "Application started.";
 
@@ -50,14 +53,17 @@ int main(int argc, char *argv[])
     sharedMemory.setKey("CheckerBoardAppKey");
 
     if (sharedMemory.attach()) {
+        // Detach from the stale segment to allow the next run to succeed.
+        sharedMemory.detach();
         QMessageBox::warning(nullptr, "Application Already Running", "Another instance of CheckerBoard is already running.");
         return 1;
     }
 
     if (!sharedMemory.create(1)) {
-        // This case should ideally not be reached if attach() failed, but for robustness
+        // This case can be reached if another instance was created between the attach() call and this create() call.
+        sharedMemory.detach();
         QMessageBox::critical(nullptr, "Error", "Could not create shared memory segment.");
-        g_programStatusWord |= STATUS_CRITICAL_ERROR; // Set status flag for critical error
+        updateProgramStatusWord(STATUS_CRITICAL_ERROR); // Set status flag for critical error
         return 1;
     }
 
@@ -65,9 +71,10 @@ int main(int argc, char *argv[])
 
     GameManager gameManager;
 
-    MainWindow w(&gameManager);
+    MainWindow *w = new MainWindow(&gameManager);
+    w->setAttribute(Qt::WA_DeleteOnClose); // Ensure the window is deleted when closed
 
-    w.show();
+    w->show();
 
     int result = a.exec();
 
@@ -77,9 +84,10 @@ int main(int argc, char *argv[])
 
     qDebug() << "Application finished.";
 
-    fprintf(stdout, "Program Status Word: 0x%08X\n", g_programStatusWord);
-    fprintf(stderr, "Program Status Word: 0x%08X\n", g_programStatusWord);
+    fprintf(stdout, "Program Status Word: 0x%08X\n", getProgramStatusWord());
+    fprintf(stderr, "Program Status Word: 0x%08X\n", getProgramStatusWord());
 
+    delete DBManager::instance();
     // close_logging();
     return result;
 }

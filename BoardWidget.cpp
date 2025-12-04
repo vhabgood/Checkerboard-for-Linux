@@ -4,6 +4,7 @@
 #include <QPainter>
 #include <QMouseEvent>
 #include <QDir>
+#include "log.h"
 
 extern "C" {
 #include "c_logic.h"
@@ -12,22 +13,23 @@ extern "C" {
 
 #include "GameManager.h"
 
-BoardWidget::BoardWidget(QWidget *parent) : QWidget(parent),
-    m_squareSize(60), // Default square size
-    m_inverted(false),
-    m_showCoordinates(true),
-    m_coordinateColor(Qt::blue),
-    m_highlightColor(Qt::yellow),
-    m_selectedX(-1),
-    m_selectedY(-1),
-    m_pieceSelected(false),
-    m_currentSetupPieceType(CB_EMPTY),
-    m_isTogglePieceColorMode(false),
-    m_pieceSet("standard"), // Initialize with a default piece set
-    m_mirrored(false), // Initialize mirroring state
-    m_highlight(true) // Initialize highlight state
+BoardWidget::BoardWidget(QWidget *parent) : QWidget(parent)
 {
-    setFixedSize(400, 400);
+    m_squareSize = 60;
+    m_inverted = false;
+    m_showCoordinates = true;
+    m_coordinateColor = Qt::blue;
+    m_highlightColor = Qt::yellow;
+    m_selectedX = -1;
+    m_selectedY = -1;
+    m_pieceSelected = false;
+    m_currentSetupPieceType = CB_EMPTY;
+    m_isTogglePieceColorMode = false;
+    m_pieceSet = "standard";
+    m_mirrored = false;
+    m_highlight = true;
+    m_piecePixmaps = QMap<int, QPixmap>();
+
     setFixedSize(8 * m_squareSize, 8 * m_squareSize);
     loadPiecePixmaps();
 }
@@ -58,14 +60,10 @@ void BoardWidget::clearSelectedPiece() {
     update();
 }
 
-void BoardWidget::setBoard(const Board8x8& board)
+void BoardWidget::setBoard(const bitboard_pos& board)
 {
     // qDebug() << "BoardWidget::setBoard called";
-    for (int r = 0; r < 8; ++r) {
-        for (int c = 0; c < 8; ++c) {
-            m_board.board[r][c] = board.board[r][c];
-        }
-    }
+    m_board = board;
     update(); // Request a repaint
 }
 
@@ -96,7 +94,7 @@ void BoardWidget::paintEvent(QPaintEvent *event)
             int logicalRow = r;
             int logicalCol = c;
 
-            // Get the screen position for the logical coordinates
+            // Get the screen bitboard_position for the logical coordinates
             QPoint screenPos = boardToScreen(logicalCol, logicalRow);
 
             // Draw square
@@ -114,9 +112,12 @@ void BoardWidget::paintEvent(QPaintEvent *event)
             }
 
             // Draw piece if present
-            int piece = m_board.board[r][c]; // Use original r, c for piece lookup
-            if (piece != CB_EMPTY && m_piecePixmaps.contains(piece)) {
-                painter.drawPixmap(screenPos.x(), screenPos.y(), m_piecePixmaps.value(piece));
+            int square_num = coorstonumber(c, r, GT_ENGLISH); // Get 1-indexed square number
+            if (square_num != 0) { // Only dark squares have pieces
+                int piece = get_piece(&m_board, square_num - 1); // Get piece from bitboard (0-indexed)
+                if (piece != CB_EMPTY && m_piecePixmaps.contains(piece)) {
+                    painter.drawPixmap(screenPos.x(), screenPos.y(), m_piecePixmaps.value(piece));
+                }
             }
 
             // Draw coordinates if enabled

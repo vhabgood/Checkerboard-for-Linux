@@ -6,9 +6,7 @@
 #include <QMutex>
 #include <QTimer>
 #include "checkers_types.h"
-
-
-
+#include "GeminiAI.h"
 
 class GameManager : public QObject
 {
@@ -47,6 +45,8 @@ public:
     void handleSquareClick(int x, int y);
     void loadPdnGame(const QString &filename);
     void resumePlay();
+    GeminiAI* getAi() { return m_ai; }
+    void onMoveSelected(const CBmove& move);
 
 
 
@@ -77,8 +77,8 @@ public:
     void subtractFromClock(int seconds);
 
     // Public getters for AI to access game state
-    Board8x8 getCurrentBoard() const;
-    void setCurrentBoard(const Board8x8& board);
+    bitboard_pos getCurrentBoard() const;
+    void setCurrentBoard(const bitboard_pos& board);
     int getCurrentPlayer() const;
     void setCurrentColorToMove(int color);
     int getHalfMoveCount() const;
@@ -93,26 +93,29 @@ public slots:
 
 signals:
     // Signals to communicate with the GUI (e.g., update board, display message)
-    void boardUpdated(const Board8x8& board);
+    void boardUpdated(const bitboard_pos& board);
     void gameMessage(const QString& message);
     void gameIsOver(int result);
-    void requestEngineSearch(const Board8x8& board, int colorToMove, double timeLimit);
+    void requestEngineSearch(const bitboard_pos& board, int colorToMove, double timeLimit);
     void pieceSelected(int x, int y);
     void pieceDeselected();
     void humanTurn();
     void evaluationUpdated(int score, int depth); // New signal to emit evaluation score and depth
     void updateClockDisplay(double whiteTime, double blackTime); // New signal to update clock display
     void sendEngineCommand(const QString& command); // Corrected signal signature
+    void userInputRequested();
+    void aiThinking(bool thinking);
+    void requestClearSelectedPiece();
 
 private:
     void reconstructBoardState(int move_index);
-    Board8x8 m_currentBoard;
+    bitboard_pos m_currentBoard;
     int m_currentColorToMove;
     PdnGameWrapper m_currentPdnGame;
     bool m_pieceSelected;
     int m_selectedX;
     int m_selectedY;
-    QList<QString> m_boardHistory; // Stores FEN strings of past board positions for draw detection
+    QList<QString> m_boardHistory; // Stores FEN strings of past board bitboard_positions for draw detection
     CBmove m_lastMove; // Stores the last move made
     bool m_forcedCapturePending;
     int m_engineColor; // Added to store the AI's color
@@ -121,4 +124,15 @@ private:
     double m_blackTime;
     int m_halfMoveCount; // New member for 50-move rule
     QTimer *m_gameTimer; // New member for game timer
+    GeminiAI* m_ai;
+
+    // Missing members
+    PlayerType m_whitePlayer;
+    PlayerType m_blackPlayer;
+    bool m_isGameOver;
+    bool m_isAITurn;
+
+    // Missing methods
+    void switchPlayer();
+    void requestAiMove();
 };

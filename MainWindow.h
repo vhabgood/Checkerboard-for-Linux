@@ -21,12 +21,9 @@
 
 
 
+#include "checkers_types.h"
 #include "GameManager.h"
 #include "BoardWidget.h"
-
-#include "Dialogs.h"
-
-#include "checkers_types.h"
 
 
 
@@ -62,6 +59,7 @@ public slots:
     void updateEvaluationDisplay(int score, int depth); 
 
 private slots: 
+    void handleClearSelectedPiece();
 
 
     // --- Menu Actions --- 
@@ -178,7 +176,7 @@ private slots:
     // --- End Menu Actions --- 
 
     // Game Logic Slots 
-    void handleBoardUpdated(const Board8x8& board); 
+    void handleBoardUpdated(const bitboard_pos& board); 
     void handleGameMessage(const QString& message); 
     void handleGameOver(int result); 
 
@@ -191,6 +189,7 @@ signals:
 
 private slots:
     void onAppStateChangeRequested(AppState newState);
+    void updateUiForState();
 
 private:
     // Setup Methods
@@ -202,8 +201,7 @@ private:
     GameManager *m_gameManager; 
 
     // AI Management 
-    GeminiAI *m_ai; 
-    QThread *m_aiThread; 
+
 
 
 

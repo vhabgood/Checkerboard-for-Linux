@@ -12,11 +12,7 @@ do_clean() {
     rm -f "${RESOURCE_FILES_DIR}"/resources.cpp
     rm -f "${RESOURCE_FILES_DIR}"/resources.o
     rm -f "${PROJECT_ROOT}"/checkerboard_app
-    rm -f "${RESOURCE_FILES_DIR}"/GameDatabaseDialog.cpp
-    rm -f "${RESOURCE_FILES_DIR}"/GameDatabaseDialog.h
-    rm -f "${RESOURCE_FILES_DIR}"/GameDatabaseDialog.o
-    rm -f "${RESOURCE_FILES_DIR}"/moc_GameDatabaseDialog.cpp
-    rm -f "${RESOURCE_FILES_DIR}"/moc_GameDatabaseDialog.o
+
     # Explicitly remove test-related moc files
     rm -f "${RESOURCE_FILES_DIR}"/moc_GameManager_test.cpp
     rm -f "${RESOURCE_FILES_DIR}"/moc_GameManager_test.o
@@ -29,12 +25,7 @@ do_clean() {
 PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 RESOURCE_FILES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Explicitly remove GameDatabaseDialog files before building
-rm -f "${RESOURCE_FILES_DIR}/GameDatabaseDialog.cpp"
-rm -f "${RESOURCE_FILES_DIR}/GameDatabaseDialog.h"
-rm -f "${RESOURCE_FILES_DIR}/GameDatabaseDialog.o"
-rm -f "${RESOURCE_FILES_DIR}/moc_GameDatabaseDialog.cpp"
-rm -f "${RESOURCE_FILES_DIR}/moc_GameDatabaseDialog.o"
+
 
 if [ "$1" == "clean" ]; then
     do_clean
@@ -64,10 +55,19 @@ INCLUDE_DIRS=(
 INCLUDE_FLAGS="$(printf -- "-I%s " "${INCLUDE_DIRS[@]}")"
 
 # All source files for the main application
-APP_SRCS=("${RESOURCE_FILES_DIR}/main.cpp" "${RESOURCE_FILES_DIR}/MainWindow.cpp" "${RESOURCE_FILES_DIR}/GameManager.cpp" "${RESOURCE_FILES_DIR}/c_logic.cpp" "${RESOURCE_FILES_DIR}/DBManager.cpp" "${RESOURCE_FILES_DIR}/BoardWidget.cpp" "${RESOURCE_FILES_DIR}/engine_wrapper.cpp" "${RESOURCE_FILES_DIR}/Dialogs.cpp" "${RESOURCE_FILES_DIR}/GeminiAI.cpp" "${RESOURCE_FILES_DIR}/AIWorker.cpp" "${RESOURCE_FILES_DIR}/log.cpp")
+APP_SRCS=("${RESOURCE_FILES_DIR}/main.cpp" "${RESOURCE_FILES_DIR}/MainWindow.cpp" "${RESOURCE_FILES_DIR}/GameManager.cpp" "${RESOURCE_FILES_DIR}/c_logic.cpp" "${RESOURCE_FILES_DIR}/DBManager.cpp" "${RESOURCE_FILES_DIR}/BoardWidget.cpp" "${RESOURCE_FILES_DIR}/engine_wrapper.cpp" "${RESOURCE_FILES_DIR}/Dialogs.cpp" "${RESOURCE_FILES_DIR}/GeminiAI.cpp" "${RESOURCE_FILES_DIR}/AIWorker.cpp" "${RESOURCE_FILES_DIR}/log.cpp" "${RESOURCE_FILES_DIR}/core_types.cpp")
 
 # Object files for the main application
 APP_OBJS=()
+
+# Handle Qt UI Files
+echo 'Running uic on UI files...'
+for ui_file in "${RESOURCE_FILES_DIR}"/*.ui; do
+    base_name=$(basename "${ui_file}" .ui)
+    ui_header_file="${RESOURCE_FILES_DIR}/ui_${base_name}.h"
+    echo "Running uic on ${base_name}.ui..."
+    uic "${ui_file}" -o "${ui_header_file}"
+done
 
 # Generate moc files
 APP_MOC_OBJS=() 
@@ -86,20 +86,11 @@ for header_file in "${RESOURCE_FILES_DIR}"/*.h; do
         echo "Running moc on ${base_name}.h..."
         moc "${header_file}" -o "${moc_cpp_file}" ${INCLUDE_FLAGS}
         echo "Compiling ${moc_cpp_file}..."
-        g++ -c "${moc_cpp_file}" -o "${moc_obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -g -std=c++11
+        g++ -c "${moc_cpp_file}" -o "${moc_obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -g -std=c++17
         
         # All generated moc objects are for the app
         APP_MOC_OBJS+=("${moc_obj_file}")
     fi
-done
-
-# Handle Qt UI Files
-echo 'Running uic on UI files...'
-for ui_file in "${RESOURCE_FILES_DIR}"/*.ui; do
-    base_name=$(basename "${ui_file}" .ui)
-    ui_header_file="${RESOURCE_FILES_DIR}/ui_${base_name}.h"
-    echo "Running uic on ${base_name}.ui..."
-    uic "${ui_file}" -o "${ui_header_file}"
 done
 
 # Handle Qt Resource File
@@ -109,7 +100,7 @@ RCC_FILE="${RESOURCE_FILES_DIR}/resources.cpp"
 RCC_OBJ_FILE="${RESOURCE_FILES_DIR}/resources.o"
 rcc -name resources -o "${RCC_FILE}" "${QRC_FILE}"
 echo "Compiling ${RCC_FILE}..."
-g++ -c "${RCC_FILE}" -o "${RCC_OBJ_FILE}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -g -std=c++11
+g++ -c "${RCC_FILE}" -o "${RCC_OBJ_FILE}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -g -std=c++17
 APP_MOC_OBJS+=("${RCC_OBJ_FILE}") # Add resources.o to APP_MOC_OBJS
 
 # --- Compile Application Source Files ---
@@ -118,9 +109,9 @@ for src_file in "${APP_SRCS[@]}"; do
     obj_file="${src_file%.*}.o"
     echo "Compiling ${src_file}..."
     if [[ "${src_file}" == *.c ]]; then
-        g++ -c "${src_file}" -o "${obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -g -std=c++11
+        g++ -c "${src_file}" -o "${obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -g -std=c++17
     else
-        g++ -c "${src_file}" -o "${obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -g -std=c++11
+        g++ -c "${src_file}" -o "${obj_file}" ${INCLUDE_FLAGS} ${QT_CFLAGS} -fPIC -O2 -g -std=c++17
     fi
     APP_OBJS+=("${obj_file}")
 done

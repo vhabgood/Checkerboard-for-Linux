@@ -1,3 +1,4 @@
+#include "core_types.h"
 #include "DBManager.h"
 #include <QMutexLocker>
 #include <QDebug>
@@ -14,6 +15,8 @@
 #include <cerrno>
 #include <climits>
 #include <cctype>
+#include <algorithm> // For std::min and std::max
+#include "c_logic.h"
 
 extern uint32_t g_programStatusWord;
 
@@ -55,14 +58,23 @@ DBManager::DBManager(QObject *parent) : QObject(parent),
     bytesallocated(0)
 {
     memset(cprsubdatabase, 0, sizeof(cprsubdatabase));
+    memset(cprsubdatabase_mtc, 0, sizeof(cprsubdatabase_mtc));
     memset(dbfp, 0, sizeof(dbfp));
+    memset(dbfp_mtc, 0, sizeof(dbfp_mtc));
     memset(dbnames, 0, sizeof(dbnames));
+    memset(dbnames_mtc, 0, sizeof(dbnames_mtc));
     strncpy(DBpath, "", sizeof(DBpath));
     memset(dbinfo, 0, sizeof(dbinfo));
-    memset(runlength, 0, sizeof(runlength));
-    memset(value, 0, sizeof(value));
-    memset(bicoef, 0, sizeof(bicoef));
-    memset(decode_table, 0, sizeof(decode_table));
+
+    // Initialize runlength and value arrays dynamically
+    for(int i=0;i<81;i++)
+        runlength[i]=4;
+
+    for(int i=81;i<256;i++)
+    {
+        runlength[i]= skip[(i-81)%SKIPS];
+        value[i]= ((i-81)/SKIPS);
+    }
 }
 
 DBManager::~DBManager()
@@ -71,53 +83,13 @@ DBManager::~DBManager()
 }
 
 bool DBManager::processEgdbFiles(const char* EGTBdirectory, int nPieces, int bm, int bk, int wm, int wk, int& blockOffset, int& cprFileCount, char* outBuffer) {
-    char cpr_dbname[256], idx_dbname[256], fullpath[MAX_PATH_FIXED];
-    FILE *fp_cpr = nullptr;
-    int pifReturn = -1;
-
-    // Construct CPR filename
-    if (nPieces < SPLITSIZE) {
-        snprintf(cpr_dbname, sizeof(cpr_dbname), "db%i.cpr", nPieces);
-        snprintf(idx_dbname, sizeof(idx_dbname), "db%i.idx", nPieces);
-    } else {
-        snprintf(cpr_dbname, sizeof(cpr_dbname), "db%i_%i%i%i%i.cpr", nPieces, bm, bk, wm, wk);
-        snprintf(idx_dbname, sizeof(idx_dbname), "db%i_%i%i%i%i.idx", nPieces, bm, bk, wm, wk);
-    }
-    
-    snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, cpr_dbname);
-    log_c(LOG_LEVEL_DEBUG, (QString("dblookup: Attempting to open CPR file: ") + fullpath).toUtf8().constData());
-
-    fp_cpr = fopen(fullpath, "rb");
-    if (fp_cpr) {
-        log_c(LOG_LEVEL_DEBUG, (QString("dblookup: Successfully opened CPR file: ") + fullpath).toUtf8().constData());
-        if (cprFileCount < MAXFP) { // Ensure there's space for the file pointer
-            dbfp[cprFileCount] = fp_cpr; // Store the file pointer
-            sprintf(dbnames[cprFileCount], "%s", fullpath); // Store filename
-            pifReturn = parseindexfile(EGTBdirectory, idx_dbname, blockOffset, cprFileCount);
-
-            if (pifReturn >= 0) {
-                blockOffset += pifReturn;
-                cprFileCount++;
-                return true;
-            } else {
-                log_c(LOG_LEVEL_ERROR, "dblookup: parseindexfile failed!");
-                g_programStatusWord |= STATUS_EGDB_INIT_FAIL;
-                fclose(fp_cpr);
-                dbfp[cprFileCount] = nullptr;
-                return false;
-            }
-        } else {
-            log_c(LOG_LEVEL_ERROR, "dblookup: MAXFP limit reached, cannot open more CPR files.");
-            g_programStatusWord |= STATUS_EGDB_INIT_FAIL;
-            fclose(fp_cpr);
-            return false;
-        }
-    } else {
-        log_c(LOG_LEVEL_DEBUG, (QString("dblookup: Failed to open CPR file: ") + fullpath + " (errno: " + QString::number(errno) + ")").toUtf8().constData());
-        // Do not set EGDB_INIT_FAIL here, as not all files are expected to exist for all piece counts.
-        return false;
-    }
+    return processEgdbFiles_generic<cprsubdb>(EGTBdirectory, nPieces, bm, bk, wm, wk, blockOffset, cprFileCount, outBuffer);
 }
+
+bool DBManager::processEgdbFiles_mtc(const char* EGTBdirectory, int nPieces, int bm, int bk, int wm, int wk, int& blockOffset, int& cprFileCount, char* outBuffer) {
+    return processEgdbFiles_generic<cprsubdb_mtc>(EGTBdirectory, nPieces, bm, bk, wm, wk, blockOffset, cprFileCount, outBuffer);
+}
+
 
 void DBManager::initDecodeTable() {
     for (int byte_val = 0; byte_val < DBManager::DECODE_TABLE_SIZE; ++byte_val) {
@@ -142,17 +114,6 @@ void DBManager::initBicoefTable() {
 		bicoef[0][i]=0;
 }
 
-void DBManager::initRunLengthAndValueTables() {
-    for(int i=0;i<81;i++)
-		runlength[i]=4;
-
-	for(int i=81;i<256;i++)
-		{
-		runlength[i]= skip[(i-81)%SKIPS];
-		value[i]= ((i-81)/SKIPS);
-		}
-}
-
 int DBManager::choose(int n, int k)
 {
     int result = 1;
@@ -172,13 +133,16 @@ int DBManager::choose(int n, int k)
 uint32_t DBManager::calculate_lsb_index(uint32_t pieces, uint32_t occupied_mask) {
     uint32_t index = 0;
     uint32_t y = pieces;
-    uint32_t x;
+    int x;
     int i = 1;
     while (y) {
         x = LSB(y);
         y ^= (1 << x);
         if (occupied_mask) {
             x -= recbitcount(occupied_mask & ((1 << x) - 1));
+        }
+        if (x < i - 1) {
+            return UINT32_MAX;
         }
         index += bicoef[x][i];
         i++;
@@ -189,11 +153,11 @@ uint32_t DBManager::calculate_lsb_index(uint32_t pieces, uint32_t occupied_mask)
 uint32_t DBManager::calculate_msb_index(uint32_t pieces) {
     uint32_t index = 0;
     uint32_t y = pieces;
-    uint32_t x;
+    int x;
     int i = 1;
     while (y) {
         x = MSB(y);
-        y ^= (1 << x);
+        y ^= (1U << x);
         x = 31 - x;
         index += bicoef[x][i];
         i++;
@@ -201,13 +165,22 @@ uint32_t DBManager::calculate_msb_index(uint32_t pieces) {
     return index;
 }
 
-uint32_t DBManager::calculate_index(const pos& p, int bm, int bk, int wm, int wk, int bmrank, int wmrank) {
-    uint32_t bmindex = calculate_lsb_index(p.bm, 0);
-    uint32_t wmindex = calculate_msb_index(p.wm);
-    uint32_t bkindex = calculate_lsb_index(p.bk, p.bm | p.wm);
-    uint32_t wkindex = calculate_lsb_index(p.wk, p.bm | p.bk | p.wm);
+uint32_t DBManager::calculate_index(const bitboard_pos& p, int bm, int bk, int wm, int wk, int bmrank, int wmrank) {
+    int64_t bmindex = calculate_lsb_index(p.bm, 0);
+    if (bmindex == UINT32_MAX) return UINT32_MAX;
+    
+    uint32_t reversed_wm = revert(p.wm);
+    uint32_t reversed_bm = revert(p.bm); 
+    int64_t wmindex = calculate_lsb_index(reversed_wm, reversed_bm);
+    if (wmindex == UINT32_MAX) return UINT32_MAX;
 
-    uint32_t bmrange = 1, wmrange = 1, bkrange = 1;
+    int64_t bkindex = calculate_lsb_index(p.bk, p.bm | p.wm);
+    if (bkindex == UINT32_MAX) return UINT32_MAX;
+
+    int64_t wkindex = calculate_lsb_index(p.wk, p.bm | p.bk | p.wm);
+    if (wkindex == UINT32_MAX) return UINT32_MAX;
+
+    int64_t bmrange = 1, wmrange = 1, bkrange = 1;
     
     if (bm)
         bmrange = bicoef[4 * (bmrank + 1)][bm] - bicoef[4 * bmrank][bm];
@@ -218,8 +191,6 @@ uint32_t DBManager::calculate_index(const pos& p, int bm, int bk, int wm, int wk
 
     if (bmrank)
         bmindex -= bicoef[4 * bmrank][bm];
-    if (wmrank)
-        wmindex -= bicoef[4 * wmrank][wm];
 
     return bmindex + wmindex * bmrange + bkindex * bmrange * wmrange + wkindex * bmrange * wmrange * bkrange;
 }
@@ -255,316 +226,82 @@ void DBManager::move_cache_block_to_head(int block_index)
 
 unsigned char* DBManager::get_disk_block(int uniqueblockid, cprsubdb* dbpointer, int blocknumber, int cl)
 {
-    unsigned char* diskblock;
-    int newhead;
-
-    if (blockpointer[uniqueblockid] != nullptr) {
-        diskblock = blockpointer[uniqueblockid];
-        newhead = (diskblock - cachebaseaddress) >> 10;
-        move_cache_block_to_head(newhead);
-    } else { 
-        if (tail == -1) {
-            log_c(LOG_LEVEL_ERROR, "dblookup: cache is full, tail is -1.");
-            g_programStatusWord |= STATUS_CRITICAL_ERROR;
-            return nullptr;
-        }
-
-        diskblock = cachebaseaddress + (tail << 10);
-        blockpointer[uniqueblockid] = diskblock;
-        if (blockinfo[tail].uniqueid != -1) {
-            blockpointer[blockinfo[tail].uniqueid] = nullptr;
-        }
-
-        newhead = tail;
-        tail = blockinfo[tail].prev;
-        if (tail != -1) {
-            blockinfo[tail].next = -1;
-        }
-        blockinfo[newhead].uniqueid = uniqueblockid;
-        blockinfo[newhead].next = head;
-        blockinfo[newhead].prev = -1;
-
-        if (head != -1) {
-            blockinfo[head].prev = newhead;
-        }
-        head = newhead;
-
-        if (dbfp[dbpointer->fp] == nullptr) {
-            return nullptr;
-        }
-        int fseek_result = fseek(dbfp[dbpointer->fp], (blocknumber + dbpointer->firstblock) << 10, SEEK_SET);
-        if (fseek_result != 0) {
-            log_c(LOG_LEVEL_ERROR, "dblookup: fseek failed.");
-            g_programStatusWord |= STATUS_EGDB_LOOKUP_MISS;
-            return nullptr;
-        }
-        
-        size_t itemsRead = fread(diskblock, 1024, 1, dbfp[dbpointer->fp]);
-        if (itemsRead != 1) {
-            log_c(LOG_LEVEL_ERROR, "dblookup: fread failed to read a full block.");
-            g_programStatusWord |= STATUS_EGDB_LOOKUP_MISS;
-            blockpointer[uniqueblockid] = nullptr;
-            return nullptr;
-        }
-    }
-    return diskblock;
+    // The 'cl' parameter is no longer used in the generic version but is kept for API compatibility for now.
+    // It was determined to be unused in the original code.
+    return get_disk_block_generic<cprsubdb>(uniqueblockid, dbpointer, blocknumber);
 }
 
-int DBManager::decode_value(unsigned char* diskblock, uint32_t index, cprsubdb* dbpointer, int blocknumber)
+unsigned char* DBManager::get_disk_block_mtc(int uniqueblockid, cprsubdb_mtc* dbpointer, int blocknumber)
 {
-    log_c(LOG_LEVEL_DEBUG, "dblookup: Entering decode_value.");
-    int i;
-    int n;
-    int returnvalue = DB_UNKNOWN;
-    unsigned char byte;
-    bool reverse = false;
-    int *idx = dbpointer->idx;
+    return get_disk_block_generic<cprsubdb_mtc>(uniqueblockid, dbpointer, blocknumber);
+}
 
-    if (dbpointer->numberofblocks > blocknumber + 1) {
-        if (idx[blocknumber + 1] - index < index - idx[blocknumber]) {
-            reverse = true;
-        }
-    }
 
-    if (reverse) {
-        n = idx[blocknumber + 1];
-        i = 1023;
-        while ((unsigned int)n > index) {
-            if (i < 0) {
-                log_c(LOG_LEVEL_ERROR, "dblookup: decode_value reverse search failed.");
-                g_programStatusWord |= STATUS_FILE_IO_ERROR;
-                return DB_UNKNOWN;
-            }
-            n -= runlength[diskblock[i]];
-            i--;
-        }
-        i++;
-    } else {
-        n = idx[blocknumber];
-        i = (blocknumber == 0) ? dbpointer->startbyte : 0;
-
-        while ((unsigned int)n <= index) {
-            if (i >= 1024) {
-                log_c(LOG_LEVEL_ERROR, "dblookup: decode_value forward search failed.");
-                g_programStatusWord |= STATUS_FILE_IO_ERROR;
-                return DB_UNKNOWN;
-            }
-            n += runlength[diskblock[i]];
-            i++;
-        }
-        i--;
-        n -= runlength[diskblock[i]];
-    }
-
-    if (i < 0 || i >= 1024) {
-        log_c(LOG_LEVEL_ERROR, "dblookup: decode_value index out of bounds.");
-        g_programStatusWord |= STATUS_FILE_IO_ERROR;
-        return DB_UNKNOWN;
-    }
-
-    byte = diskblock[i];
-    if (byte > 80) {
-        returnvalue = value[byte];
-    } else {
-        i = index - n;
-        if (i >= 0 && i < 4) {
-            returnvalue = decode_table[byte][i];
-        } else {
-            log_c(LOG_LEVEL_ERROR, "dblookup: decode_value switch default case hit.");
-            g_programStatusWord |= STATUS_FILE_IO_ERROR;
-            return DB_UNKNOWN;
-        }
-    }
-    char log_msg_buffer[256];
-    snprintf(log_msg_buffer, sizeof(log_msg_buffer), "dblookup: Raw value from EGDB: %d (byte: %d, i: %d)", returnvalue, byte, i);
-    log_c(LOG_LEVEL_DEBUG, log_msg_buffer);
-    returnvalue++;
-    g_programStatusWord |= STATUS_EGDB_LOOKUP_HIT; 
-    return returnvalue;
+int DBManager::decode_value(unsigned char* diskblock, uint32_t index, cprsubdb* dbpointer, int blocknumber, int cl)
+{
+    // The 'cl' parameter is no longer used in the generic version but is kept for API compatibility for now.
+    return decode_value_generic<cprsubdb>(diskblock, index, dbpointer, blocknumber);
 }
 
 char* DBManager::read_entire_file(const char* fullpath, long* file_size) {
     FILE *fp = fopen(fullpath, "rb");
     if (fp == nullptr) {
-        char log_msg_buffer_fail_open[256];
-        snprintf(log_msg_buffer_fail_open, sizeof(log_msg_buffer_fail_open), "dblookup: read_entire_file - Failed to open file: %s (errno: %d)", fullpath, errno);
-        log_c(LOG_LEVEL_ERROR, log_msg_buffer_fail_open);
         return nullptr;
     }
 
     fseek(fp, 0, SEEK_END);
-    *file_size = ftell(fp);
+    long size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
 
-    char* content = static_cast<char*>(malloc(*file_size + 1));
+    char* content = static_cast<char*>(malloc(size + 1));
     if (content == nullptr) {
-        log_c(LOG_LEVEL_ERROR, "dblookup: read_entire_file - malloc failed for file content!");
-        g_programStatusWord |= STATUS_CRITICAL_ERROR | STATUS_EGDB_INIT_FAIL;
         fclose(fp);
         return nullptr;
     }
 
-    if (fread(content, 1, *file_size, fp) != *file_size) {
-        char log_msg_buffer_fread_fail[256];
-        snprintf(log_msg_buffer_fread_fail, sizeof(log_msg_buffer_fread_fail), "dblookup: read_entire_file - fread failed to read entire file (expected %ld bytes, got less)!", *file_size);
-        log_c(LOG_LEVEL_ERROR, log_msg_buffer_fread_fail);
-        g_programStatusWord |= STATUS_FILE_IO_ERROR | STATUS_EGDB_INIT_FAIL;
+    if (fread(content, 1, size, fp) != size) {
         free(content);
         fclose(fp);
         return nullptr;
     }
     fclose(fp);
-    content[*file_size] = '\0';
-    return content;
+    content[size] = '\0';
+
+    // Sanitize line endings
+    char* sanitized_content = static_cast<char*>(malloc(size + 1));
+    if (!sanitized_content) {
+        free(content);
+        return nullptr;
+    }
+
+    long j = 0;
+    for (long i = 0; i < size; ++i) {
+        if (content[i] == '\r' && (i + 1 < size) && content[i+1] == '\n') {
+            continue; // Skip '\r' in '\r\n'
+        }
+        sanitized_content[j++] = content[i];
+    }
+    sanitized_content[j] = '\0';
+    free(content);
+    
+    *file_size = j;
+    return sanitized_content;
 }
 
 bool DBManager::parse_single_base_entry(char **ptr_ref, int blockoffset, int fpcount, int* total_blocks_ptr, char* file_content) {
-    char *ptr = *ptr_ref;
-    char *original_ptr = ptr; 
+    return parse_single_base_entry_generic<cprsubdb>(ptr_ref, blockoffset, fpcount, total_blocks_ptr, file_content);
+}
 
-    if (strncmp(ptr, " BASE", 5) == 0) {
-        ptr += 5;
-        int bm, bk, wm, wk, bmrank, wmrank, color, singlevalue, startbyte, firstblock;
-        char colorchar;
-        int n_read = 0;
-        int stat = sscanf(ptr, "%i,%i,%i,%i,%i,%i,%c:%n", &bm, &bk, &wm, &wk, &bmrank, &wmrank, &colorchar, &n_read);
-        ptr += n_read;
+bool DBManager::parse_single_base_entry_mtc(char **ptr_ref, int blockoffset, int fpcount, int* total_blocks_ptr, char* file_content) {
+    return parse_single_base_entry_generic<cprsubdb_mtc>(ptr_ref, blockoffset, fpcount, total_blocks_ptr, file_content);
+}
 
-        if (stat < 7) {
-            log_c(LOG_LEVEL_DEBUG, "parse_single_base_entry: sscanf failed to parse full BASE entry. Skipping.");
-            *ptr_ref = original_ptr + 1; 
-            return false;
-        }
-        char log_msg_base_entry[256];
-        snprintf(log_msg_base_entry, sizeof(log_msg_base_entry), "parse_single_base_entry: Found BASE entry: bm=%d, bk=%d, wm=%d, wk=%d, bmrank=%d, wmrank=%d, colorchar=%c", bm, bk, wm, wk, bmrank, wmrank, colorchar);
-        log_c(LOG_LEVEL_DEBUG, log_msg_base_entry);
-
-        color = (colorchar == 'b') ? DB_BLACK : DB_WHITE;
-        cprsubdb *dbpointer = &cprsubdatabase[bm][bk][wm][wk][bmrank][wmrank][color];
-
-        if (isdigit(*ptr)) {
-            char *next_ptr;
-            firstblock = strtol(ptr, &next_ptr, 10);
-            if (*next_ptr != '/') {
-                log_c(LOG_LEVEL_ERROR, "parse_single_base_entry: Expected '/' after firstblock. Skipping entry.");
-                *ptr_ref = original_ptr + 1; 
-                return false;
-            }
-            ptr = next_ptr + 1;
-            startbyte = strtol(ptr, &next_ptr, 10);
-            ptr = next_ptr;
-
-            char log_msg_block_info[256];
-            snprintf(log_msg_block_info, sizeof(log_msg_block_info), "parse_single_base_entry: Block info: firstblock=%d, startbyte=%d", firstblock, startbyte);
-            log_c(LOG_LEVEL_DEBUG, log_msg_block_info);
-
-            dbpointer->firstblock = firstblock;
-            dbpointer->blockoffset = blockoffset;
-            dbpointer->ispresent = 1;
-            dbpointer->value = 0;
-            dbpointer->startbyte = startbyte;
-            dbpointer->fp = fpcount;
-
-            int current_idx_count = 1; 
-            char *temp_ptr = ptr;
-            while (*temp_ptr) {
-                while (*temp_ptr && isspace(*temp_ptr)) temp_ptr++;
-                if (!*temp_ptr || !isdigit(*temp_ptr)) break;
-                strtol(temp_ptr, &next_ptr, 10);
-                temp_ptr = next_ptr;
-                current_idx_count++;
-            }
-
-            char log_msg_num_idx_count[256];
-            snprintf(log_msg_num_idx_count, sizeof(log_msg_num_idx_count), "parse_single_base_entry: Number of indices counted: %d", current_idx_count);
-            log_c(LOG_LEVEL_DEBUG, log_msg_num_idx_count);
-
-            dbpointer->numberofblocks = current_idx_count;
-            dbpointer->idx = static_cast<int*>(malloc(current_idx_count * sizeof(int)));
-            if (dbpointer->idx == nullptr) {
-                log_c(LOG_LEVEL_ERROR, "dblookup: malloc failed in parse_single_base_entry for dbpointer->idx!");
-                g_programStatusWord |= STATUS_CRITICAL_ERROR | STATUS_EGDB_INIT_FAIL;
-                free(file_content); 
-                return false;
-            }
-            bytesallocated += current_idx_count * sizeof(int);
-
-            int num = 1;
-            dbpointer->idx[0] = 0; 
-            while (*ptr) {
-                while (*ptr && isspace(*ptr)) ptr++;
-                if (!*ptr || !isdigit(*ptr)) break;
-                
-                dbpointer->idx[num] = strtol(ptr, &next_ptr, 10);
-                ptr = next_ptr;
-                num++;
-                if (num >= current_idx_count) break; 
-            }
-
-            char log_msg_num_idx_parsed[256];
-            snprintf(log_msg_num_idx_parsed, sizeof(log_msg_num_idx_parsed), "parse_single_base_entry: Number of indices parsed: %d", num);
-            log_c(LOG_LEVEL_DEBUG, log_msg_num_idx_parsed);
-
-            if (firstblock + current_idx_count > *total_blocks_ptr) { 
-                *total_blocks_ptr = firstblock + current_idx_count;
-            }
-
-        } else {
-            switch (*ptr) {
-                case '+': singlevalue = DB_WIN; break;
-                case '=': singlevalue = DB_DRAW; break;
-                case '-': singlevalue = DB_LOSS; break;
-                default: singlevalue = DB_UNKNOWN; break;
-            }
-            char log_msg_single_value[256];
-            snprintf(log_msg_single_value, sizeof(log_msg_single_value), "parse_single_base_entry: Single value entry: %d (char: %c)", singlevalue, *ptr);
-            log_c(LOG_LEVEL_DEBUG, log_msg_single_value);
-            dbpointer->blockoffset = 0;
-            dbpointer->firstblock = 0;
-            dbpointer->idx = nullptr;
-            dbpointer->ispresent = 1;
-            dbpointer->numberofblocks = 0;
-            dbpointer->value = singlevalue;
-            dbpointer->fp = fpcount;
-            ptr++; 
-        }
-        *ptr_ref = ptr; 
-        return true;
-    }
-    *ptr_ref = original_ptr + 1; 
-    return false;
+int DBManager::parseindexfile_mtc(const char* EGTBdirectory, char idxfilename[256], int blockoffset, int fpcount) {
+    return parseindexfile_generic<cprsubdb_mtc>(EGTBdirectory, idxfilename, blockoffset, fpcount);
 }
 
 int DBManager::parseindexfile(const char* EGTBdirectory, char idxfilename[256], int blockoffset, int fpcount) {
-    char fullpath[MAX_PATH_FIXED];
-    snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, idxfilename);
-    char log_msg_buffer[256];
-    snprintf(log_msg_buffer, sizeof(log_msg_buffer), "dblookup: parseindexfile - Attempting to open IDX file: %s", fullpath);
-    log_c(LOG_LEVEL_DEBUG, log_msg_buffer);
-
-    long fsize = 0;
-    char *file_content = read_entire_file(fullpath, &fsize);
-    if (file_content == nullptr) {
-        char log_msg_buffer_fail_read[256];
-        snprintf(log_msg_buffer_fail_read, sizeof(log_msg_buffer_fail_read), "dblookup: parseindexfile - Failed to read IDX file: %s", fullpath);
-        log_c(LOG_LEVEL_ERROR, log_msg_buffer_fail_read);
-        g_programStatusWord |= STATUS_FILE_IO_ERROR | STATUS_EGDB_INIT_FAIL;
-        return -1;
-    }
-    char log_msg_buffer_success_read[256];
-    snprintf(log_msg_buffer_success_read, sizeof(log_msg_buffer_success_read), "dblookup: parseindexfile - Successfully read IDX file: %s (size: %ld)", fullpath, fsize);
-    log_c(LOG_LEVEL_DEBUG, log_msg_buffer_success_read);
-
-    char *ptr = file_content;
-    int total_blocks = 0;
-
-    while (*ptr) {
-        if (!parse_single_base_entry(&ptr, blockoffset, fpcount, &total_blocks, file_content)) {
-        }
-    }
-
-    free(file_content);
-    return total_blocks;
+    return parseindexfile_generic<cprsubdb>(EGTBdirectory, idxfilename, blockoffset, fpcount);
 }
 
 int DBManager::internal_preload(char out[256], FILE *db_fp[], int fp_count) {
@@ -613,7 +350,7 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
     
     initDecodeTable();
 
-    g_programStatusWord |= STATUS_EGDB_INIT_START; 
+    updateProgramStatusWord(STATUS_EGDB_INIT_START); 
     FILE *fp;
     char dbname[256];
     char fullpath[MAX_PATH_FIXED];
@@ -631,77 +368,44 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
 	
     initBicoefTable();
 
-    initRunLengthAndValueTables();
+    for(int i=0;i<65536; i++) {
+        bitsinword[i] = recbitcount(i); // Assuming recbitcount is accessible and works on int
+    }
+
+    for(int i=0;i<65536; i++) {
+        revword[i]=0;
+        for(int j=0;j<16; j++) {
+            if(i&(1<<j))
+                revword[i] +=1<<(15-j);
+        }
+    }
 
 	memset(cprsubdatabase, 0, DBManager::CPR_SUBDATABASE_TOTAL_SIZE);
+    memset(cprsubdatabase_mtc, 0, sizeof(cprsubdatabase_mtc));
 	
-    for(n=2;n<=MAXPIECE+1;n++)
+    for(n=2;n<=8;n++) // Check up to 8 pieces for maxpieces
     {
-        char log_msg_buffer[256];
 		snprintf(dbname, sizeof(dbname), "db%i.idx",n);
         snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
-        snprintf(log_msg_buffer, sizeof(log_msg_buffer), "dblookup: db_init - Attempting to open IDX file for pieces %d: %s", n, fullpath);
-        log_c(LOG_LEVEL_DEBUG, log_msg_buffer);
 		fp = fopen(fullpath,"rb");
 		if(fp)
 		{
-            snprintf(log_msg_buffer, sizeof(log_msg_buffer), "dblookup: db_init - Successfully opened IDX file for pieces %d: %s", n, fullpath);
-            log_c(LOG_LEVEL_DEBUG, log_msg_buffer);
 			if (n > pieces) {
 			    pieces = n;
 			}
             fclose(fp);
 		}
-		else
-		{
-            snprintf(log_msg_buffer, sizeof(log_msg_buffer), "dblookup: db_init - Failed to open IDX file for pieces %d: %s (errno: %d)", n, fullpath, errno);
-            log_c(LOG_LEVEL_DEBUG, log_msg_buffer);
-			continue;
-		}
     }
 
-    for(n=SPLITSIZE;n<=8;n++)
-    {
-        for(nb=4;nb<=4;nb++)
-        {
-            nw=n-nb;
-            if(nw>nb)
-                continue;
-            for(bk=0;bk<=nb;bk++)
-            {
-                bm=nb-bk;
-                for(wk=0;wk<=nw;wk++)
-                {
-                    wm=nw-wk;
-                    if(bm+bk==wm+wk && wk>bk)
-                        continue;
-                    snprintf(dbname, sizeof(dbname), "db%i_%i%i%i%i.cpr",bm+bk+wm+wk,bm,bk,wm,wk);
-                    snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, dbname);
-                    fp = fopen(fullpath,"rb");
-                    if(fp)
-                    {
-                        if (n > pieces) {
-                            pieces = n;
-                        }
-                        fclose(fp);
-                    }
-                    else
-                    {
-                        continue;
-                    }
-                }
-            }
-        }
+    maxpieces = pieces; // Set maxpieces based on found db files
+    if (maxpieces > 8) maxpieces = 8;
+
+    if (maxpieces > 0 && maxpieces < (int)(sizeof(db_configs) / sizeof(db_configs[0]))) {
+        const DB_CONFIG* config = &db_configs[maxpieces];
+        maxidx = config->maxidx;
+        maxblocknum = config->maxblocknum;
+        maxpiece = config->maxpiece;
     }
-		    if (pieces > 0 && pieces < (int)(sizeof(db_configs) / sizeof(db_configs[0]))) {
-		        const DB_CONFIG* config = &db_configs[pieces];
-		        maxidx = config->maxidx;
-		        maxblocknum = config->maxblocknum;
-		        maxpieces = config->maxpieces;
-		        maxpiece = config->maxpiece;
-		    } else {
-		        // Handle error or default case
-		    }
 
     cachesize = suggestedMB << 10;
     if(maxpieces <6)
@@ -714,12 +418,15 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
     }
     
     blockoffset = 0;
+    int cprFileCount_mtc = 0;
+    int blockoffset_mtc = 0;
 
     for(n=2; n<=maxpieces; n++)
     {
         if(n>=SPLITSIZE)
             continue;
         processEgdbFiles(EGTBdirectory, n, 0, 0, 0, 0, blockoffset, cprFileCount, out);
+        processEgdbFiles_mtc(EGTBdirectory, n, 0, 0, 0, 0, blockoffset_mtc, cprFileCount_mtc, out);
     }
 
     for (n=SPLITSIZE; n<=maxpieces; n++)
@@ -738,6 +445,7 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
                     if (bm+bk==wm+wk && wk>bk)
                         continue;
                     processEgdbFiles(EGTBdirectory, n, bm, bk, wm, wk, blockoffset, cprFileCount, out);
+                    processEgdbFiles_mtc(EGTBdirectory, n, bm, bk, wm, wk, blockoffset_mtc, cprFileCount_mtc, out);
                 }
             }
         }
@@ -748,7 +456,7 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
     
     if(cachebaseaddress == nullptr && memsize!=0)
     {
-        g_programStatusWord |= STATUS_EGDB_INIT_FAIL; 
+        updateProgramStatusWord(STATUS_EGDB_INIT_FAIL); 
         log_c(LOG_LEVEL_ERROR, "dblookup: malloc for cachebaseaddress failed!");
         return 0;
     }
@@ -757,7 +465,7 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
     blockpointer = static_cast<unsigned char**>(malloc(memsize));
     if(blockpointer == nullptr && memsize != 0 )
     {
-        g_programStatusWord |= STATUS_EGDB_INIT_FAIL; 
+        updateProgramStatusWord(STATUS_EGDB_INIT_FAIL); 
         log_c(LOG_LEVEL_ERROR, "dblookup: malloc for blockpointer failed!");
         free(cachebaseaddress);
         return 0;
@@ -769,7 +477,7 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
     blockinfo = static_cast<struct bi*>(malloc(memsize));
     if(blockinfo == nullptr && memsize!=0)
     {
-        g_programStatusWord |= STATUS_EGDB_INIT_FAIL; 
+        updateProgramStatusWord(STATUS_EGDB_INIT_FAIL); 
         log_c(LOG_LEVEL_ERROR, "dblookup: malloc for blockinfo failed!");
         free(cachebaseaddress);
         free(blockpointer);
@@ -791,113 +499,24 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
     head=autoloadnum;
     tail = cachesize-1;
     
-    g_programStatusWord |= STATUS_EGDB_INIT_OK; 
+    updateProgramStatusWord(STATUS_EGDB_INIT_OK);
+
 	return maxpieces;
-} // Closing brace for db_init
+}
 
-int DBManager::dblookup(pos *q, int cl)
+int DBManager::dblookup(bitboard_pos *q, int cl)
 {
-    QMutexLocker locker(&m_mutex);
-    
-    g_programStatusWord &= ~STATUS_EGDB_LOOKUP_HIT;
-    g_programStatusWord &= ~STATUS_EGDB_LOOKUP_MISS;
-
-    uint32_t index;
-    int bm, bk, wm, wk, bmrank=0, wmrank=0;
-    int blocknumber;    
-	int uniqueblockid;
-	int reverse = 0;
-	int returnvalue=DB_UNKNOWN;
-	unsigned char *diskblock;
-	int n;
-	int *idx;
-	pos revpos;
-	pos p;
-	cprsubdb *dbpointer;
-	
-p=*q;
-	p.color = q->color & 1;
-
-	bm = recbitcount(p.bm);
-	bk = recbitcount(p.bk);
-	wm = recbitcount(p.wm);
-	wk = recbitcount(p.wk);
-	
-	if( (bm+wm+wk+bk>maxpieces) || (bm+bk>maxpiece) || (wm+wk>maxpiece)) {
-        log_c(LOG_LEVEL_DEBUG, "dblookup: Early exit - piece count exceeds maxpieces. Returning DB_UNKNOWN.");
-		return DB_UNKNOWN;
-    }     
-	if(bm)
-		bmrank = MSB(p.bm)/4;
-	if(wm)
-		wmrank = (31-LSB(p.wm))/4;    
-	
-	if (( ((wm+wk-bm-bk)<<16) + ((wk-bk)<<8) + ((wmrank-bmrank)<<4) + p.color) > 0)
-		reverse = 1;
-
-	if (reverse)
-		{
-		revpos.bm = revert(p.wm);
-		revpos.bk = revert(p.wk);
-		revpos.wm = revert(p.bm);
-		revpos.wk = revert(p.bk);
-		revpos.color = p.color^1;
-		p = revpos;
-		
-		reverse = bm;
-		bm = wm;
-		wm = reverse;
-		
-		reverse = bk;
-		bk = wk;
-		wk = reverse;
-		
-		reverse = bmrank;
-		bmrank = wmrank;
-		wmrank = reverse;
-		
-		reverse = 1;
-		}
-dbpointer = &cprsubdatabase[bm][bk][wm][wk][bmrank][wmrank][p.color];
-	if(dbpointer->ispresent == 0 || (dbfp[dbpointer->fp] == NULL)) {
-        log_c(LOG_LEVEL_DEBUG, "dblookup: Early exit - dbpointer not present or file not open. Returning DB_UNKNOWN.");
-		return DB_UNKNOWN;
-    }
-	if(dbpointer->value != DB_UNKNOWN)
-		return dbpointer->value;
-
-	index = calculate_index(p, bm, bk, wm, wk, bmrank, wmrank);
-	idx = dbpointer->idx;
-	n= dbpointer->numberofblocks;
-	
-	blocknumber=0;
-	while((blocknumber < n - 1) && ((unsigned int)idx[blocknumber + 1] <= index) )
-		blocknumber++;
-
-	uniqueblockid = dbpointer->blockoffset+
-					dbpointer->firstblock +
-					blocknumber;
-	diskblock = get_disk_block(uniqueblockid, dbpointer, blocknumber, cl);
-
-	if (diskblock == nullptr) {
-		int final_result = DB_NOT_LOOKED_UP; 
-		char log_msg_buffer[256];
-		snprintf(log_msg_buffer, sizeof(log_msg_buffer), "dblookup: Final result from dblookup: %d (diskblock is nullptr, returning DB_NOT_LOOKED_UP)", final_result);
-		log_c(LOG_LEVEL_DEBUG, log_msg_buffer);
-		return final_result;
-	} else 
-		{
-		int final_result = decode_value(diskblock, index, dbpointer, blocknumber);
-		char log_msg_buffer[256];
-		snprintf(log_msg_buffer, sizeof(log_msg_buffer), "dblookup: Final result from dblookup: %d (from decode_value)", final_result);
-		log_c(LOG_LEVEL_DEBUG, log_msg_buffer);
-		return final_result;
-		}
+    // The 'cl' parameter is no longer used in the generic version but is kept for API compatibility for now.
+    return dblookup_generic<cprsubdb>(q);
 }
 
 int DBManager::db_exit()
 {
     QMutexLocker locker(&m_mutex);
+    if (m_shutdown_has_been_called) {
+        return 1;
+    }
+    m_shutdown_has_been_called = true;
     
     int i, bm, bk, wm, wk, bmrank, wmrank, color;
 
@@ -907,20 +526,20 @@ int DBManager::db_exit()
 	for(i=0;i<50;i++)
 		{
 		if(dbfp[i] != nullptr)
-			fclose(dbfp[i]);	
+			fclose(dbfp[i]);
+        if(dbfp_mtc[i] != nullptr)
+            fclose(dbfp_mtc[i]);
 		}
 
     for (bm = 0; bm <= MAXPIECE; ++bm) {
         for (bk = 0; bk <= MAXPIECE; ++bk) {
-            for (wm = 0; wm <= MAXPIECE; ++wm) {
-                for (wk = 0; wk <= MAXPIECE; ++wk) {
+            for (wm = 0; wm <= MAXPIECE; ++wm) { // Typo: should be wmrank
+                for (wk = 0; wk <= MAXPIECE; ++wk) { // Typo: should be color
                     for (bmrank = 0; bmrank < DBManager::MAX_RANK_COUNT; ++bmrank) {
                         for (wmrank = 0; wmrank < DBManager::MAX_RANK_COUNT; ++wmrank) {
                             for (color = 0; color < 2; ++color) {
-                                if (cprsubdatabase[bm][bk][wm][wk][bmrank][wmrank][color].idx != nullptr) {
-                                    free(cprsubdatabase[bm][bk][wm][wk][bmrank][wmrank][color].idx);
-                                    cprsubdatabase[bm][bk][wm][wk][bmrank][wmrank][color].idx = nullptr;
-                                }
+                                cprsubdatabase[bm][bk][wm][wk][bmrank][wmrank][color].idx.clear();
+                                cprsubdatabase_mtc[bm][bk][wm][wk][bmrank][wmrank][color].idx.clear();
                             }
                         }
                     }
@@ -938,6 +557,16 @@ int DBManager::getCacheSize()
     return cachesize;
 }
 
+int DBManager::decode_value_mtc(unsigned char* diskblock, uint32_t index, cprsubdb_mtc* dbpointer, int blocknumber)
+{
+    return decode_value_generic<cprsubdb_mtc>(diskblock, index, dbpointer, blocknumber);
+}
+
+int DBManager::dblookup_mtc(bitboard_pos *q)
+{
+    return dblookup_generic<cprsubdb_mtc>(q);
+}
+
 void DBManager::getInfoString(char *str)
 {
     QMutexLocker locker(&m_mutex);
@@ -949,16 +578,16 @@ int64_t DBManager::getDatabaseSize(int bm, int bk, int wm, int wk, int bmrank, i
     QMutexLocker locker(&m_mutex);
     int64_t dbsize = 1;
 	if(bm)
-			dbsize *= bicoef[4*(bmrank+1)][bm] - bicoef[4*bmrank][bm];
+					dbsize *= bicoef[4*(bmrank+1)][bm] - bicoef[4*bmrank][bm];
   
 	if(wm)
-			dbsize *= bicoef[4*(wmrank+1)][wm] - bicoef[4*wmrank][wm];
+					dbsize *= bicoef[4*(wmrank+1)][wm] - bicoef[4*wmrank][wm];
 
 	if(bk)
-			dbsize *= bicoef[32-bm-wm][bk];
+					dbsize *= bicoef[32-bm-wm][bk];
 
 	if(wk)
-			dbsize *= bicoef[32-bm-wm-bk][wk];
+					dbsize *= bicoef[32-bm-wm-bk][wk];
 
 	return dbsize;
 }
