@@ -9,9 +9,9 @@ uint32_t revword[65536];
 
 // Implementations for bit manipulation functions are now in core_types.h
 
-int count_pieces(const bitboard_pos* board) {
-    return recbitcount(board->bm) + recbitcount(board->bk) +
-           recbitcount(board->wm) + recbitcount(board->wk);
+int count_pieces(const bitboard_pos& board) {
+    return recbitcount(board.bm) + recbitcount(board.bk) +
+           recbitcount(board.wm) + recbitcount(board.wk);
 }
 
 void boardtobitboard(const Board8x8* b, bitboard_pos *bitboard_position)
@@ -68,10 +68,10 @@ int coorstonumber(int x, int y, int gametype) {
     return number;
 }
 
-void numbertocoors(int n, int *x, int *y, int gametype) {
+void numbertocoors(int n, int& x, int& y, int gametype) {
     // Convert 1-32 board number back to 0-7 (x,y) coordinates
     if (n < 1 || n > 32) {
-        *x = -1; *y = -1; // Invalid number
+        x = -1; y = -1; // Invalid number
         return;
     }
 
@@ -79,16 +79,16 @@ void numbertocoors(int n, int *x, int *y, int gametype) {
     int offset_in_row = (n - 1) % 4;
 
     if (adjusted_y % 2 == 0) { // Original y=7,5,3,1
-        *x = 6 - (offset_in_row * 2);
+        x = 6 - (offset_in_row * 2);
     } else { // Original y=6,4,2,0
-        *x = 7 - (offset_in_row * 2);
+        x = 7 - (offset_in_row * 2);
     }
-    *y = 7 - adjusted_y;
+    y = 7 - adjusted_y;
     // char log_msg_buffer[256];
-    // snprintf(log_msg_buffer, sizeof(log_msg_buffer), "numbertocoors: n=%d -> x=%d, y=%d", n, *x, *y);
+    // snprintf(log_msg_buffer, sizeof(log_msg_buffer), "numbertocoors: n=%d -> x=%d, y=%d", n, x, y);
     // log_c(LOG_LEVEL_DEBUG, log_msg_buffer);
 }
-void coorstocoors(int *x, int *y, bool invert, bool mirror) { if (invert) { *x = 7 - *x; *y = 7 - *y; } if (mirror) *x = 7 - *x; }
+void coorstocoors(int& x, int& y, bool invert, bool mirror) { if (invert) { x = 7 - x; y = 7 - y; } if (mirror) x = 7 - x; }
 bool is_valid_board8_square(int x, int y) { return((x + y) % 2 != 0); }
 
 void coor_to_notation(int x, int y, char* s, int gametype) {
@@ -231,7 +231,7 @@ void bitboard_postoFEN(const bitboard_pos* bitboard_position, char *FEN, int col
 
     for (int square_num = 1; square_num <= 32; ++square_num) {
         int bit_bitboard_pos = square_num - 1; // 0-indexed bit bitboard_position
-        int piece = get_piece(bitboard_position, bit_bitboard_pos); // Use get_piece helper
+        int piece = get_piece(*bitboard_position, bit_bitboard_pos); // Use get_piece helper
 
         if ((piece & CB_WHITE) != 0) {
             if (!first_white) {
@@ -380,14 +380,8 @@ enum PDN_RESULT string_to_pdn_result(const char *resultstr, int gametype)
 // Forward declarations for internal move generation functions
 // These are now declared in c_logic.h and implemented below.
 
-int get_legal_moves_c(const bitboard_pos* board, int color, CBmove movelist[MAXMOVES], int *nmoves, int *isjump, const CBmove *last_move, bool *can_continue_multijump)
+int get_legal_moves_c(const bitboard_pos& board, int color, CBmove* movelist, int& nmoves, int& isjump, const CBmove *last_move, bool *can_continue_multijump)
 {
-    // --- DEBUG: Log FEN upon entering function ---
-    char fen_in_get_legal[256];
-    bitboard_postoFEN(board, fen_in_get_legal, color, GT_ENGLISH);
-    log_c(LOG_LEVEL_DEBUG, (QString("get_legal_moves_c: Received board with FEN: ") + fen_in_get_legal).toUtf8().constData());
-    // --- END DEBUG ---
-
     CBmove all_moves[MAXMOVES];
     int all_nmoves = 0;
     int all_isjump = 0;
@@ -396,9 +390,9 @@ int get_legal_moves_c(const bitboard_pos* board, int color, CBmove movelist[MAXM
         *can_continue_multijump = false;
     }
 
-    makemovelist(board, color, all_moves, &all_isjump, &all_nmoves); // makemovelist now takes bitboard_pos*
+    makemovelist(board, color, all_moves, all_isjump, all_nmoves); // makemovelist now takes bitboard_pos*
 
-    if (last_move != NULL && last_move->jumps > 0 && all_isjump) {
+    if (last_move != NULL && last_move->jumps > 0 && all_isjump) { // Now all_isjump will have the correct value
         int filtered_count = 0;
         for (int i = 0; i < all_nmoves; ++i) {
             if (all_moves[i].from.x == last_move->to.x &&
@@ -411,30 +405,167 @@ int get_legal_moves_c(const bitboard_pos* board, int color, CBmove movelist[MAXM
         }
 
         if (filtered_count > 0) {
-            *nmoves = filtered_count;
-            *isjump = 1;
+            nmoves = filtered_count;
+            isjump = all_isjump; // Take from all_isjump
         } else {
-            *nmoves = 0;
-            *isjump = 0;
+            nmoves = 0;
+            isjump = 0;
             if (can_continue_multijump) {
                 *can_continue_multijump = false;
             }
         }
     } else {
-        memcpy(movelist, all_moves, all_nmoves * sizeof(CBmove));
-        *nmoves = all_nmoves;
-        *isjump = all_isjump;
+        memcpy(movelist, all_moves, all_nmoves * sizeof(CBmove)); // Now all_nmoves has the correct value
+        nmoves = all_nmoves;
+        isjump = all_isjump;
         if (can_continue_multijump) {
             *can_continue_multijump = false;
         }
     }
 
-    return *nmoves;
+    return nmoves;
 }
 
 
+void makemovelist(const bitboard_pos& board, int color, CBmove* movelist, int& isjump, int& n)
+{
+    int i;
+    CBmove m = {};
+    isjump = 0;
 
-extern "C" void find_captures_recursive(const bitboard_pos* board, CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n, int color, int is_king, const int* visited_parent)
+    for (i = 0; i < MAXMOVES; i++) {
+        movelist[i].jumps = 0;
+        movelist[i].is_capture = false;
+        movelist[i].comment[0] = '\0'; // Initialize comment
+    }
+    n = 0;
+
+    // --- 1. Find all possible captures first ---
+    CBmove captures[MAXMOVES];
+    int ncaptures = 0;
+    int visited[33] = {0};
+    for (int r = 0; r < 8; ++r) {
+        for (int c = 0; c < 8; ++c) {
+            int square_num = coorstonumber(c, r, GT_ENGLISH);
+            if (square_num == 0) continue; // Skip light squares
+
+            int piece = get_piece(board, square_num - 1); // Get piece from bitboard
+            if (piece == CB_EMPTY) continue;
+
+            int piece_color = (piece & CB_WHITE) ? CB_WHITE : CB_BLACK;
+            int is_king = (piece & CB_KING) ? 1 : 0;
+
+            if (piece_color == color) {
+                m.from.x = c;
+                m.from.y = r;
+                m.path[0].x = c;
+                m.path[0].y = r;
+                m.oldpiece = piece;
+                find_captures_recursive(board, captures, &m, c, r, 0, ncaptures, color, is_king, visited);
+            }
+        }
+    }
+
+    if (ncaptures > 0) {
+        isjump = 1;
+        int max_jumps = 0;
+        for (i = 0; i < ncaptures; ++i) {
+            if (captures[i].jumps > max_jumps) {
+                max_jumps = captures[i].jumps;
+            }
+        }
+
+        for (i = 0; i < ncaptures; ++i) {
+            if (captures[i].jumps == max_jumps) {
+                if (n < MAXMOVES) {
+                    movelist[n] = captures[i];
+                    n++;
+                }
+            }
+        }
+        for(i=0; i<n; ++i) movelist[i].is_capture = true;
+        return;
+    }
+
+        // --- 2. If no captures, find all regular moves ---
+        for (int r = 0; r < 8; ++r) {
+            for (int c = 0; c < 8; ++c) {
+                int square_num = coorstonumber(c, r, GT_ENGLISH);
+                if (square_num == 0) continue; // Skip light squares
+    
+                int piece = get_piece(board, square_num - 1); // Get piece from bitboard
+                if (piece == CB_EMPTY) continue;
+    
+                int piece_color = (piece & CB_WHITE) ? CB_WHITE : CB_BLACK;
+                int is_king = (piece & CB_KING) ? 1 : 0;
+    
+                if (piece_color == color) {
+                    int fwd = (color == CB_WHITE) ? 1 : -1;
+                    int dx[] = {-1, 1};
+                    
+                    if (!is_king) {
+                        for (i = 0; i < 2; ++i) {
+                            int to_c = c + dx[i];
+                            int to_r = r + fwd;
+                            int to_square_num = coorstonumber(to_c, to_r, GT_ENGLISH);
+    
+                            if (to_c >= 0 && to_c < 8 && to_r >= 0 && to_r < 8 && to_square_num != 0 && get_piece(board, to_square_num - 1) == CB_EMPTY) {
+                                if (n < MAXMOVES) {
+                                    movelist[n].jumps = 0;
+                                    movelist[n].from.x = c;
+                                    movelist[n].from.y = r;
+                                    movelist[n].to.x = to_c;
+                                    movelist[n].to.y = to_r;
+                                    movelist[n].path[0].x = c;
+                                    movelist[n].path[0].y = r;
+                                    movelist[n].path[1].x = to_c;
+                                    movelist[n].path[1].y = to_r;
+                                    movelist[n].del[0].x = -1;
+                                    movelist[n].oldpiece = piece;
+                                    if ((color == CB_WHITE && to_r == 7) || (color == CB_BLACK && to_r == 0)) {
+                                        movelist[n].newpiece = piece | CB_KING;
+                                    } else {
+                                        movelist[n].newpiece = piece;
+                                    }
+                                    n++;
+                                }
+                            }
+                        }
+                    }
+                    else { // is_king
+                        int king_dy[] = {1, 1, -1, -1};
+                        int king_dx[] = {-1, 1, -1, 1};
+                        for (i = 0; i < 4; ++i) {
+                            int to_c = c + king_dx[i];
+                            int to_r = r + king_dy[i];
+                            int to_square_num = coorstonumber(to_c, to_r, GT_ENGLISH);
+    
+                            if (to_c >= 0 && to_c < 8 && to_r >= 0 && to_r < 8 && to_square_num != 0 && get_piece(board, to_square_num - 1) == CB_EMPTY) {
+                                if (n < MAXMOVES) {
+                                    movelist[n].jumps = 0;
+                                    movelist[n].from.x = c;
+                                    movelist[n].from.y = r;
+                                    movelist[n].to.x = to_c;
+                                    movelist[n].to.y = to_r;
+                                    movelist[n].path[0].x = c;
+                                    movelist[n].path[0].y = r;
+                                    movelist[n].path[1].x = to_c;
+                                    movelist[n].path[1].y = to_r;
+                                    movelist[n].del[0].x = -1;
+                                    movelist[n].oldpiece = piece;
+                                    movelist[n].newpiece = piece;
+                                    n++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }}
+
+
+
+void find_captures_recursive(const bitboard_pos& board, CBmove* movelist, CBmove* m, int x, int y, int d, int& n, int color, int is_king, const int* visited_parent)
 {
     char log_msg[512];
 //    sprintf(log_msg, "find_captures_recursive: x: %d, y: %d, d: %d, color: %d, is_king: %d", x, y, d, color, is_king);
@@ -465,7 +596,7 @@ extern "C" void find_captures_recursive(const bitboard_pos* board, CBmove moveli
 
     int current_square_num = coorstonumber(x, y, GT_ENGLISH);
     if (current_square_num == 0) {
-        log_c(LOG_LEVEL_ERROR, "find_captures_recursive: current_square_num is 0!");
+        // log_c(LOG_LEVEL_ERROR, "find_captures_recursive: current_square_num is 0!"); // Removed verbose error log
         return;
     }
     int current_square_bit_bitboard_pos = current_square_num - 1;
@@ -487,15 +618,15 @@ extern "C" void find_captures_recursive(const bitboard_pos* board, CBmove moveli
 
             if (jump_square_num == 0 || land_square_num == 0) continue; // Invalid squares
 
-            int opponent_piece = get_piece(board, jump_square_num - 1);
-            int landing_square_piece = get_piece(board, land_square_num - 1);
+            int opponent_piece = get_piece(board, jump_square_num - 1); // board is ref
+            int landing_square_piece = get_piece(board, land_square_num - 1); // board is ref
             
             bool is_opponent = (opponent_piece != CB_EMPTY) && ((opponent_piece & color) == 0);
 
             if (is_opponent && landing_square_piece == CB_EMPTY) {
                 found_another_jump = true;
 
-                CBmove mm = m;
+                CBmove mm = *m; // m is ptr
                 mm.to.x = land_x;
                 mm.to.y = land_y;
                 mm.path[d + 1].x = land_x;
@@ -510,21 +641,21 @@ extern "C" void find_captures_recursive(const bitboard_pos* board, CBmove moveli
 
                 int becomes_king = (!is_king) && ((color == CB_WHITE && land_y == 7) || (color == CB_BLACK && land_y == 0));
                 int next_is_king = is_king || becomes_king;
-                mm.newpiece = next_is_king ? (m.oldpiece | CB_KING) : m.oldpiece;
+                mm.newpiece = next_is_king ? ((*m).oldpiece | CB_KING) : (*m).oldpiece; // m is ptr
 
                 if (becomes_king) {
                     // This jump makes a king. This is the last move in the sequence. Add it.
-                    if (*n < MAXMOVES) {
-                        movelist[*n] = mm;
-                        (*n)++;
+                    if (n < MAXMOVES) { // n is ref
+                        movelist[n] = mm;
+                        n++;
                     } else {
                         // qWarning() << "MAXMOVES exceeded in find_captures_recursive (becomes_king)"; // Re-enable custom logging first
                     }
                 } else {
                     // Continue searching for more jumps in the sequence
-                    bitboard_pos next_board = *board;
+                    bitboard_pos next_board = board; // board is ref
                     clear_square(&next_board, jump_square_num - 1);
-                    find_captures_recursive(&next_board, movelist, mm, land_x, land_y, d + 1, n, color, next_is_king, visited);
+                    find_captures_recursive(next_board, movelist, &mm, land_x, land_y, d + 1, n, color, next_is_king, visited); // mm is ptr
                 }
             }
         }
@@ -534,9 +665,9 @@ extern "C" void find_captures_recursive(const bitboard_pos* board, CBmove moveli
         // char log_msg[512];
         // sprintf(log_msg, "find_captures_recursive: adding move, from: (%d,%d), to: (%d,%d), jumps: %d", m.from.x, m.from.y, m.to.x, m.to.y, m.jumps);
         // log_c(LOG_LEVEL_DEBUG, log_msg);
-        if (*n < MAXMOVES) {
-            movelist[*n] = m;
-            (*n)++;
+        if (n < MAXMOVES) { // n is ref
+            movelist[n] = *m; // m is ptr
+            n++;
         } else {
             // qWarning() << "MAXMOVES exceeded in find_captures_recursive (not found_another_jump)"; // Re-enable custom logging first
         }
@@ -544,142 +675,7 @@ extern "C" void find_captures_recursive(const bitboard_pos* board, CBmove moveli
 }
 
 
-void makemovelist(const bitboard_pos* board, int color, CBmove movelist[MAXMOVES], int *isjump, int *n)
-{
-    int i;
-    CBmove m = {0};
-    *isjump = 0;
 
-    for (i = 0; i < MAXMOVES; i++) {
-        movelist[i].jumps = 0;
-        movelist[i].is_capture = false;
-        movelist[i].comment[0] = '\0'; // Initialize comment
-    }
-    *n = 0;
-
-    // --- 1. Find all bitboard_possible captures first ---
-    CBmove captures[MAXMOVES];
-    int ncaptures = 0;
-    int visited[33] = {0};
-    for (int r = 0; r < 8; ++r) {
-        for (int c = 0; c < 8; ++c) {
-            int square_num = coorstonumber(c, r, GT_ENGLISH);
-            if (square_num == 0) continue; // Skip light squares
-
-            int piece = get_piece(board, square_num - 1); // Get piece from bitboard
-            if (piece == CB_EMPTY) continue;
-
-            int piece_color = (piece & CB_WHITE) ? CB_WHITE : CB_BLACK;
-            int is_king = (piece & CB_KING) ? 1 : 0;
-
-            if (piece_color == color) {
-                m.from.x = c;
-                m.from.y = r;
-                m.path[0].x = c;
-                m.path[0].y = r;
-                m.oldpiece = piece;
-                find_captures_recursive(board, captures, m, c, r, 0, &ncaptures, color, is_king, visited);
-            }
-        }
-    }
-
-    if (ncaptures > 0) {
-        *isjump = 1;
-        int max_jumps = 0;
-        for (i = 0; i < ncaptures; ++i) {
-            if (captures[i].jumps > max_jumps) {
-                max_jumps = captures[i].jumps;
-            }
-        }
-
-        for (i = 0; i < ncaptures; ++i) {
-            if (captures[i].jumps == max_jumps) {
-                if (*n < MAXMOVES) {
-                    movelist[*n] = captures[i];
-                    (*n)++;
-                }
-            }
-        }
-        for(i=0; i<*n; ++i) movelist[i].is_capture = true;
-        return;
-    }
-
-    // --- 2. If no captures, find all regular moves ---
-    for (int r = 0; r < 8; ++r) {
-        for (int c = 0; c < 8; ++c) {
-            int square_num = coorstonumber(c, r, GT_ENGLISH);
-            if (square_num == 0) continue; // Skip light squares
-
-            int piece = get_piece(board, square_num - 1); // Get piece from bitboard
-            if (piece == CB_EMPTY) continue;
-
-            int piece_color = (piece & CB_WHITE) ? CB_WHITE : CB_BLACK;
-            int is_king = (piece & CB_KING) ? 1 : 0;
-
-            if (piece_color == color) {
-                int fwd = (color == CB_WHITE) ? 1 : -1; 
-                int dx[] = {-1, 1};
-                
-                if (!is_king) {
-                    for (i = 0; i < 2; ++i) {
-                        int to_c = c + dx[i];
-                        int to_r = r + fwd;
-                        int to_square_num = coorstonumber(to_c, to_r, GT_ENGLISH);
-
-                        if (to_c >= 0 && to_c < 8 && to_r >= 0 && to_r < 8 && to_square_num != 0 && get_piece(board, to_square_num - 1) == CB_EMPTY) {
-                            if (*n < MAXMOVES) {
-                                movelist[*n].jumps = 0;
-                                movelist[*n].from.x = c;
-                                movelist[*n].from.y = r;
-                                movelist[*n].to.x = to_c;
-                                movelist[*n].to.y = to_r;
-                                movelist[*n].path[0].x = c;
-                                movelist[*n].path[0].y = r;
-                                movelist[*n].path[1].x = to_c;
-                                movelist[*n].path[1].y = to_r;
-                                movelist[*n].del[0].x = -1;
-                                movelist[*n].oldpiece = piece;
-                                if ((color == CB_WHITE && to_r == 7) || (color == CB_BLACK && to_r == 0)) {
-                                    movelist[*n].newpiece = piece | CB_KING;
-                                } else {
-                                    movelist[*n].newpiece = piece;
-                                }
-                                (*n)++;
-                            }
-                        }
-                    }
-                }
-                else { // is_king
-                    int king_dy[] = {1, 1, -1, -1};
-                    int king_dx[] = {-1, 1, -1, 1};
-                    for (i = 0; i < 4; ++i) {
-                        int to_c = c + king_dx[i];
-                        int to_r = r + king_dy[i];
-                        int to_square_num = coorstonumber(to_c, to_r, GT_ENGLISH);
-
-                        if (to_c >= 0 && to_c < 8 && to_r >= 0 && to_r < 8 && to_square_num != 0 && get_piece(board, to_square_num - 1) == CB_EMPTY) {
-                            if (*n < MAXMOVES) {
-                                movelist[*n].jumps = 0;
-                                movelist[*n].from.x = c;
-                                movelist[*n].from.y = r;
-                                movelist[*n].to.x = to_c;
-                                movelist[*n].to.y = to_r;
-                                movelist[*n].path[0].x = c;
-                                movelist[*n].path[0].y = r;
-                                movelist[*n].path[1].x = to_c;
-                                movelist[*n].path[1].y = to_r;
-                                movelist[*n].del[0].x = -1;
-                                movelist[*n].oldpiece = piece;
-                                movelist[*n].newpiece = piece;
-                                (*n)++;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 
 void move4tonotation(const CBmove *m, char s[80]) {
     // Ensure the output string is always null-terminated.
@@ -897,8 +893,8 @@ void start3move_c(bitboard_pos* board, int opening_index) {
             int to_square_num = three_moves_data[opening_index][i].to;
 
             int from_x, from_y, to_x, to_y;
-            numbertocoors(from_square_num, &from_x, &from_y, GT_ENGLISH);
-            numbertocoors(to_square_num, &to_x, &to_y, GT_ENGLISH);
+            numbertocoors(from_square_num, from_x, from_y, GT_ENGLISH);
+            numbertocoors(to_square_num, to_x, to_y, GT_ENGLISH);
 
             CBmove move;
             move.from.x = from_x;
@@ -907,7 +903,7 @@ void start3move_c(bitboard_pos* board, int opening_index) {
             move.to.y = to_y;
             move.jumps = 0; // Assuming no jumps in opening moves for simplicity
 
-            int piece = get_piece(board, from_square_num - 1); // Get piece from bitboard
+            int piece = get_piece(*board, from_square_num - 1); // Get piece from bitboard
             move.oldpiece = piece;
             // Determine newpiece, accounting for bitboard_possible kinging
             int new_piece_val = piece;
@@ -924,12 +920,12 @@ void start3move_c(bitboard_pos* board, int opening_index) {
     }
 }
 
-int get_piece(const bitboard_pos* board, int square_num) {
+int get_piece(const bitboard_pos& board, int square_num) {
     unsigned int bit = (1U << square_num);
-    if (board->bm & bit) return CB_BLACK | CB_MAN;
-    if (board->bk & bit) return CB_BLACK | CB_KING;
-    if (board->wm & bit) return CB_WHITE | CB_MAN;
-    if (board->wk & bit) return CB_WHITE | CB_KING;
+    if (board.bm & bit) return CB_BLACK | CB_MAN;
+    if (board.bk & bit) return CB_BLACK | CB_KING;
+    if (board.wm & bit) return CB_WHITE | CB_MAN;
+    if (board.wk & bit) return CB_WHITE | CB_KING;
     return CB_EMPTY;
 }
 

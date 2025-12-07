@@ -24,20 +24,28 @@ public:
     explicit AIWorker(QObject *parent = nullptr);
     ~AIWorker();
 
+    int getLastEvaluationScore() const { return m_lastEvaluationScore; }
+    int getLastSearchDepth() const { return m_lastSearchDepth; }
+    QString getEgdbLookupResult() const { return m_egdbLookupResult; }
+
 public slots:
     void performTask(AI_State task, const bitboard_pos& board, int color, double maxtime);
+    void performInitialization(const QString& egdbPath);
     void requestAbort();
+    void searchBestMove(bitboard_pos board, int color, double maxtime);
+
+private slots:
+    int evaluateBoard(const bitboard_pos& board, int color);
+    int minimax(bitboard_pos board, int color, int depth, int alpha, int beta, CBmove* bestMove, bool allowNull);
+    int quiescenceSearch(bitboard_pos board, int color, int alpha, int beta);
+    bool isSquareAttacked(const bitboard_pos& board, int r, int c, int attackerColor);
 
 signals:
     void searchFinished(bool moveFound, bool aborted, const CBmove& bestMove, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime);
     void evaluationReady(int score, int depth);
+    void initializationFinished(bool success, int maxPieces);
 
 private:
-    void searchBestMove(bitboard_pos board, int color, double maxtime);
-    int evaluateBoard(const bitboard_pos& board, int color, int egdb_context);
-    int minimax(bitboard_pos board, int color, int depth, int alpha, int beta, CBmove* bestMove, bool allowNull, int egdb_context, int mtc_score);
-    int quiescenceSearch(bitboard_pos board, int color, int alpha, int beta, int egdb_context, int mtc_score);
-    bool isSquareAttacked(const bitboard_pos& board, int r, int c, int attackerColor);
     static bool compareMoves(const CBmove& a, const CBmove& b);
     uint64_t generateZobristKey(const bitboard_pos& board, int colorToMove);
     static void initZobristKeys();
@@ -48,6 +56,7 @@ private:
     int m_historyTable[8][8][8][8];
     int m_lastEvaluationScore;
     int m_lastSearchDepth;
+    QString m_egdbLookupResult;
 
     // Piece-Square Tables (PSTs) for evaluation
     static const int whiteManPST[8][8];

@@ -1,44 +1,42 @@
 #include "log.h"
-#include <QDateTime>
-#include <QDebug>
+#include "Logger.h"
+#include <cstdarg>
 #include <cstdio>
+#include <QDateTime>
+#include <QString>
 
-LogLevel s_minLogLevel = LOG_LEVEL_DEBUG;
+static int s_minLogLevel = LOG_LEVEL_INFO;
 
-void init_logging()
+void log_c(int level, const char* format, ...)
 {
-}
-
-void close_logging()
-{
-}
-
-
-void log_c(int level, const char* message)
-{
-    if (level < s_minLogLevel)
+    if (level > s_minLogLevel) { // Invert the logic here
         return;
-
-    QString levelStr;
-    switch (level) {
-    case LOG_LEVEL_TRACE: levelStr = "TRACE"; break;
-    case LOG_LEVEL_DEBUG: levelStr = "DEBUG"; break;
-    case LOG_LEVEL_INFO: levelStr = "INFO"; break;
-    case LOG_LEVEL_WARNING: levelStr = "WARNING"; break;
-    case LOG_LEVEL_ERROR: levelStr = "ERROR"; break;
-    case LOG_LEVEL_FATAL: levelStr = "FATAL"; break;
-    default: levelStr = "UNKNOWN"; break;
     }
 
-    QString formattedMessage = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz")
-                               + "  [" + levelStr + "]  " + QString::fromUtf8(message);
+    // Format the message using vsnprintf
+    char buffer[2048]; // Increased buffer size for safety
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
 
-    printf("%s\n", formattedMessage.toLocal8Bit().constData());
-    fflush(stdout);
-}
+    // Determine the log level string
+    const char* levelStr;
+    switch (level) {
+        case LOG_LEVEL_FATAL:   levelStr = "FATAL";   break;
+        case LOG_LEVEL_ERROR:   levelStr = "ERROR";   break;
+        case LOG_LEVEL_WARNING: levelStr = "WARNING"; break;
+        case LOG_LEVEL_INFO:    levelStr = "INFO";    break;
+        case LOG_LEVEL_DEBUG:   levelStr = "DEBUG";   break;
+        default:                levelStr = "UNKNOWN"; break;
+    }
 
+    // Get current timestamp
+    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
 
-void log_qstring(int level, const QString& message)
-{
-    log_c(level, message.toUtf8().constData());
+    // Construct the final log message
+    QString finalMessage = QString("%1  [%2]  %3").arg(timestamp).arg(levelStr).arg(buffer);
+
+    // Send the message to the thread-safe logger
+    Logger::instance()->log(finalMessage);
 }

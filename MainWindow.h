@@ -199,8 +199,8 @@ private:
     void saveSettings();
 
     GameManager *m_gameManager; 
-
-    // AI Management 
+    AIWorker *m_aiWorker; // Declared AIWorker member
+    QThread m_aiThread;   // Declared QThread member
 
 
 

@@ -1,7 +1,10 @@
 #pragma once
-#include <QMetaType> // Required for Q_DECLARE_METATYPE
 #include <cstdint> // Required for uint32_t
 #include <vector>  // Required for std::vector
+
+#ifdef __cplusplus
+#include <QMetaType> // Required for Q_DECLARE_METATYPE
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,9 +22,21 @@ extern "C" {
 #define STATUS_EGDB_INIT_START     (1 << 2)  // EGDB initialization has started
 #define STATUS_EGDB_INIT_OK        (1 << 3)  // EGDB initialization completed successfully
 #define STATUS_EGDB_INIT_FAIL      (1 << 4)  // EGDB initialization failed
-#define STATUS_EGDB_LOOKUP_HIT     (1 << 5)  // An EGDB lookup resulted in a hit (found a value)
-#define STATUS_EGDB_LOOKUP_MISS    (1 << 6)  // An EGDB lookup resulted in a miss (no value found)
-#define STATUS_APP_START           (1 << 7)  // Application has started
+#define STATUS_EGDB_LOOKUP_ATTEMPT (1 << 5)  // An EGDB lookup was attempted
+#define STATUS_EGDB_LOOKUP_HIT     (1 << 6)  // An EGDB lookup resulted in a hit (found a value)
+#define STATUS_EGDB_LOOKUP_MISS    (1 << 7)  // An EGDB lookup resulted in a miss (no value found)
+#define STATUS_EGDB_UNEXPECTED_VALUE (1 << 8) // EGDB returned an unexpected numerical value
+#define STATUS_EGDB_LOOKUP_OUT_OF_BOUNDS (1 << 9) // EGDB lookup failed due to piece count out of bounds
+#define STATUS_EGDB_LOOKUP_NOT_PRESENT (1 << 10) // EGDB lookup failed because sub-database was not present
+#define STATUS_EGDB_LOOKUP_INVALID_INDEX (1 << 11) // EGDB lookup failed due to invalid index calculation
+#define STATUS_EGDB_SINGLE_VALUE_HIT (1 << 12) // EGDB lookup returned a pre-calculated single value
+#define STATUS_EGDB_WIN_RESULT     (1 << 13) // EGDB lookup resulted in a Win
+#define STATUS_EGDB_LOSS_RESULT    (1 << 14) // EGDB lookup resulted in a Loss
+#define STATUS_EGDB_DRAW_RESULT    (1 << 15) // EGDB lookup resulted in a Draw
+#define STATUS_EGDB_UNKNOWN_RESULT (1 << 16) // EGDB lookup resulted in an Unknown value (after full processing)
+#define STATUS_EGDB_DISK_READ_ERROR (1 << 17) // Error reading a disk block for EGDB
+#define STATUS_EGDB_DECODE_ERROR (1 << 18) // Error during EGDB data decoding
+#define STATUS_APP_START           (1 << 19)  // Application has started
 
 // Getter and setter for g_programStatusWord
 uint32_t getProgramStatusWord();
@@ -141,11 +156,17 @@ static inline int MSB_fallback(uint32_t n) {
 #endif
 
 
-// Coordinate struct
-typedef struct {
+// Coordinate struct (C++ style)
+struct coor {
     int x, y;
     int field;
-} coor;
+
+    // Default constructor
+    coor() : x(0), y(0), field(0) {}
+
+    // Parameterized constructor
+    coor(int new_x, int new_y, int new_field) : x(new_x), y(new_y), field(new_field) {}
+};
 
 // Bitboard position (for internal engine use and EGDB)
 typedef struct {
@@ -172,7 +193,8 @@ typedef struct {
 
     // Additional members required by DBManager.cpp
     int fp;                     // File pointer index for this sub-database
-    std::vector<int> idx;       // Vector of indices into the block data
+    int* idx;                   // Vector of indices into the block data
+    int idx_size;               // Size of the idx array
     int blockoffset;            // Offset in the block
     int value;                  // Value if the sub-database is a single value (e.g., all draws)
     int ispresent;              // Flag if the sub-database is present
@@ -193,7 +215,8 @@ typedef struct {
 
     // Additional members required by DBManager.cpp
     int fp;                     // File pointer index for this sub-database
-    std::vector<int> idx;       // Vector of indices into the block data
+    int* idx;                   // Vector of indices into the block data
+    int idx_size;               // Size of the idx array
     int blockoffset;            // Offset in the block
     int value;                  // Value if the sub-database is a single value
     int ispresent;              // Flag if the sub-database is present
@@ -206,8 +229,17 @@ typedef struct {
 }
 #endif
 
+// New namespace for bitboard-related constants
+namespace BitboardConstants {
+    extern char bitsinword[65536];
+    extern uint32_t revword[65536];
+} // namespace BitboardConstants
+
+#ifdef __cplusplus
+// Q_DECLARE_METATYPE declarations must be outside extern "C" blocks
 Q_DECLARE_METATYPE(coor)
 Q_DECLARE_METATYPE(bitboard_pos)
 Q_DECLARE_METATYPE(Board8x8)
 Q_DECLARE_METATYPE(cprsubdb)
 Q_DECLARE_METATYPE(cprsubdb_mtc)
+#endif

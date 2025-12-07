@@ -18,6 +18,7 @@ public:
     int64_t getDatabaseSize(int bm, int bk, int wm, int wk, int bmrank, int wmrank);
     void getInfoString(char *str);
     int getCacheSize();
+    QString getEGDBStatus() const;
 
 
 private:

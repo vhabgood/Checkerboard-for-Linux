@@ -1,5 +1,6 @@
 # Binaries for the application
 checkerboard_app
+headless_checkers
 test_runner
 
 # Object files
@@ -14,20 +15,26 @@ moc_*.o
 # UI files (Qt's User Interface Compiler output)
 ui_*.h
 
-# Log files and temporary output
-*.log
-*.txt
 # Qt resource files
 qrc_*.cpp
 qrc_*.h
 
 # ForTestingOnly folder
-forTestingOnly/
+
 
 # AI exclude file
 .aiexclude
 
-# Other generated files
+log.txt
+build_output.txt
+compilation_status.txt
+corrections_history.txt
+gdb_output.txt
+psw_trace.txt
+test_fen.txt
+todo.txt
+user_facing_history_issue.txt
+
 resources.cpp
 OLD/*
 /db/*

@@ -60,10 +60,13 @@ signals:
     void evaluationReady(int score, int depth);
     // Signal to start a task in the worker thread
     void requestWorkerTask(AI_State task, const bitboard_pos& board, int color, double maxtime);
+    void requestInitialize(const QString& egdbPath);
 
 
 private slots:
     void handleWorkerSearchFinished(bool moveFound, bool aborted, const CBmove& bestMove, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime);
+    void handleInitializationFinished(bool success, int maxPieces);
+
 
 private:
     QThread* m_aiThread;

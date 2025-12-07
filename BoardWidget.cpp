@@ -6,9 +6,7 @@
 #include <QDir>
 #include "log.h"
 
-extern "C" {
 #include "c_logic.h"
-}
 
 
 #include "GameManager.h"
@@ -114,7 +112,7 @@ void BoardWidget::paintEvent(QPaintEvent *event)
             // Draw piece if present
             int square_num = coorstonumber(c, r, GT_ENGLISH); // Get 1-indexed square number
             if (square_num != 0) { // Only dark squares have pieces
-                int piece = get_piece(&m_board, square_num - 1); // Get piece from bitboard (0-indexed)
+                int piece = get_piece(m_board, square_num - 1); // Get piece from bitboard (0-indexed)
                 if (piece != CB_EMPTY && m_piecePixmaps.contains(piece)) {
                     painter.drawPixmap(screenPos.x(), screenPos.y(), m_piecePixmaps.value(piece));
                 }

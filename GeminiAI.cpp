@@ -26,9 +26,12 @@ GeminiAI::GeminiAI(const QString& egdbPath, QObject *parent)
     connect(this, &GeminiAI::requestWorkerTask, m_worker, &AIWorker::performTask);
     connect(m_worker, &AIWorker::searchFinished, this, &GeminiAI::handleWorkerSearchFinished);
     connect(m_worker, &AIWorker::evaluationReady, this, &GeminiAI::handleWorkerEvaluation);
-    m_aiThread->start();
+    
+    // Connect initialization signals/slots
+    connect(this, &GeminiAI::requestInitialize, m_worker, &AIWorker::performInitialization);
+    connect(m_worker, &AIWorker::initializationFinished, this, &GeminiAI::handleInitializationFinished);
 
-
+    // init();
 }
 
 GeminiAI::~GeminiAI()
@@ -40,35 +43,25 @@ GeminiAI::~GeminiAI()
 
 void GeminiAI::init()
 {
-    qDebug() << "GeminiAI: Initializing EGDB with path: " << m_egdbPath;
-    updateProgramStatusWord(STATUS_EGDB_INIT_START);
+    // updateProgramStatusWord(STATUS_EGDB_INIT_START);
+    // emit requestInitialize(m_egdbPath);
+}
 
-    char db_init_output[256];
-    int suggestedMB = 64; // Default value, can be made configurable later if needed
-
-    int success = DBManager::instance()->db_init(suggestedMB, db_init_output, m_egdbPath.toUtf8().constData());
-
+void GeminiAI::handleInitializationFinished(bool success, int maxPieces)
+{
+    /*
     if (success) {
         m_egdbInitialized = true;
+        m_maxEGDBPieces = maxPieces;
         updateProgramStatusWord(STATUS_EGDB_INIT_OK);
-        // Assuming DBManager::db_init populates its internal m_maxpieces variable
-        // which can then be retrieved or is available through other means.
-        // For now, m_maxEGDBPieces will remain at its default of 0 unless updated by a separate mechanism.
-        // This should be verified by checking DBManager.cpp.
-        qDebug() << "GeminiAI: EGDB initialized successfully. Output: " << db_init_output;
+        log_c(LOG_LEVEL_INFO, "EGDB Initialized successfully. Max pieces: %d", maxPieces);
     } else {
         m_egdbInitialized = false;
+        m_maxEGDBPieces = 0;
         updateProgramStatusWord(STATUS_EGDB_INIT_FAIL);
-        qWarning() << "GeminiAI: EGDB initialization failed. Output: " << db_init_output;
+        log_c(LOG_LEVEL_ERROR, "EGDB Initialization failed.");
     }
-
-    // The logic to process pending move requests should not re-call requestMove here,
-    // as requestMove now directly emits requestWorkerTask without deferring based on EGDB status.
-    // The m_pendingMoveRequest flag is effectively no longer needed in this context.
-    // However, if the intent was to ensure a move request is re-triggered if it was deferred *before*
-    // EGDB init completed, this block is where that logic would live if deferral was still active.
-    // For now, we'll keep it simple as requestMove now directly emits.
-    // m_pendingMoveRequest = false; // Reset pending request if it was used for deferred calls
+    */
 }
 
 
@@ -129,29 +122,29 @@ void GeminiAI::handleWorkerEvaluation(int score, int depth)
 void GeminiAI::setMode(AI_State mode)
 {
     m_mode = mode;
-    qDebug() << "GeminiAI: Mode set to " << mode;
+
 }
 
 void GeminiAI::setHandicap(int handicap)
 {
     m_handicap = handicap;
-    qDebug() << "GeminiAI: Handicap set to " << handicap;
+
 }
 
 void GeminiAI::setOptions(const CBoptions& options)
 {
     this->m_options = options;
-    qDebug() << "GeminiAI: Options set. White Player Type: " << this->m_options.white_player_type << ", Black Player Type: " << this->m_options.black_player_type;
+
 }
 
 void GeminiAI::setEgdbPath(const QString& path)
 {
-    qInfo() << "GeminiAI: EGDB path set to: " << path;
+
     if (m_egdbInitialized) {
-        DBManager::instance()->db_exit();
+        // DBManager::instance()->db_exit();
     }
     m_egdbPath = path;
-    init();
+    // init();
 }
 
 // User book and external engine methods remain unchanged
@@ -164,9 +157,6 @@ void GeminiAI::resetNavigation() {}
 void GeminiAI::loadUserBook(const QString& filename) { Q_UNUSED(filename); }
 void GeminiAI::saveUserBook(const QString& filename) { Q_UNUSED(filename); }
 bool GeminiAI::sendCommand(const QString& command, QString& reply) {
-    if (m_useExternalEngine && m_primaryExternalEngine) {
-        return m_primaryExternalEngine->sendCommand(command, reply);
-    }
     reply = "Internal AI: No external engine active.";
     return true;
 }

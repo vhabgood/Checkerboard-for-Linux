@@ -6,37 +6,28 @@
 #include <stdint.h>
 #include <stdio.h> // For FILE, etc.
 #include <time.h>
+#include <string.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
-void log_c(int level, const char* message); // Declare log_c here
-
-extern char bitsinword[65536];
-extern uint32_t revword[65536];
-
-
+// Note: Removed extern "C" block for C++ conversion. All functions declared here will have C++ linkage.
 
 // From bitboard.h
 void boardtocrbitboard(const Board8x8* b, bitboard_pos *position);
 void bitboardtoboard8(bitboard_pos *p, Board8x8* b);
-int count_pieces(const bitboard_pos* board);
+int count_pieces(const bitboard_pos& board);
 bool is_valid_board8_square(int x, int y);
 
 // Bitboard manipulation helpers
-int get_piece(const bitboard_pos* board, int square_num);
+int get_piece(const bitboard_pos& board, int square_num);
 void set_piece(bitboard_pos* board, int square_num, int piece);
 void clear_square(bitboard_pos* board, int square_num);
 
 
 // From coordinates.h
 
-void coorstocoors(int *x, int *y, bool invert, bool mirror);
+void coorstocoors(int& x, int& y, bool invert, bool mirror);
 void coor_to_notation(int x, int y, char* s, int gametype);
 int coorstonumber(int x, int y, int gametype);
-void numbertocoors(int n, int *x, int *y, int gametype);
+void numbertocoors(int n, int& x, int& y, int gametype);
 
 // From crc.h
 unsigned int crc_calc(const char *buf, int len);
@@ -61,7 +52,7 @@ int extract_filename(const char *filespec, char *name);
 // From saveashtml.h
 int stripquotes(const char *str, char *stripped);
 
-int coortohtml(coor c, int gametype);
+int coortohtml(const coor& c, int gametype);
 void move4tonotation(const CBmove *m, char s[80]);
 
 // From utility.h
@@ -71,15 +62,11 @@ int get_startcolor(int gametype);
 enum PDN_RESULT string_to_pdn_result(const char *resultstr, int gametype);
 char* read_text_file_c(const char* filename, READ_TEXT_FILE_ERROR_TYPE* etype);
 
-void start3move_c(bitboard_pos* board, int opening_index);
 void domove_c(const CBmove *move, bitboard_pos* board);
+void dummy_function_test(); // NEW
 void unmake_move_c(const CBmove *move, bitboard_pos* board);
-void find_captures_recursive(const bitboard_pos* board, CBmove movelist[MAXMOVES], CBmove m, int x, int y, int d, int *n, int color, int is_king, const int* visited_parent);
-void makemovelist(const bitboard_pos* board, int color, CBmove movelist[MAXMOVES], int *isjump, int *n);
-int get_legal_moves_c(const bitboard_pos* board, int color, CBmove movelist[MAXMOVES], int *nmoves, int *isjump, const CBmove *last_move, bool *can_continue_multijump);
+void find_captures_recursive(const bitboard_pos& board, CBmove* movelist, CBmove* m, int x, int y, int d, int& n, int color, int is_king, const int* visited_parent);
+void makemovelist(const bitboard_pos& board, int color, CBmove* movelist, int& isjump, int& n);
+int get_legal_moves_c(const bitboard_pos& board, int color, CBmove* movelist, int& nmoves, int& isjump, const CBmove *last_move, bool *can_continue_multijump);
 
-
-
-#ifdef __cplusplus
-}
-#endif
+void start3move_c(bitboard_pos* board, int opening_index);

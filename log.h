@@ -1,26 +1,14 @@
 #ifndef LOG_H
 #define LOG_H
 
-#include <QString>
+// Log levels
+#define LOG_LEVEL_FATAL   0
+#define LOG_LEVEL_ERROR   1
+#define LOG_LEVEL_WARNING 2
+#define LOG_LEVEL_INFO    3
+#define LOG_LEVEL_DEBUG   4
 
-#include "checkers_types.h"
-
-enum LogLevel {
-    LOG_LEVEL_TRACE = 0,
-    LOG_LEVEL_DEBUG,
-    LOG_LEVEL_INFO,
-    LOG_LEVEL_WARNING,
-    LOG_LEVEL_ERROR,
-    LOG_LEVEL_FATAL
-};
-
-void init_logging();
-void close_logging();
-extern "C" {
-void log_c(int level, const char* message);
-void log_qstring(int level, const QString& message);
-}
-
-extern LogLevel s_minLogLevel;
+// The primary logging function, now thread-safe.
+void log_c(int level, const char* format, ...);
 
 #endif // LOG_H

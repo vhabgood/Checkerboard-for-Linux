@@ -2,8 +2,10 @@
 #define CHECKERS_TYPES_H
 
 #include "core_types.h"
+#ifdef __cplusplus
 #include <QString>
 #include <QVariant>
+#endif
 
 
 // Define constants for piece types
@@ -42,8 +44,8 @@ enum PDN_RESULT {
 #define MAX_MOVES_PDN 1024
 
 
-typedef struct
-    {
+struct CBmove // Changed from typedef struct to struct
+{
     coor from;
     coor to;
     int jumps;
@@ -56,8 +58,9 @@ typedef struct
     int oldpiece;       // The piece before the move
     int newpiece;       // The piece after the move (e.g., kinged)
     char comment[256];  // Comment associated with the move
-    } CBmove;
 
+
+}; // Removed typedef here, CBmove is now a proper struct
 Q_DECLARE_METATYPE(CBmove)
 
 // Enum for application states
@@ -88,7 +91,9 @@ enum AI_State {
     RunTestSet,
     AnalyzePdn
 };
+#ifdef __cplusplus
 Q_DECLARE_METATYPE(AI_State)
+#endif
 
 // Add this to your checkers_types.h or a relevant header
 typedef struct {

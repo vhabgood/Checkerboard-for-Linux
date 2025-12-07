@@ -10,8 +10,6 @@ GameManager::GameManager(QObject *parent)
       m_isGameOver(false),
       m_isAITurn(false)
 {
-    m_ai = new GeminiAI("", this);
-    connect(m_ai, &GeminiAI::searchFinished, this, &GameManager::handleAIMoveFound);
     m_gameTimer = new QTimer(this);
     connect(m_gameTimer, &QTimer::timeout, this, &GameManager::handleTimerTimeout);
 }
@@ -22,7 +20,7 @@ GameManager::~GameManager()
 
 void GameManager::newGame(int gameType)
 {
-    qDebug() << "GameManager: Starting new game.";
+
     m_currentBoard = get_initial_board(gameType);
     m_currentColorToMove = CB_WHITE;
     m_isGameOver = false;
@@ -59,21 +57,18 @@ void GameManager::switchPlayer()
 
 void GameManager::requestAiMove()
 {
-    qDebug() << "GameManager::requestAiMove() called.";
-    qDebug() << "Current Color To Move: " << m_currentColorToMove;
-    qDebug() << "White Player Type: " << m_whitePlayer;
-    qDebug() << "Black Player Type: " << m_blackPlayer;
+
 
     if ((m_currentColorToMove == CB_WHITE && m_whitePlayer == PlayerType::PLAYER_AI) ||
         (m_currentColorToMove == CB_BLACK && m_blackPlayer == PlayerType::PLAYER_AI)) {
         m_isAITurn = true;
         emit aiThinking(true);
-        qDebug() << "GameManager: Requesting AI move for color " << m_currentColorToMove << " (CB_WHITE=" << CB_WHITE << ", CB_BLACK=" << CB_BLACK << ")";
-        emit requestEngineSearch(m_currentBoard, m_currentColorToMove, 1.0); // Assuming 1.0 is a placeholder for timeLimit
+
+        emit requestEngineSearch(Autoplay, m_currentBoard, m_currentColorToMove, 1.0); // Assuming 1.0 is a placeholder for timeLimit
     } else {
         m_isAITurn = false;
         emit userInputRequested();
-        qDebug() << "GameManager: Human player's turn.";
+
     }
 }
 
@@ -82,7 +77,7 @@ bool GameManager::isLegalMove(const CBmove& move)
     CBmove legalMoves[MAXMOVES];
     int nmoves = 0;
     int isjump = 0;
-    get_legal_moves_c(&m_currentBoard, m_currentColorToMove, legalMoves, &nmoves, &isjump, NULL, NULL);
+    get_legal_moves_c(m_currentBoard, m_currentColorToMove, legalMoves, nmoves, isjump, NULL, NULL);
 
     for (int i = 0; i < nmoves; ++i) {
         // Compare moves using coor.x and coor.y, as coor.field is not consistently used
@@ -133,7 +128,7 @@ QString GameManager::empdn_filename_internal() { return QString(); }
 QString GameManager::emlog_filename_internal() { return QString(); }
 void GameManager::quick_search_both_engines_internal() {}
 void GameManager::start3MoveGame(int opening_index) {
-    qDebug() << "GameManager: Starting 3-move game with index: " << opening_index;
+
     start3move_c(&m_currentBoard, opening_index);
     m_currentColorToMove = CB_BLACK; // Black always starts 3-move openings
     m_isGameOver = false;
@@ -150,7 +145,7 @@ QString GameManager::getFenPosition() {
     return QString(fen_c_str);
 }
 void GameManager::loadFenPosition(const QString& fen) {
-    qDebug() << "GameManager: Loading FEN bitboard_position: " << fen;
+
     int color_to_move;
     int success = FENtobitboard_pos(&m_currentBoard, fen.toUtf8().constData(), &color_to_move, GT_ENGLISH);
     if (success) {
@@ -162,7 +157,7 @@ void GameManager::loadFenPosition(const QString& fen) {
         emit boardUpdated(m_currentBoard);
         requestAiMove();
     } else {
-        qWarning() << "GameManager: Failed to load FEN bitboard_position: " << fen;
+    
     }
 }
 void GameManager::setCurrentPdnGame(const PDNgame& gameData) {
@@ -188,7 +183,7 @@ void GameManager::setOptions(const CBoptions& options) {
     } else {
         m_gameTimer->stop();
     }
-    qDebug() << "GameManager: Options set.";
+
 }
 
 int GameManager::getGameType() const { return m_options.gametype; }
@@ -196,11 +191,11 @@ int GameManager::getTotalMoves() const { return m_boardHistory.size() - 1; } // 
 CBmove GameManager::getLastMove() const { return m_lastMove; }
 void GameManager::handleSquareClick(int x, int y) {
     // This is a placeholder. Actual logic will involve move validation, piece selection, etc.
-    qDebug() << "GameManager: Square clicked: " << x << ", " << y;
+
     // For human player, if a piece is selected, try to make a move.
     // If no piece selected, select the piece at (x,y) if it belongs to current player.
     if (m_isAITurn) {
-        qDebug() << "GameManager: AI's turn, ignoring human click.";
+
         return;
     }
     
@@ -208,7 +203,7 @@ void GameManager::handleSquareClick(int x, int y) {
     int clicked_square_num = coorstonumber(x, y, GT_ENGLISH);
     if (clicked_square_num == 0) return; // Clicked on a light square
 
-    int piece_at_clicked_square = get_piece(&m_currentBoard, clicked_square_num - 1);
+    int piece_at_clicked_square = get_piece(m_currentBoard, clicked_square_num - 1);
     
     if (!m_pieceSelected) {
         // No piece selected, try to select one
@@ -217,7 +212,7 @@ void GameManager::handleSquareClick(int x, int y) {
             m_selectedY = y;
             m_pieceSelected = true;
             emit pieceSelected(x, y);
-            qDebug() << "GameManager: Piece selected at: " << x << ", " << y;
+
         }
     } else {
         // A piece is already selected, try to make a move
@@ -236,14 +231,14 @@ void GameManager::handleSquareClick(int x, int y) {
             // Invalid move, deselect piece
             emit requestClearSelectedPiece();
             emit pieceDeselected();
-            qDebug() << "GameManager: Invalid move attempted.";
+
         }
     }
 }
 
 void GameManager::loadPdnGame(const QString &filename) { Q_UNUSED(filename); }
 void GameManager::resumePlay() {
-    qDebug() << "GameManager: Resuming play.";
+
     requestAiMove(); // Request AI move if it's AI's turn
 }
 void GameManager::clearBoard() {
@@ -294,7 +289,7 @@ void GameManager::parsePdnGameString(char* game_str, PdnGameWrapper& game) { Q_U
 int GameManager::PDNparseGetnumberofgames(char *filename) { Q_UNUSED(filename); return 0; }
 void GameManager::setTimeContol(int level, bool exact_time, bool use_incremental_time, int initial_time, int time_increment) {
     Q_UNUSED(level); Q_UNUSED(exact_time); Q_UNUSED(use_incremental_time); Q_UNUSED(initial_time); Q_UNUSED(time_increment);
-    qDebug() << "GameManager: Time control set (stub).";
+
 }
 void GameManager::addTimeToClock(int seconds) { Q_UNUSED(seconds); }
 void GameManager::subtractFromClock(int seconds) { Q_UNUSED(seconds); }
@@ -334,37 +329,28 @@ void GameManager::handleTimerTimeout() {
 void GameManager::handleGameOverResult(int result) {
     m_isGameOver = true;
     emit gameIsOver(result);
-    qDebug() << "Game Over. Result: " << result;
+
 }
 
-void GameManager::handleAIMoveFound(bool moveFound, bool aborted, const CBmove& bestMove, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime)
+void GameManager::handleAiMove(bool moveFound, bool aborted, const CBmove& bestMove, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime)
 {
     Q_UNUSED(pdnMoveText); // This might be used later for PDN saving
     Q_UNUSED(elapsedTime); // This might be used for stats
 
-    qDebug() << "GameManager::handleAIMoveFound: moveFound=" << moveFound << ", aborted=" << aborted << ", statusText=" << statusText << ", gameResult=" << gameResult;
 
-    if (moveFound) {
-        qDebug() << "AI found a move: from (" << bestMove.from.x << "," << bestMove.from.y << ") to (" << bestMove.to.x << "," << bestMove.to.y << ")";
-    } else {
-        qDebug() << "AI did NOT find a move.";
-    }
+
+
     
     m_isAITurn = false;
     emit aiThinking(false);
 
-    if (aborted) {
-        qDebug() << "AI search aborted.";
-        // Optionally, emit a signal to MainWindow to display a message
-        return;
-    }
+
 
     if (moveFound) {
         // Apply the AI's best move
         makeMove(bestMove); // This will handle switching player, updating board, and requesting next AI move if needed
     } else {
-        qDebug() << "AI found no move. Game Over or other condition. Result: " << gameResult;
-        // If the AI found no move, it could mean a draw or stalemate
+        // AI found no move. Game Over or other condition. Result: gameResult
         m_isGameOver = true;
         // The gameResult from the AI (CB_WIN, CB_LOSS, CB_DRAW) should be used here
         emit gameIsOver(gameResult); 

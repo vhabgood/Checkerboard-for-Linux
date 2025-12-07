@@ -18,7 +18,7 @@
 #include <algorithm> // For std::min and std::max
 #include "c_logic.h"
 
-extern uint32_t g_programStatusWord;
+
 
 DBManager* DBManager::m_instance = nullptr;
 
@@ -246,6 +246,7 @@ int DBManager::decode_value(unsigned char* diskblock, uint32_t index, cprsubdb* 
 char* DBManager::read_entire_file(const char* fullpath, long* file_size) {
     FILE *fp = fopen(fullpath, "rb");
     if (fp == nullptr) {
+        log_c(LOG_LEVEL_WARNING, "read_entire_file: Failed to open file: %s", fullpath);
         return nullptr;
     }
 
@@ -253,13 +254,26 @@ char* DBManager::read_entire_file(const char* fullpath, long* file_size) {
     long size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
 
+    if (size == 0) {
+        fclose(fp);
+        *file_size = 0;
+        // Return a valid empty string to prevent crashes in the caller
+        char* empty_content = static_cast<char*>(malloc(1));
+        if (empty_content) {
+            empty_content[0] = '\0';
+        }
+        return empty_content;
+    }
+
     char* content = static_cast<char*>(malloc(size + 1));
     if (content == nullptr) {
+        log_c(LOG_LEVEL_FATAL, "read_entire_file: Failed to malloc %ld bytes.", size + 1);
         fclose(fp);
         return nullptr;
     }
 
     if (fread(content, 1, size, fp) != size) {
+        log_c(LOG_LEVEL_ERROR, "read_entire_file: Failed to read %ld bytes from %s.", size, fullpath);
         free(content);
         fclose(fp);
         return nullptr;
@@ -267,25 +281,26 @@ char* DBManager::read_entire_file(const char* fullpath, long* file_size) {
     fclose(fp);
     content[size] = '\0';
 
-    // Sanitize line endings
-    char* sanitized_content = static_cast<char*>(malloc(size + 1));
-    if (!sanitized_content) {
-        free(content);
-        return nullptr;
+    // Perform in-place sanitization
+    long write_idx = 0;
+    for (long read_idx = 0; read_idx < size; ++read_idx) {
+        if (content[read_idx] == '\r' && (read_idx + 1 < size) && content[read_idx + 1] == '\n') {
+            continue; // Skip the '\r'
+        }
+        content[write_idx++] = content[read_idx];
+    }
+    content[write_idx] = '\0';
+    *file_size = write_idx;
+
+    // Optional: shrink the allocation to the sanitized size to save memory.
+    // realloc might return the same pointer or a new one.
+    char* resized_content = static_cast<char*>(realloc(content, write_idx + 1));
+    if (resized_content == nullptr) {
+        log_c(LOG_LEVEL_WARNING, "read_entire_file: realloc failed, returning original potentially oversized buffer.");
+        return content; // If realloc fails, return the original buffer
     }
 
-    long j = 0;
-    for (long i = 0; i < size; ++i) {
-        if (content[i] == '\r' && (i + 1 < size) && content[i+1] == '\n') {
-            continue; // Skip '\r' in '\r\n'
-        }
-        sanitized_content[j++] = content[i];
-    }
-    sanitized_content[j] = '\0';
-    free(content);
-    
-    *file_size = j;
-    return sanitized_content;
+    return resized_content;
 }
 
 bool DBManager::parse_single_base_entry(char **ptr_ref, int blockoffset, int fpcount, int* total_blocks_ptr, char* file_content) {
@@ -348,9 +363,13 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
 {
     QMutexLocker locker(&m_mutex);
     
+    // Clear any previous EGDB status flags and set INIT_START
+    clearProgramStatusWordFlags(0xFFFFFFFF); // Clear all flags to start fresh
+    updateProgramStatusWord(STATUS_APP_START | STATUS_EGDB_INIT_START);
+    log_c(LOG_LEVEL_INFO, "DBManager::db_init: Initializing EGDB from directory: %s", EGTBdirectory);
+
     initDecodeTable();
 
-    updateProgramStatusWord(STATUS_EGDB_INIT_START); 
     FILE *fp;
     char dbname[256];
     char fullpath[MAX_PATH_FIXED];
@@ -368,19 +387,9 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
 	
     initBicoefTable();
 
-    for(int i=0;i<65536; i++) {
-        bitsinword[i] = recbitcount(i); // Assuming recbitcount is accessible and works on int
-    }
 
-    for(int i=0;i<65536; i++) {
-        revword[i]=0;
-        for(int j=0;j<16; j++) {
-            if(i&(1<<j))
-                revword[i] +=1<<(15-j);
-        }
-    }
 
-	memset(cprsubdatabase, 0, DBManager::CPR_SUBDATABASE_TOTAL_SIZE);
+    memset(cprsubdatabase, 0, DBManager::CPR_SUBDATABASE_TOTAL_SIZE);
     memset(cprsubdatabase_mtc, 0, sizeof(cprsubdatabase_mtc));
 	
     for(n=2;n<=8;n++) // Check up to 8 pieces for maxpieces
@@ -397,31 +406,40 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
 		}
     }
 
-    maxpieces = pieces; // Set maxpieces based on found db files
-    if (maxpieces > 8) maxpieces = 8;
+    this->maxpieces = pieces;
+    log_c(LOG_LEVEL_INFO, "DBManager::db_init: Determined maxpieces = %d.", this->maxpieces);
+    if (this->maxpieces > 0) {
+        log_c(LOG_LEVEL_INFO, "EGDB found. Max pieces = %d.", this->maxpieces);
+    } else {
+        log_c(LOG_LEVEL_WARNING, "No EGDB files found.");
+        updateProgramStatusWord(STATUS_EGDB_INIT_FAIL);
+        return 0;
+    }
+    
+    if (this->maxpieces > 8) this->maxpieces = 8;
 
-    if (maxpieces > 0 && maxpieces < (int)(sizeof(db_configs) / sizeof(db_configs[0]))) {
-        const DB_CONFIG* config = &db_configs[maxpieces];
-        maxidx = config->maxidx;
-        maxblocknum = config->maxblocknum;
-        maxpiece = config->maxpiece;
+    this->cachesize = suggestedMB << 10;
+    if(this->maxpieces <6)
+        this->cachesize = 2000;
+    if(this->maxpieces == 6)
+        this->cachesize = 42000;
+    if(this->maxpieces > 6)
+    {
+        this->cachesize = (this->cachesize > MINCACHESIZE ? this->cachesize : MINCACHESIZE);
     }
 
-    cachesize = suggestedMB << 10;
-    if(maxpieces <6)
-        cachesize = 2000;
-    if(maxpieces == 6)
-        cachesize = 42000;
-    if(maxpieces > 6)
-    {
-        cachesize = (cachesize > MINCACHESIZE ? cachesize : MINCACHESIZE);
+    if (this->maxpieces > 0 && this->maxpieces < (int)(sizeof(db_configs) / sizeof(db_configs[0]))) {
+        const DB_CONFIG* config = &db_configs[this->maxpieces];
+        this->maxidx = config->maxidx;
+        this->maxpiece = config->maxpiece;
+        this->maxblocknum = this->cachesize; // Set maxblocknum to cachesize to prevent out-of-bounds access
     }
     
     blockoffset = 0;
     int cprFileCount_mtc = 0;
     int blockoffset_mtc = 0;
 
-    for(n=2; n<=maxpieces; n++)
+    for(n=2; n<=this->maxpieces; n++)
     {
         if(n>=SPLITSIZE)
             continue;
@@ -429,9 +447,9 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
         processEgdbFiles_mtc(EGTBdirectory, n, 0, 0, 0, 0, blockoffset_mtc, cprFileCount_mtc, out);
     }
 
-    for (n=SPLITSIZE; n<=maxpieces; n++)
+    for (n=SPLITSIZE; n<=this->maxpieces; n++)
     {
-        for (nb=maxpieces-maxpiece; nb<=maxpiece; nb++)
+        for (nb=this->maxpieces-this->maxpiece; nb<=this->maxpiece; nb++)
         {
             nw=n-nb;
             if (nw > nb)
@@ -451,33 +469,33 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
         }
     }
 
-	memsize = cachesize << 10;
+	memsize = this->cachesize << 10;
     cachebaseaddress = static_cast<unsigned char*>(malloc(memsize));
     
     if(cachebaseaddress == nullptr && memsize!=0)
     {
-        updateProgramStatusWord(STATUS_EGDB_INIT_FAIL); 
+        updateProgramStatusWord(STATUS_EGDB_INIT_FAIL | STATUS_CRITICAL_ERROR); 
         log_c(LOG_LEVEL_ERROR, "dblookup: malloc for cachebaseaddress failed!");
         return 0;
     }
     
-    memsize = maxblocknum*sizeof(unsigned char*);
+    memsize = this->maxblocknum*sizeof(unsigned char*);
     blockpointer = static_cast<unsigned char**>(malloc(memsize));
     if(blockpointer == nullptr && memsize != 0 )
     {
-        updateProgramStatusWord(STATUS_EGDB_INIT_FAIL); 
+        updateProgramStatusWord(STATUS_EGDB_INIT_FAIL | STATUS_CRITICAL_ERROR); 
         log_c(LOG_LEVEL_ERROR, "dblookup: malloc for blockpointer failed!");
         free(cachebaseaddress);
         return 0;
     }
-    for(i=0;i<maxblocknum;i++)
+    for(i=0;i<this->maxblocknum;i++)
         blockpointer[i]=nullptr;
-        
-    memsize = cachesize*sizeof(struct bi);
+    
+    memsize = this->cachesize*sizeof(struct bi);
     blockinfo = static_cast<struct bi*>(malloc(memsize));
     if(blockinfo == nullptr && memsize!=0)
     {
-        updateProgramStatusWord(STATUS_EGDB_INIT_FAIL); 
+        updateProgramStatusWord(STATUS_EGDB_INIT_FAIL | STATUS_CRITICAL_ERROR); 
         log_c(LOG_LEVEL_ERROR, "dblookup: malloc for blockinfo failed!");
         free(cachebaseaddress);
         free(blockpointer);
@@ -487,21 +505,24 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
     autoloadnum = internal_preload(out, dbfp, cprFileCount);                                
     
     autoloadnum=0;
-    for(i=autoloadnum;i<cachesize;i++)
+    for(i=autoloadnum;i<this->cachesize;i++)
     {
         blockinfo[i].next = i+1;
         blockinfo[i].prev = i-1;
         blockinfo[i].uniqueid = i;
     }
-    blockinfo[cachesize-1].next=-1;
-    blockinfo[autoloadnum].prev=-1;
+    if (this->cachesize > 0) {
+        blockinfo[this->cachesize-1].next=-1;
+        blockinfo[autoloadnum].prev=-1;
+    }
     
     head=autoloadnum;
-    tail = cachesize-1;
+    tail = this->cachesize-1;
     
     updateProgramStatusWord(STATUS_EGDB_INIT_OK);
+    log_c(LOG_LEVEL_INFO, "DBManager::db_init: EGDB initialization successful (PSW: 0x%08X). Returning maxpieces = %d.", getProgramStatusWord(), this->maxpieces);
 
-	return maxpieces;
+	return this->maxpieces;
 }
 
 int DBManager::dblookup(bitboard_pos *q, int cl)
@@ -531,15 +552,31 @@ int DBManager::db_exit()
             fclose(dbfp_mtc[i]);
 		}
 
+    // Free the idx arrays that were allocated with malloc
+	for(i=0;i<50;i++)
+		{
+		if(dbfp[i] != nullptr)
+			fclose(dbfp[i]);
+        if(dbfp_mtc[i] != nullptr)
+            fclose(dbfp_mtc[i]);
+		}
+
+    // Free the idx arrays that were allocated with malloc
     for (bm = 0; bm <= MAXPIECE; ++bm) {
         for (bk = 0; bk <= MAXPIECE; ++bk) {
-            for (wm = 0; wm <= MAXPIECE; ++wm) { // Typo: should be wmrank
-                for (wk = 0; wk <= MAXPIECE; ++wk) { // Typo: should be color
-                    for (bmrank = 0; bmrank < DBManager::MAX_RANK_COUNT; ++bmrank) {
-                        for (wmrank = 0; wmrank < DBManager::MAX_RANK_COUNT; ++wmrank) {
+            for (wm = 0; wm <= MAXPIECE; ++wm) {
+                for (wk = 0; wk <= MAXPIECE; ++wk) {
+                    for (bmrank = 0; bmrank < MAX_RANK_COUNT; ++bmrank) {
+                        for (wmrank = 0; wmrank < MAX_RANK_COUNT; ++wmrank) {
                             for (color = 0; color < 2; ++color) {
-                                cprsubdatabase[bm][bk][wm][wk][bmrank][wmrank][color].idx.clear();
-                                cprsubdatabase_mtc[bm][bk][wm][wk][bmrank][wmrank][color].idx.clear();
+                                if (cprsubdatabase[bm][bk][wm][wk][bmrank][wmrank][color].idx != nullptr) {
+                                    free(cprsubdatabase[bm][bk][wm][wk][bmrank][wmrank][color].idx);
+                                    cprsubdatabase[bm][bk][wm][wk][bmrank][wmrank][color].idx = nullptr; // Avoid double free
+                                }
+                                if (cprsubdatabase_mtc[bm][bk][wm][wk][bmrank][wmrank][color].idx != nullptr) {
+                                    free(cprsubdatabase_mtc[bm][bk][wm][wk][bmrank][wmrank][color].idx);
+                                    cprsubdatabase_mtc[bm][bk][wm][wk][bmrank][wmrank][color].idx = nullptr; // Avoid double free
+                                }
                             }
                         }
                     }
@@ -589,5 +626,39 @@ int64_t DBManager::getDatabaseSize(int bm, int bk, int wm, int wk, int bmrank, i
 	if(wk)
 					dbsize *= bicoef[32-bm-wm-bk][wk];
 
-	return dbsize;
-}
+	    return dbsize;
+	}
+	
+	QString DBManager::getEGDBStatus() const {
+	    QString status;
+	    uint32_t psw = getProgramStatusWord();	
+	    if (psw & STATUS_CRITICAL_ERROR) status += "CRITICAL_ERROR; ";
+	    if (psw & STATUS_FILE_IO_ERROR) status += "FILE_IO_ERROR; ";
+	
+	    if (psw & STATUS_EGDB_INIT_START) status += "EGDB_INIT_START; ";
+	    if (psw & STATUS_EGDB_INIT_OK) status += "EGDB_INIT_OK; ";
+	    if (psw & STATUS_EGDB_INIT_FAIL) status += "EGDB_INIT_FAIL; ";
+	
+	    if (psw & STATUS_EGDB_LOOKUP_ATTEMPT) status += "EGDB_LOOKUP_ATTEMPT; ";
+	    if (psw & STATUS_EGDB_LOOKUP_HIT) status += "EGDB_LOOKUP_HIT; ";
+	    if (psw & STATUS_EGDB_LOOKUP_MISS) status += "EGDB_LOOKUP_MISS; ";
+	    if (psw & STATUS_EGDB_UNEXPECTED_VALUE) status += "EGDB_UNEXPECTED_VALUE; ";
+	    if (psw & STATUS_EGDB_LOOKUP_OUT_OF_BOUNDS) status += "EGDB_LOOKUP_OUT_OF_BOUNDS; ";
+	    if (psw & STATUS_EGDB_LOOKUP_NOT_PRESENT) status += "EGDB_LOOKUP_NOT_PRESENT; ";
+	    if (psw & STATUS_EGDB_LOOKUP_INVALID_INDEX) status += "EGDB_LOOKUP_INVALID_INDEX; ";
+	    if (psw & STATUS_EGDB_SINGLE_VALUE_HIT) status += "EGDB_SINGLE_VALUE_HIT; ";
+	    if (psw & STATUS_EGDB_WIN_RESULT) status += "EGDB_WIN_RESULT; ";
+	    if (psw & STATUS_EGDB_LOSS_RESULT) status += "EGDB_LOSS_RESULT; ";
+	    if (psw & STATUS_EGDB_DRAW_RESULT) status += "EGDB_DRAW_RESULT; ";
+	    if (psw & STATUS_EGDB_UNKNOWN_RESULT) status += "EGDB_UNKNOWN_RESULT; ";
+	    if (psw & STATUS_EGDB_DISK_READ_ERROR) status += "EGDB_DISK_READ_ERROR; ";
+	    if (psw & STATUS_EGDB_DECODE_ERROR) status += "EGDB_DECODE_ERROR; ";
+	    if (psw & STATUS_APP_START) status += "APP_START; ";
+	
+	    if (status.isEmpty()) {
+	        return "No specific EGDB status flags set.";
+	    } else {
+	        return status.trimmed(); // Remove trailing space if any
+	    }
+	}
+	

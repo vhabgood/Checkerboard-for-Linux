@@ -7,112 +7,133 @@
 template <typename T>
 bool DBManager::parse_single_base_entry_generic(char **ptr_ref, int blockoffset, int fpcount, int* total_blocks_ptr, char* file_content) {
     char *ptr = *ptr_ref;
-    char *original_ptr = ptr; 
 
-    if (strncmp(ptr, "BASE", 4) == 0) {
-        ptr += 4;
-        int bm, bk, wm, wk, bmrank, wmrank, color;
-        char colorchar;
-        int n_read = 0;
-        int stat = sscanf(ptr, "%i,%i,%i,%i,%i,%i,%c:%n", &bm, &bk, &wm, &wk, &bmrank, &wmrank, &colorchar, &n_read);
-        ptr += n_read;
+    // Use a temporary pointer to scan past leading whitespace without modifying the original pointer yet.
+    char *temp_ptr = ptr;
+    while (*temp_ptr == ' ' || *temp_ptr == '\t') {
+        temp_ptr++;
+    }
 
-        if (stat < 7) {
+    // Check for "BASE" at the new position.
+    if (temp_ptr[0] != 'B' || temp_ptr[1] != 'A' || temp_ptr[2] != 'S' || temp_ptr[3] != 'E') {
+        return false; // Not a "BASE" line. The original ptr_ref is unmodified, so the caller's line-skipping logic remains correct.
+    }
+
+    // If we found "BASE", update the main pointer to this new position.
+    ptr = temp_ptr;
+
+    ptr += 4; // Consume "BASE"
+    int bm, bk, wm, wk, bmrank, wmrank, color;
+    char colorchar;
+    int n_read = 0;
+    int stat = sscanf(ptr, "%i,%i,%i,%i,%i,%i,%c:%n", &bm, &bk, &wm, &wk, &bmrank, &wmrank, &colorchar, &n_read);
+    
+    if (stat < 7) {
+        return false; // Malformed line
+    }
+
+    // Bounds checking to prevent heap corruption
+    if (bm < 0 || bm > MAXPIECE || bk < 0 || bk > MAXPIECE ||
+        wm < 0 || wm > MAXPIECE || wk < 0 || wk > MAXPIECE ||
+        bmrank < 0 || bmrank >= MAX_RANK_COUNT ||
+        wmrank < 0 || wmrank >= MAX_RANK_COUNT) {
+        log_c(LOG_LEVEL_ERROR, "Error parsing index file: index out of bounds. bm=%d, bk=%d, wm=%d, wk=%d, bmrank=%d, wmrank=%d", bm, bk, wm, wk, bmrank, wmrank);
+        return false; // Malformed or malicious line
+    }
+
+    ptr += n_read;
+
+    color = (colorchar == 'b') ? DB_BLACK : DB_WHITE;
+    T *dbpointer;
+    if constexpr (std::is_same<T, cprsubdb>::value) {
+        dbpointer = &cprsubdatabase[bm][bk][wm][wk][bmrank][wmrank][color];
+    } else {
+        dbpointer = &cprsubdatabase_mtc[bm][bk][wm][wk][bmrank][wmrank][color];
+    }
+    
+    dbpointer->haspartials = 0;
+
+    if (isdigit(*ptr)) {
+        char *next_ptr;
+        int firstblock = strtol(ptr, &next_ptr, 10);
+        if (*next_ptr != '/') {
+            return false; // Malformed line
+        }
+        ptr = next_ptr + 1;
+        int startbyte = strtol(ptr, &next_ptr, 10);
+        ptr = next_ptr;
+
+        dbpointer->first_block_id = firstblock;
+        dbpointer->blockoffset = blockoffset;
+        dbpointer->ispresent = 1;
+        dbpointer->value = 0;
+        dbpointer->startbyte = startbyte;
+        dbpointer->fp = fpcount;
+        
+        int current_idx_count = 1; 
+        char *temp_ptr = ptr;
+        while (*temp_ptr) {
+            while (*temp_ptr && isspace(*temp_ptr)) temp_ptr++;
+            if (!*temp_ptr || !isdigit(*temp_ptr)) break;
+            strtol(temp_ptr, &next_ptr, 10);
+            temp_ptr = next_ptr;
+            current_idx_count++;
+        }
+
+        int db_blocks_count = 0;
+        if (firstblock != -1) { 
+            db_blocks_count = (current_idx_count == 1) ? 1 : current_idx_count - 1;
+        }
+        dbpointer->num_blocks = db_blocks_count;
+        dbpointer->idx_size = current_idx_count;
+        dbpointer->idx = (int*)malloc(current_idx_count * sizeof(int));
+        if (dbpointer->idx == nullptr) {
+            log_c(LOG_LEVEL_FATAL, "Failed to allocate memory for EGDB index.");
             return false;
         }
+        bytesallocated += current_idx_count * sizeof(int);
 
-        color = (colorchar == 'b') ? DB_BLACK : DB_WHITE;
-        T *dbpointer;
-        if constexpr (std::is_same<T, cprsubdb>::value) {
-            dbpointer = &cprsubdatabase[bm][bk][wm][wk][bmrank][wmrank][color];
-        } else {
-            dbpointer = &cprsubdatabase_mtc[bm][bk][wm][wk][bmrank][wmrank][color];
-        }
-        
-        dbpointer->haspartials = 0;
-
-        if (isdigit(*ptr)) {
-            char *next_ptr;
-            int firstblock = strtol(ptr, &next_ptr, 10);
-            if (*next_ptr != '/') {
-                *ptr_ref = original_ptr + 1; 
-                return false;
-            }
-            ptr = next_ptr + 1;
-            int startbyte = strtol(ptr, &next_ptr, 10);
-            ptr = next_ptr;
-
-            dbpointer->first_block_id = firstblock;
-            dbpointer->blockoffset = blockoffset;
-            dbpointer->ispresent = 1;
-            dbpointer->value = 0;
-            dbpointer->startbyte = startbyte;
-            dbpointer->fp = fpcount;
+        int num = 1;
+        dbpointer->idx[0] = 0; 
+        while (*ptr) {
+            while (*ptr && isspace(*ptr)) ptr++;
+            if (!*ptr || !isdigit(*ptr)) break;
             
-            int current_idx_count = 1; 
-            char *temp_ptr = ptr;
-            while (*temp_ptr) {
-                while (*temp_ptr && isspace(*temp_ptr)) temp_ptr++;
-                if (!*temp_ptr || !isdigit(*temp_ptr)) break;
-                strtol(temp_ptr, &next_ptr, 10);
-                temp_ptr = next_ptr;
-                current_idx_count++;
-            }
-
-            int db_blocks_count = 0;
-            if (firstblock != -1) { 
-                if (current_idx_count == 1) { 
-                    db_blocks_count = 1;
-                } else { 
-                    db_blocks_count = current_idx_count - 1;
-                }
-            }
-            dbpointer->num_blocks = db_blocks_count;
-            dbpointer->idx.resize(current_idx_count);
-            bytesallocated += current_idx_count * sizeof(int);
-
-            int num = 1;
-            dbpointer->idx[0] = 0; 
-            while (*ptr) {
-                while (*ptr && isspace(*ptr)) ptr++;
-                if (!*ptr || !isdigit(*ptr)) break;
-                
-                dbpointer->idx[num] = strtol(ptr, &next_ptr, 10);
-                ptr = next_ptr;
-                num++;
-                if (num >= current_idx_count) break; 
-            }
-
-            if (firstblock + current_idx_count > *total_blocks_ptr) { 
-                *total_blocks_ptr = firstblock + current_idx_count;
-            }
-
-        } else {
-            if constexpr (std::is_same<T, cprsubdb>::value) {
-                int singlevalue;
-                switch (*ptr) {
-                    case '+': singlevalue = DB_WIN; break;
-                    case '=': singlevalue = DB_DRAW; break;
-                    case '-': singlevalue = DB_LOSS; break;
-                    default: singlevalue = DB_UNKNOWN; break;
-                }
-                dbpointer->blockoffset = 0;
-                dbpointer->first_block_id = 0;
-                dbpointer->ispresent = 1;
-                dbpointer->num_blocks = 0;
-                dbpointer->value = singlevalue;
-                dbpointer->fp = fpcount;
-                ptr++;
-            } else {
-                dbpointer->ispresent = 1;
-                dbpointer->value = strtol(ptr, &ptr, 10);
-            }
+            dbpointer->idx[num] = strtol(ptr, &next_ptr, 10);
+            ptr = next_ptr;
+            num++;
+            if (num >= current_idx_count) break; 
         }
-        *ptr_ref = ptr; 
-        return true;
+
+        if (firstblock + current_idx_count > *total_blocks_ptr) { 
+            *total_blocks_ptr = firstblock + current_idx_count;
+        }
+
+    } else {
+        if constexpr (std::is_same<T, cprsubdb>::value) {
+            int singlevalue;
+            switch (*ptr) {
+                case '+': singlevalue = DB_WIN; break;
+                case '=': singlevalue = DB_DRAW; break;
+                case '-': singlevalue = DB_LOSS; break;
+                default: singlevalue = DB_UNKNOWN; break;
+            }
+            dbpointer->blockoffset = 0;
+            dbpointer->first_block_id = 0;
+            dbpointer->ispresent = 1;
+            dbpointer->num_blocks = 0;
+            dbpointer->value = singlevalue;
+            dbpointer->fp = fpcount;
+            ptr++;
+        } else {
+            dbpointer->ispresent = 1;
+            dbpointer->value = strtol(ptr, &ptr, 10);
+        }
     }
-    *ptr_ref = original_ptr + 1; 
-    return false;
+    
+    // On success, update the caller's pointer
+    *ptr_ref = ptr; 
+    return true;
 }
 
 template <typename T>
@@ -120,12 +141,6 @@ int DBManager::parseindexfile_generic(const char* EGTBdirectory, char idxfilenam
     char fullpath[MAX_PATH_FIXED];
     snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, idxfilename);
     
-    if constexpr (std::is_same<T, cprsubdb>::value) {
-        qDebug() << "Parsing WLD index file:" << fullpath;
-    } else {
-        qDebug() << "Parsing MTC index file:" << fullpath;
-    }
-
     long fsize = 0;
     char *file_content = read_entire_file(fullpath, &fsize);
     if (file_content == nullptr) {
@@ -137,17 +152,22 @@ int DBManager::parseindexfile_generic(const char* EGTBdirectory, char idxfilenam
     int total_blocks = 0;
 
     while (*ptr) {
-        if (!parse_single_base_entry_generic<T>(&ptr, blockoffset, fpcount, &total_blocks, file_content)) {
-            // This is not an error, just means we didn't find "BASE" and moved on
+        char* current_line_start = ptr;
+        if (parse_single_base_entry_generic<T>(&ptr, blockoffset, fpcount, &total_blocks, file_content)) {
+            // Success, ptr was advanced by the callee. Loop continues.
+        } else {
+            // Failure, not a BASE line or malformed. Advance to next line.
+            char* next_line = strchr(current_line_start, '\n');
+            if (next_line) {
+                ptr = next_line + 1;
+            } else {
+                // No more newlines, must be end of file.
+                break;
+            }
         }
     }
 
     free(file_content);
-    if constexpr (std::is_same<T, cprsubdb>::value) {
-        qDebug() << "Parsed" << total_blocks << "WLD blocks from" << idxfilename;
-    } else {
-        qDebug() << "Parsed" << total_blocks << "MTC blocks from" << idxfilename;
-    }
     return total_blocks;
 }
 
@@ -186,11 +206,9 @@ bool DBManager::processEgdbFiles_generic(const char* EGTBdirectory, int nPieces,
     }
     
     snprintf(fullpath, sizeof(fullpath), "%s/%s", EGTBdirectory, cpr_dbname);
-    qDebug() << "Attempting to open" << db_type_str << "CPR file:" << fullpath;
 
     fp_cpr = fopen(fullpath, "rb");
     if (fp_cpr) {
-        qDebug() << "Successfully opened" << db_type_str << "CPR file:" << fullpath;
         if (cprFileCount < MAXFP) {
             dbfp_array[cprFileCount] = fp_cpr;
             sprintf(dbnames_array[cprFileCount], "%s", fullpath);
@@ -206,12 +224,11 @@ bool DBManager::processEgdbFiles_generic(const char* EGTBdirectory, int nPieces,
                 return false;
             }
         } else {
-            qDebug() << "MAXFP limit reached, cannot open more" << db_type_str << "CPR files.";
+            log_c(LOG_LEVEL_WARNING, "MAXFP limit reached, cannot open more %s CPR files.", db_type_str);
             fclose(fp_cpr);
             return false;
         }
     } else {
-        qDebug() << "Failed to open" << db_type_str << "CPR file:" << fullpath;
         return false;
     }
 }
@@ -269,7 +286,7 @@ unsigned char* DBManager::get_disk_block_generic(int uniqueblockid, T* dbpointer
         if (fseek_result != 0) {
             if constexpr (std::is_same<T, cprsubdb>::value) {
                 log_c(LOG_LEVEL_ERROR, "dblookup: fseek failed.");
-                updateProgramStatusWord(STATUS_EGDB_LOOKUP_MISS);
+                updateProgramStatusWord(STATUS_EGDB_LOOKUP_MISS | STATUS_EGDB_DISK_READ_ERROR);
             }
             return nullptr;
         }
@@ -278,7 +295,7 @@ unsigned char* DBManager::get_disk_block_generic(int uniqueblockid, T* dbpointer
         if (itemsRead != 1) {
             if constexpr (std::is_same<T, cprsubdb>::value) {
                 log_c(LOG_LEVEL_ERROR, "dblookup: fread failed to read a full block.");
-                updateProgramStatusWord(STATUS_EGDB_LOOKUP_MISS);
+                updateProgramStatusWord(STATUS_EGDB_LOOKUP_MISS | STATUS_EGDB_DISK_READ_ERROR);
             }
             blockpointer[uniqueblockid] = nullptr;
             return nullptr;
@@ -327,7 +344,7 @@ int DBManager::decode_value_generic(unsigned char* diskblock, uint32_t index, T*
                 diskblock = get_disk_block_generic<T>(new_uniqueblockid, dbpointer, blocknumber);
                 if (diskblock == nullptr) {
                     if constexpr (std::is_same<T, cprsubdb>::value) {
-                        updateProgramStatusWord(STATUS_FILE_IO_ERROR);
+                        updateProgramStatusWord(STATUS_EGDB_DECODE_ERROR);
                     }
                     return DB_UNKNOWN;
                 }
@@ -338,7 +355,7 @@ int DBManager::decode_value_generic(unsigned char* diskblock, uint32_t index, T*
 
     if (i < 0 || i >= 1024) {
         if constexpr (std::is_same<T, cprsubdb>::value) {
-            updateProgramStatusWord(STATUS_FILE_IO_ERROR);
+            updateProgramStatusWord(STATUS_EGDB_DECODE_ERROR);
         }
         return DB_UNKNOWN;
     }
@@ -352,16 +369,21 @@ int DBManager::decode_value_generic(unsigned char* diskblock, uint32_t index, T*
             returnvalue = decode_table[byte][val_idx];
         } else {
             if constexpr (std::is_same<T, cprsubdb>::value) {
-                updateProgramStatusWord(STATUS_FILE_IO_ERROR);
+                updateProgramStatusWord(STATUS_EGDB_DECODE_ERROR);
             }
             return DB_UNKNOWN;
         }
     }
     
     if constexpr (std::is_same<T, cprsubdb>::value) {
+        // Log the unexpected value
+        if (returnvalue == 3) { // raw value 3 becomes 4 after increment
+             updateProgramStatusWord(STATUS_EGDB_UNEXPECTED_VALUE);
+        }
         returnvalue++; 
         updateProgramStatusWord(STATUS_EGDB_LOOKUP_HIT); 
     }
+
     return returnvalue;
 }
 
@@ -371,7 +393,14 @@ int DBManager::dblookup_generic(bitboard_pos *q)
     QMutexLocker locker(&m_mutex);
     
     if constexpr (std::is_same<T, cprsubdb>::value) {
-        clearProgramStatusWordFlags(STATUS_EGDB_LOOKUP_HIT | STATUS_EGDB_LOOKUP_MISS);
+        clearProgramStatusWordFlags(STATUS_EGDB_LOOKUP_HIT | STATUS_EGDB_LOOKUP_MISS |
+                                    STATUS_EGDB_WIN_RESULT | STATUS_EGDB_LOSS_RESULT |
+                                    STATUS_EGDB_DRAW_RESULT | STATUS_EGDB_UNKNOWN_RESULT |
+                                    STATUS_EGDB_UNEXPECTED_VALUE | STATUS_EGDB_LOOKUP_OUT_OF_BOUNDS |
+                                    STATUS_EGDB_LOOKUP_NOT_PRESENT | STATUS_EGDB_LOOKUP_INVALID_INDEX |
+                                    STATUS_EGDB_SINGLE_VALUE_HIT | STATUS_EGDB_DISK_READ_ERROR |
+                                    STATUS_EGDB_DECODE_ERROR);
+        updateProgramStatusWord(STATUS_EGDB_LOOKUP_ATTEMPT);
     }
 
     uint32_t index;
@@ -395,6 +424,7 @@ int DBManager::dblookup_generic(bitboard_pos *q)
 	
 	if( (bm+wm+wk+bk>maxpieces) || (bm+bk>maxpiece) || (wm+wk>maxpiece)) {
         if constexpr (std::is_same<T, cprsubdb>::value) {
+            updateProgramStatusWord(STATUS_EGDB_LOOKUP_OUT_OF_BOUNDS);
             return DB_UNKNOWN;
         } else {
             return 0;
@@ -440,18 +470,27 @@ int DBManager::dblookup_generic(bitboard_pos *q)
 
 	if(dbpointer->ispresent == 0) {
         if constexpr (std::is_same<T, cprsubdb>::value) {
+            updateProgramStatusWord(STATUS_EGDB_LOOKUP_NOT_PRESENT);
             return DB_UNKNOWN;
         } else {
             return 0;
         }
     }
 	if(dbpointer->value != DB_UNKNOWN) {
+        if constexpr (std::is_same<T, cprsubdb>::value) {
+            updateProgramStatusWord(STATUS_EGDB_SINGLE_VALUE_HIT | STATUS_EGDB_LOOKUP_HIT);
+            if (dbpointer->value == DB_WIN) updateProgramStatusWord(STATUS_EGDB_WIN_RESULT);
+            else if (dbpointer->value == DB_LOSS) updateProgramStatusWord(STATUS_EGDB_LOSS_RESULT);
+            else if (dbpointer->value == DB_DRAW) updateProgramStatusWord(STATUS_EGDB_DRAW_RESULT);
+            else updateProgramStatusWord(STATUS_EGDB_UNKNOWN_RESULT); // Should not happen for single values
+        }
 		return dbpointer->value;
     }
 
 	index = calculate_index(p, bm, bk, wm, wk, bmrank, wmrank);
     if (index == UINT32_MAX) {
         if constexpr (std::is_same<T, cprsubdb>::value) {
+            updateProgramStatusWord(STATUS_EGDB_LOOKUP_INVALID_INDEX);
             return DB_UNKNOWN;
         } else {
             return 0;
@@ -468,17 +507,27 @@ int DBManager::dblookup_generic(bitboard_pos *q)
 	uniqueblockid = dbpointer->blockoffset+
 					dbpointer->first_block_id +
 					blocknumber;
-
+    
 	diskblock = get_disk_block_generic<T>(uniqueblockid, dbpointer, blocknumber); 
 
 	if (diskblock == nullptr) {
         if constexpr (std::is_same<T, cprsubdb>::value) {
+            updateProgramStatusWord(STATUS_EGDB_LOOKUP_MISS);
 	 	    return DB_NOT_LOOKED_UP;
         } else {
             return 0;
         }
 	} else 
 	{
-	 	return decode_value_generic<T>(diskblock, index, dbpointer, blocknumber);
+	 	int result = decode_value_generic<T>(diskblock, index, dbpointer, blocknumber);
+        if constexpr (std::is_same<T, cprsubdb>::value) {
+            // Interpret result and set appropriate status flags
+            if (result == DB_WIN) updateProgramStatusWord(STATUS_EGDB_WIN_RESULT);
+            else if (result == DB_LOSS) updateProgramStatusWord(STATUS_EGDB_LOSS_RESULT);
+            else if (result == DB_DRAW) updateProgramStatusWord(STATUS_EGDB_DRAW_RESULT);
+            else if (result == DB_UNKNOWN) updateProgramStatusWord(STATUS_EGDB_UNKNOWN_RESULT);
+            else updateProgramStatusWord(STATUS_EGDB_UNEXPECTED_VALUE); // For the '4' case
+        }
+        return result;
 	}
 }

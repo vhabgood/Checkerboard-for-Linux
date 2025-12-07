@@ -6,7 +6,7 @@
 #include <QMutex>
 #include <QTimer>
 #include "checkers_types.h"
-#include "GeminiAI.h"
+
 
 class GameManager : public QObject
 {
@@ -45,7 +45,7 @@ public:
     void handleSquareClick(int x, int y);
     void loadPdnGame(const QString &filename);
     void resumePlay();
-    GeminiAI* getAi() { return m_ai; }
+
     void onMoveSelected(const CBmove& move);
 
 
@@ -86,17 +86,17 @@ public:
     void setSoundEnabled(bool enabled);
 
 public slots:
+    void handleAiMove(bool moveFound, bool aborted, const CBmove& bestMove, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime);
     void handleEvaluationUpdate(int score, int depth); // New slot to receive evaluation from AI and re-emit
     void handleTimerTimeout(); // Slot to handle timer timeout
     void handleGameOverResult(int result); // New slot to handle game over results
-    void handleAIMoveFound(bool moveFound, bool aborted, const CBmove& bestMove, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime);
 
 signals:
     // Signals to communicate with the GUI (e.g., update board, display message)
     void boardUpdated(const bitboard_pos& board);
     void gameMessage(const QString& message);
     void gameIsOver(int result);
-    void requestEngineSearch(const bitboard_pos& board, int colorToMove, double timeLimit);
+    void requestEngineSearch(AI_State task, const bitboard_pos& board, int colorToMove, double timeLimit);
     void pieceSelected(int x, int y);
     void pieceDeselected();
     void humanTurn();
@@ -124,7 +124,7 @@ private:
     double m_blackTime;
     int m_halfMoveCount; // New member for 50-move rule
     QTimer *m_gameTimer; // New member for game timer
-    GeminiAI* m_ai;
+
 
     // Missing members
     PlayerType m_whitePlayer;
