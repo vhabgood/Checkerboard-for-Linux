@@ -47,46 +47,37 @@ void boardtobitboard(const Board8x8* b, bitboard_pos *bitboard_position)
 
 // From coordinates.h
 int coorstonumber(int x, int y, int gametype) {
-    // Checkers numbering: 1-32, starting from bottom-right (y=7, x=6) and increasing to the left, then up row by row.
+    // Standard Checkers numbering: 1-32, starting from top-left (y=0, x=1)
+    // and increasing row by row to the bottom-right (y=7, x=6).
     // Only dark squares (x+y is odd) have numbers.
 
-    // Adjust y to be 0-indexed from the bottom (0-7)
-    int adjusted_y = 7 - y;
-
+    if (x < 0 || x > 7 || y < 0 || y > 7) return 0;
     if ((x + y) % 2 == 0) { // Light square, no number
-        return 0; // Or some other indicator for no number
+        return 0;
     }
 
-    int number = 0;
-    if (adjusted_y % 2 == 0) { // Even adjusted_y (original y=7,5,3,1) -> dark squares x=0,2,4,6
-        // For right-to-left numbering, map x=6 to 0, x=4 to 1, x=2 to 2, x=0 to 3
-        number = (adjusted_y * 4) + ((6 - x) / 2) + 1;
-    } else { // Odd adjusted_y (original y=6,4,2,0) -> dark squares x=1,3,5,7
-        // For right-to-left numbering, map x=7 to 0, x=5 to 1, x=3 to 2, x=1 to 3
-        number = (adjusted_y * 4) + ((7 - x) / 2) + 1;
-    }
-    return number;
+    // Standard formula for 1-indexed square numbers:
+    // (Row index * 4) + (Column index / 2) + 1
+    return (y * 4) + (x / 2) + 1;
 }
 
 void numbertocoors(int n, int& x, int& y, int gametype) {
-    // Convert 1-32 board number back to 0-7 (x,y) coordinates
+    // Convert 1-32 board number back to 0-7 (x,y) coordinates for standard numbering.
     if (n < 1 || n > 32) {
-        x = -1; y = -1; // Invalid number
+        x = -1; y = -1;
         return;
     }
 
-    int adjusted_y = (n - 1) / 4;
+    y = (n - 1) / 4;
     int offset_in_row = (n - 1) % 4;
 
-    if (adjusted_y % 2 == 0) { // Original y=7,5,3,1
-        x = 6 - (offset_in_row * 2);
-    } else { // Original y=6,4,2,0
-        x = 7 - (offset_in_row * 2);
+    // On even rows (0, 2, 4, 6), dark squares are at x=1, 3, 5, 7.
+    // On odd rows (1, 3, 5, 7), dark squares are at x=0, 2, 4, 6.
+    if (y % 2 == 0) {
+        x = (offset_in_row * 2) + 1;
+    } else {
+        x = (offset_in_row * 2);
     }
-    y = 7 - adjusted_y;
-    // char log_msg_buffer[256];
-    // snprintf(log_msg_buffer, sizeof(log_msg_buffer), "numbertocoors: n=%d -> x=%d, y=%d", n, x, y);
-    // log_c(LOG_LEVEL_DEBUG, log_msg_buffer);
 }
 void coorstocoors(int& x, int& y, bool invert, bool mirror) { if (invert) { x = 7 - x; y = 7 - y; } if (mirror) x = 7 - x; }
 bool is_valid_board8_square(int x, int y) { return((x + y) % 2 != 0); }
@@ -187,12 +178,14 @@ int FENtobitboard_pos(bitboard_pos* bitboard_position, const char *FEN, int *col
         char* square_token;
         char* square_saveptr;
 
+        int piece_type = CB_MAN; // Default to Man at start of color section
         square_token = strtok_r(squares_ptr, ",", &square_saveptr);
         while(square_token != NULL) {
-            int piece_type = CB_MAN;
             if (toupper(square_token[0]) == 'K') {
                 piece_type = CB_KING;
                 square_token++; // Move past 'K'
+            } else if (isdigit(square_token[0])) {
+                // Keep current piece_type
             }
 
             int square_num = atoi(square_token);
@@ -468,22 +461,17 @@ void makemovelist(const bitboard_pos& board, int color, CBmove* movelist, int& i
 
     if (ncaptures > 0) {
         isjump = 1;
-        int max_jumps = 0;
+        // In English Checkers, you MUST jump if a jump is available.
+        // If multiple paths are available, you can choose ANY of them.
+        // My previous code incorrectly forced the jump with the MOST captures.
+        
         for (i = 0; i < ncaptures; ++i) {
-            if (captures[i].jumps > max_jumps) {
-                max_jumps = captures[i].jumps;
+            if (n < MAXMOVES) {
+                movelist[n] = captures[i];
+                movelist[n].is_capture = true;
+                n++;
             }
         }
-
-        for (i = 0; i < ncaptures; ++i) {
-            if (captures[i].jumps == max_jumps) {
-                if (n < MAXMOVES) {
-                    movelist[n] = captures[i];
-                    n++;
-                }
-            }
-        }
-        for(i=0; i<n; ++i) movelist[i].is_capture = true;
         return;
     }
 
@@ -500,7 +488,7 @@ void makemovelist(const bitboard_pos& board, int color, CBmove* movelist, int& i
                 int is_king = (piece & CB_KING) ? 1 : 0;
     
                 if (piece_color == color) {
-                    int fwd = (color == CB_WHITE) ? 1 : -1;
+                    int fwd = (color == CB_WHITE) ? -1 : 1;
                     int dx[] = {-1, 1};
                     
                     if (!is_king) {
@@ -522,7 +510,7 @@ void makemovelist(const bitboard_pos& board, int color, CBmove* movelist, int& i
                                     movelist[n].path[1].y = to_r;
                                     movelist[n].del[0].x = -1;
                                     movelist[n].oldpiece = piece;
-                                    if ((color == CB_WHITE && to_r == 7) || (color == CB_BLACK && to_r == 0)) {
+                                    if ((color == CB_WHITE && to_r == 0) || (color == CB_BLACK && to_r == 7)) {
                                         movelist[n].newpiece = piece | CB_KING;
                                     } else {
                                         movelist[n].newpiece = piece;
@@ -572,7 +560,7 @@ void find_captures_recursive(const bitboard_pos& board, CBmove* movelist, CBmove
 //    log_c(LOG_LEVEL_DEBUG, log_msg);
 
     int i;
-    int fwd = (color == CB_WHITE) ? 1 : -1;
+    int fwd = (color == CB_WHITE) ? -1 : 1; // White captures UP (-1), Black DOWN (+1)
     int dx[] = {-1, 1, -1, 1};
     int temp_dy[4];
     temp_dy[0] = fwd;
@@ -639,7 +627,7 @@ void find_captures_recursive(const bitboard_pos& board, CBmove* movelist, CBmove
                 }
                 mm.jumps = d + 1;
 
-                int becomes_king = (!is_king) && ((color == CB_WHITE && land_y == 7) || (color == CB_BLACK && land_y == 0));
+                int becomes_king = (!is_king) && ((color == CB_WHITE && land_y == 0) || (color == CB_BLACK && land_y == 7));
                 int next_is_king = is_king || becomes_king;
                 mm.newpiece = next_is_king ? ((*m).oldpiece | CB_KING) : (*m).oldpiece; // m is ptr
 
@@ -1007,20 +995,43 @@ int egdb_wrapper_init(const char* egdb_path) {
 
 // Implementation for Kingsrow EGDB lookup
 int egdb_wrapper_lookup(bitboard_pos* p, int side_to_move) {
-    char log_msg[256];
-    sprintf(log_msg, "EGDB Wrapper: Lookup for bitboard_position: bm=%u, bk=%u, wm=%u, wk=%u, side_to_move=%d", p->bm, p->bk, p->wm, p->wk, side_to_move);
-    log_c(LOG_LEVEL_DEBUG, log_msg);
-    // Convert our 'bitboard_pos' struct to the EGDB's 'POSITION' struct
-    bitboard_pos egdb_bitboard_pos;
-    egdb_bitboard_pos.bm = p->bm;
-    egdb_bitboard_pos.bk = p->bk;
-    egdb_bitboard_pos.wm = p->wm;
-    egdb_bitboard_pos.wk = p->wk;
+    char log_msg[512];
+    
+    int piece_count = count_pieces(*p);
+    if (piece_count > 10) {
+        return EGDB_UNKNOWN;
+    }
 
-    // Call the actual Kingsrow EGDB lookup function
-    int result = DBManager::instance()->dblookup(&egdb_bitboard_pos, side_to_move);
-    // If dblookup returns DB_NOT_LOOKED_UP, it means the bitboard_position was not in cache during conditional lookup.
-    // We don't log this as an error, but rather as debug info.
+    snprintf(log_msg, sizeof(log_msg), "EGDB Wrapper: Lookup for bitboard_position: bm=%u, bk=%u, wm=%u, wk=%u, side_to_move=%d", p->bm, p->bk, p->wm, p->wk, side_to_move);
+    log_c(LOG_LEVEL_DEBUG, log_msg);
+
+    // Check for captures first
+    CBmove legalMoves[MAXMOVES];
+    int nmoves = 0;
+    int isjump = 0;
+    makemovelist(*p, side_to_move, legalMoves, isjump, nmoves); // Assuming makemovelist can take bitboard_pos by value
+
+    if (isjump) {
+        log_c(LOG_LEVEL_DEBUG, "EGDB Wrapper: Skipping WLD lookup due to available captures.");
+        return EGDB_POS_IS_CAPTURE; // Return a specific value indicating capture is available
+    }
+
+    // Convert our 'bitboard_pos' struct to the EGDB's 'POSITION' struct
+    EGDB_POSITION egdb_pos;
+    egdb_pos.black_pieces = p->bm | p->bk;
+    egdb_pos.white_pieces = p->wm | p->wk;
+    egdb_pos.king = p->bk | p->wk;
+    egdb_pos.stm = (side_to_move == CB_WHITE) ? EGDB_WHITE_TO_MOVE : EGDB_BLACK_TO_MOVE;
+
+    EGDB_ERR err_code = EGDB_ERR_NORMAL;
+    int result = DBManager::instance()->dblookup(&egdb_pos, &err_code);
+
+    if (err_code != EGDB_ERR_NORMAL) {
+        snprintf(log_msg, sizeof(log_msg), "EGDB Wrapper: dblookup error: %d", err_code);
+        log_c(LOG_LEVEL_WARNING, log_msg);
+        return EGDB_UNKNOWN; // Or some other appropriate error value
+    }
+
     log_c(LOG_LEVEL_DEBUG, log_msg);
     return result;
 }

@@ -76,6 +76,7 @@ int main(int argc, char *argv[]) {
     
     // Initialize EGDB path for the AIWorker once after the thread starts
     aiWorker->performInitialization("db/");
+    
     // The thread cleanup is now handled at the end of main(), so this connect is no longer needed.
     // QObject::connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, [&]() {
     //     aiWorker->requestAbort();
@@ -96,7 +97,20 @@ int main(int argc, char *argv[]) {
     board.color = color_to_move;
 
     int move_count = 0;
-    const int max_moves = 10;
+    const int max_moves = 100;
+
+    CBmove best_move;
+    bool move_found = false;
+    int final_score = 0;
+    int final_depth = 0;
+    QString egdb_result_str;
+
+    QObject::connect(aiWorker, &AIWorker::evaluationReady, [&](int score, int depth, const QString& egdbInfo) {
+        // Log evaluation updates (optional, for debugging)
+        log_c(LOG_LEVEL_DEBUG, "AIWorker: Evaluation update - Score: %d, Depth: %d, EGDB: %s", score, depth, egdbInfo.toUtf8().constData());
+        final_score = score;
+        final_depth = depth;
+    });
 
     while (move_count < max_moves) {
         log_c(LOG_LEVEL_INFO, "Move #%d, Color to move: %s", move_count + 1, (board.color == CB_WHITE) ? "White" : "Black");
@@ -110,11 +124,7 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        CBmove best_move;
-        bool move_found = false;
-        int final_score = 0;
-        int final_depth = 0;
-        QString egdb_result_str;
+        move_found = false;
         QEventLoop loop;
 
         QObject::connect(aiWorker, &AIWorker::searchFinished, [&](bool found, bool aborted, const CBmove& move, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime) {
@@ -131,24 +141,20 @@ int main(int argc, char *argv[]) {
             }
             loop.quit();
         });
-        QObject::connect(aiWorker, &AIWorker::evaluationReady, [&](int score, int depth) {
-            // Log evaluation updates (optional, for debugging)
-            log_c(LOG_LEVEL_DEBUG, "AIWorker: Evaluation update - Score: %d, Depth: %d", score, depth);
-            final_score = score;
-            final_depth = depth;
-        });
         
         emit controller.requestAiSearch(Autoplay, board, board.color, 1.0);
         
         loop.exec(); // Block until loop.quit() is called
 
         if (move_found) {
-            print_move(best_move);
-            QString move_details = QString("Score: %1, Depth: %2").arg(final_score).arg(final_depth);
-            if (!egdb_result_str.isEmpty()) {
-                move_details += QString(", EGDB: %1").arg(egdb_result_str);
-            }
-            log_c(LOG_LEVEL_INFO, "AI %s move: %s", (board.color == CB_WHITE) ? "White" : "Black", move_details.toUtf8().constData());
+            log_c(LOG_LEVEL_INFO, "[GAME] Move %d (%s): %s (Eval: %.2f, Depth: %d, EGDB: %s)", 
+                  move_count + 1, 
+                  (board.color == CB_WHITE) ? "White" : "Black",
+                  [best_move]() { char n[80]; move4tonotation(&best_move, n); return std::string(n); }().c_str(),
+                  final_score / 100.0,
+                  final_depth,
+                  egdb_result_str.isEmpty() ? "None" : egdb_result_str.toUtf8().constData());
+            
             log_c(LOG_LEVEL_DEBUG, "Board state BEFORE move: bm=0x%X, bk=0x%X, wm=0x%X, wk=0x%X", board.bm, board.bk, board.wm, board.wk);
             domove_c(&best_move, &board);
             log_c(LOG_LEVEL_DEBUG, "Board state AFTER move: bm=0x%X, bk=0x%X, wm=0x%X, wk=0x%X", board.bm, board.bk, board.wm, board.wk);

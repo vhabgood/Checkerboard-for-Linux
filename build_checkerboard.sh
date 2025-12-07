@@ -49,13 +49,15 @@ QT_LIBS=$(pkg-config --libs Qt5Widgets Qt5Gui Qt5Core Qt5Multimedia)
 # Core C++ Source Files
 INCLUDE_DIRS=(
     "${RESOURCE_FILES_DIR}"
+    "${RESOURCE_FILES_DIR}/egdb_driver"
     "${RESOURCE_FILES_DIR}/CB172source"
 )
 
 INCLUDE_FLAGS="$(printf -- "-I%s " "${INCLUDE_DIRS[@]}")"
 
 # All source files for the main application
-APP_SOURCES="main.cpp MainWindow.cpp GameManager.cpp c_logic.cpp DBManager.cpp BoardWidget.cpp engine_wrapper.cpp Dialogs.cpp GeminiAI.cpp AIWorker.cpp log.cpp core_types.cpp Logger.cpp"
+APP_SOURCES="main.cpp MainWindow.cpp GameManager.cpp c_logic.cpp DBManager.cpp BoardWidget.cpp engine_wrapper.cpp Dialogs.cpp AIWorker.cpp log.cpp core_types.cpp Logger.cpp egdb_driver.cpp"
+APP_SOURCES+=" $(find egdb_driver -name '*.cpp' ! -name 'egdb_wld_tunstall_v1.cpp' ! -name 'egdb_wld_tunstall_v2.cpp')"
 
 # Object files for the main application
 APP_OBJS=()

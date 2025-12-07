@@ -3,13 +3,17 @@
 #include "GameManager.h" // Include GameManager
 #include "Logger.h" // Include the new Logger
 #include "core_types.h" // Include for bitboard_pos
+#include "log.h"
 
 int main(int argc, char *argv[])
 {
-    // Start the logger thread. This should be the first thing.
-    Logger::instance()->start();
-
     QApplication a(argc, argv);
+
+    // Start the logger thread.
+    Logger::instance()->start();
+    
+    // Redirect all Qt debug/info/warning messages to our log.txt
+    qInstallMessageHandler(qtMessageHandler);
 
     // Register custom types for signal/slot connections across threads
     qRegisterMetaType<AppState>("AppState");
@@ -24,8 +28,7 @@ int main(int argc, char *argv[])
     int result = a.exec();
 
     // Stop the logger thread cleanly
-    Logger::instance()->stop();
-    Logger::instance()->wait(); // Wait for the thread to finish writing messages
+    Logger::cleanup();
 
     return result;
 }

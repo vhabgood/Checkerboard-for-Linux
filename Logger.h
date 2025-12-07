@@ -15,8 +15,8 @@ class Logger : public QThread
 
 public:
     static Logger* instance();
-    void stop();
-    void log(const QString& message);
+    static void cleanup();
+    void log(const QString &message);
 
 protected:
     void run() override;

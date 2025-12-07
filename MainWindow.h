@@ -1,6 +1,5 @@
 #pragma once
 
-#include "GeminiAI.h"
 #include <QMainWindow>
 #include <QToolBar>
 #include <QStatusBar>
@@ -21,6 +20,7 @@
 
 
 
+#include <QThread>
 #include "checkers_types.h"
 #include "GameManager.h"
 #include "BoardWidget.h"
@@ -39,6 +39,7 @@
 
 class GameManager;
 class BoardWidget;
+class AIWorker;
 
 
 class MainWindow : public QMainWindow
@@ -56,7 +57,7 @@ public slots:
     void startGame();
     void changeAppState(AppState newState); 
     void setStatusBarText(const QString& text); 
-    void updateEvaluationDisplay(int score, int depth); 
+    void updateEvaluationDisplay(int score, int depth, const QString& egdbInfo = QString()); 
 
 private slots: 
     void handleClearSelectedPiece();
@@ -210,8 +211,10 @@ private:
     QToolBar *m_mainToolBar;
     QLabel *m_blackClockLabel; 
     QLabel *m_whiteClockLabel; 
-    QLabel *m_evaluationLabel; 
-    QLabel *m_depthLabel; 
+    QLabel *m_evaluationLabel;
+    QLabel *m_depthLabel;
+    QLabel *m_egdbLabel;
+    QAction *m_optionsHighlightAction;
     QSettings settings; 
     QTimer *m_uiUpdateTimer; 
     bool m_pieceSelected; 
@@ -259,7 +262,6 @@ private:
     QAction *m_movesCommentAction; 
 
     // Options Menu Actions 
-    QAction *m_optionsHighlightAction; 
     QAction *m_optionsSoundAction; 
     QAction *m_displayInvertAction; 
     QAction *m_displayNumbersAction; 

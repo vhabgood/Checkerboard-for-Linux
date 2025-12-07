@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include "checkers_types.h"
 #include <QAtomicInt>
+#include "egdb_driver/egdb/egdb_intl.h" // For egdb_interface types
+#include "log.h" // For log_c and LOG_LEVEL_DEBUG/INFO
 
 #define MAX_DEPTH 20
 
@@ -35,14 +37,16 @@ public slots:
     void searchBestMove(bitboard_pos board, int color, double maxtime);
 
 private slots:
-    int evaluateBoard(const bitboard_pos& board, int color);
-    int minimax(bitboard_pos board, int color, int depth, int alpha, int beta, CBmove* bestMove, bool allowNull);
+    int evaluateBoard(const bitboard_pos& board, int colorToMove);
+    int allKingsEval(const bitboard_pos& board) const;
+    int dbWinEval(const bitboard_pos& board, int dbresult) const;
+    int minimax(bitboard_pos board, int color, int depth, int alpha, int beta, CBmove* bestMove, bool isMaximizing);
     int quiescenceSearch(bitboard_pos board, int color, int alpha, int beta);
     bool isSquareAttacked(const bitboard_pos& board, int r, int c, int attackerColor);
 
 signals:
     void searchFinished(bool moveFound, bool aborted, const CBmove& bestMove, const QString& statusText, int gameResult, const QString& pdnMoveText, double elapsedTime);
-    void evaluationReady(int score, int depth);
+    void evaluationReady(int score, int depth, const QString& egdbInfo = QString());
     void initializationFinished(bool success, int maxPieces);
 
 private:
@@ -67,4 +71,5 @@ private:
     // Zobrist Hashing
     static uint64_t ZobristTable[8][8][5];
     static uint64_t ZobristWhiteToMove;
+    static bool m_zobristInitialized;
 };

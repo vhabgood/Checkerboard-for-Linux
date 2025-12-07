@@ -1,5 +1,6 @@
 #include <QDebug>
 #include "MainWindow.h"
+#include "AIWorker.h"
 #include "GameManager.h"
 #include "BoardWidget.h"
 #include "checkers_types.h"
@@ -47,42 +48,27 @@ MainWindow::MainWindow(GameManager *gameManager, QWidget *parent) : m_gameManage
     // Force normal mode on startup, overriding saved settings
     m_options.white_player_type = PLAYER_AI;
     m_options.black_player_type = PLAYER_HUMAN;
-
-
-
-
-
-
+    m_options.gametype = GT_ENGLISH;
+    m_gameManager->setOptions(m_options);
 
     createMenus();
-
     createToolBars();
 
-
-
-    m_evaluationLabel = new QLabel(this);
-
-    m_depthLabel = new QLabel(this);
+    m_evaluationLabel = new QLabel("Eval: 0.00", this);
+    m_depthLabel = new QLabel("Depth: 0", this);
+    m_egdbLabel = new QLabel(this);
 
     statusBar()->addPermanentWidget(m_evaluationLabel);
-
     statusBar()->addPermanentWidget(m_depthLabel);
+    statusBar()->addPermanentWidget(m_egdbLabel);
 
-
-
-        connect(m_gameManager, &GameManager::boardUpdated, this, &MainWindow::handleBoardUpdated);
-
-
-
-        connect(m_boardWidget, &BoardWidget::squareClicked, m_gameManager, &GameManager::handleSquareClick);
-
-
+    connect(m_gameManager, &GameManager::boardUpdated, this, &MainWindow::handleBoardUpdated);
+    connect(m_boardWidget, &BoardWidget::squareClicked, m_gameManager, &GameManager::handleSquareClick);
 
     m_aiWorker = new AIWorker();
     m_aiWorker->moveToThread(&m_aiThread);
 
     connect(&m_aiThread, &QThread::finished, m_aiWorker, &QObject::deleteLater);
-
     connect(m_gameManager, &GameManager::requestEngineSearch, m_aiWorker, &AIWorker::performTask, Qt::QueuedConnection);
     connect(m_aiWorker, &AIWorker::searchFinished, m_gameManager, &GameManager::handleAiMove, Qt::QueuedConnection);
     connect(m_aiWorker, &AIWorker::evaluationReady, this, &MainWindow::updateEvaluationDisplay);
@@ -92,15 +78,11 @@ MainWindow::MainWindow(GameManager *gameManager, QWidget *parent) : m_gameManage
     
     emit setEgdbPath(QString(m_options.EGTBdirectory));
 
+    connect(this, &MainWindow::appStateChangeRequested, this, &MainWindow::onAppStateChangeRequested, Qt::QueuedConnection);
+    connect(m_gameManager, &GameManager::requestClearSelectedPiece, m_boardWidget, &BoardWidget::clearSelectedPiece);
 
-        connect(this, &MainWindow::appStateChangeRequested, this, &MainWindow::onAppStateChangeRequested, Qt::QueuedConnection);
-        connect(m_gameManager, &GameManager::requestClearSelectedPiece, m_boardWidget, &BoardWidget::clearSelectedPiece);
-
-        QTimer::singleShot(0, this, &MainWindow::startGame);
-
-
-
-    }
+    QTimer::singleShot(100, this, &MainWindow::startGame);
+}
 
 void MainWindow::startGame()
 {
@@ -114,7 +96,7 @@ MainWindow::~MainWindow()
         m_aiWorker->requestAbort(); // Signal the worker to stop any ongoing task
         m_aiThread.quit();          // Tell the thread's event loop to exit
         m_aiThread.wait();          // Wait for the thread to finish its execution
-        delete m_aiWorker;          // Delete the worker object
+        // delete m_aiWorker;       // Handled by deleteLater connected to finished signal
         m_aiWorker = nullptr;
     }
 }
@@ -554,10 +536,15 @@ void MainWindow::setStatusBarText(const QString& text)
     statusBar()->showMessage(text);
 }
 
-void MainWindow::updateEvaluationDisplay(int score, int depth)
+void MainWindow::updateEvaluationDisplay(int score, int depth, const QString& egdbInfo)
 {
     m_evaluationLabel->setText(QString("Eval: %1").arg(score / 100.0, 0, 'f', 2));
     m_depthLabel->setText(QString("Depth: %1").arg(depth));
+    if (!egdbInfo.isEmpty()) {
+        m_egdbLabel->setText(QString("EGDB: %1").arg(egdbInfo));
+    } else {
+        m_egdbLabel->clear();
+    }
 }
 
 void MainWindow::optionsHighlight()
@@ -943,7 +930,10 @@ void MainWindow::helpContents()
 
 void MainWindow::handleBoardUpdated(const bitboard_pos& board)
 {
-    m_boardWidget->setBoard(board);
+    if (m_boardWidget) m_boardWidget->setBoard(board);
+    if (m_evaluationLabel) m_evaluationLabel->clear();
+    if (m_depthLabel) m_depthLabel->clear();
+    if (m_egdbLabel) m_egdbLabel->clear();
 }
 void MainWindow::handleGameMessage(const QString& message)
 {

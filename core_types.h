@@ -11,10 +11,16 @@ extern "C" {
 #endif
 
 // Define constants for EGDB and general engine use
-#define MAXPIECE 7     // Max pieces per side (from OLD/builddb4/checkers.h, used in dblookup)
+#define MAXPIECE 11
 #define SKIPS 58       // Number of skips in Tunstall coding (from OLD/dblookup.cpp)
+#define MAXSKIP 10000  // Maximum skip value
 #define MAXFP 12       // Max number of open file pointers for EGDB (a reasonable default)
-#define MAXSKIP 7500   // Max skip value (from OLD/dblookup.cpp)
+#define NUM_SQUARES 32 // Number of playable squares on an 8x8 American checkers board
+#define BOARD_DIMENSION 8 // Dimension of the board (8x8)
+#define NUM_BITBOARD_BITS 32 // Number of bits in the bitboard, corresponding to NUM_SQUARES
+#define RANK0MAX 4 // Number of squares in the first rank for indexing
+#define ROWSIZE 4 // Number of squares per row for indexing logic
+#define MAX_RANK_COUNT 8 // Maximum number of ranks on the board
 
 // Program Status Word (PSW) bit flags
 #define STATUS_CRITICAL_ERROR      (1 << 0)  // General critical error, usually leads to shutdown
@@ -96,10 +102,10 @@ void clearProgramStatusWordFlags(uint32_t flags_to_clear);
 
 // Count set bits (Population Count)
 #ifdef __GNUC__
-#define recbitcount(x) __builtin_popcount(x)
+#define recbitcount(x) __builtin_popcountll(x)
 #else
 // Fallback for other compilers (simple loop, less performant)
-static inline int recbitcount_fallback(uint32_t n) {
+static inline int recbitcount_fallback(uint64_t n) {
     int count = 0;
     while (n > 0) {
         n &= (n - 1);
@@ -110,12 +116,12 @@ static inline int recbitcount_fallback(uint32_t n) {
 #define recbitcount(x) recbitcount_fallback(x)
 #endif
 
-// Revert bits (reverse order of bits)
+// Revert bits (reverse order of bits for 32-bit bitboards)
 static inline uint32_t revert(uint32_t n) {
     uint32_t reversed_n = 0;
     for (int i = 0; i < 32; ++i) {
         if ((n >> i) & 1) {
-            reversed_n |= (1 << (31 - i));
+            reversed_n |= (1u << (31 - i));
         }
     }
     return reversed_n;
@@ -123,13 +129,13 @@ static inline uint32_t revert(uint32_t n) {
 
 // Least Significant Bit (position of first set bit, 0-indexed)
 #ifdef __GNUC__
-#define LSB(x) ((x) == 0 ? -1 : __builtin_ctz(x))
+#define LSB(x) ((x) == 0ULL ? -1 : __builtin_ctzll(x))
 #else
 // Fallback (simple loop)
-static inline int LSB_fallback(uint32_t n) {
-    if (n == 0) return -1;
+static inline int LSB_fallback(uint64_t n) {
+    if (n == 0ULL) return -1;
     int count = 0;
-    while ((n & 1) == 0) {
+    while ((n & 1ULL) == 0ULL) {
         n >>= 1;
         count++;
     }
@@ -140,13 +146,13 @@ static inline int LSB_fallback(uint32_t n) {
 
 // Most Significant Bit (position of last set bit, 0-indexed)
 #ifdef __GNUC__
-#define MSB(x) ((x) == 0 ? -1 : (31 - __builtin_clz(x))) // For 32-bit int
+#define MSB(x) ((x) == 0ULL ? -1 : (63 - __builtin_clzll(x))) // For 64-bit int
 #else
 // Fallback (simple loop)
-static inline int MSB_fallback(uint32_t n) {
-    if (n == 0) return -1;
+static inline int MSB_fallback(uint64_t n) {
+    if (n == 0ULL) return -1;
     int count = 0;
-    while (n > 1) {
+    while (n > 1ULL) {
         n >>= 1;
         count++;
     }

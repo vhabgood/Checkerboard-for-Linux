@@ -1,15 +1,20 @@
 #include "GameManager.h"
 #include "c_logic.h"
 #include <QDebug>
+#include "log.h"
 
 GameManager::GameManager(QObject *parent)
     : QObject(parent),
-      m_currentColorToMove(CB_WHITE),
-      m_whitePlayer(PlayerType::PLAYER_HUMAN),
-      m_blackPlayer(PlayerType::PLAYER_AI),
+      m_currentColorToMove(CB_BLACK),
+      m_whitePlayer(PlayerType::PLAYER_AI),
+      m_blackPlayer(PlayerType::PLAYER_HUMAN),
+      m_pieceSelected(false),
+      m_selectedX(-1),
+      m_selectedY(-1),
       m_isGameOver(false),
       m_isAITurn(false)
 {
+    m_options.time_per_move = 1.0;
     m_gameTimer = new QTimer(this);
     connect(m_gameTimer, &QTimer::timeout, this, &GameManager::handleTimerTimeout);
 }
@@ -20,10 +25,12 @@ GameManager::~GameManager()
 
 void GameManager::newGame(int gameType)
 {
-
     m_currentBoard = get_initial_board(gameType);
-    m_currentColorToMove = CB_WHITE;
+    m_currentColorToMove = CB_BLACK;
     m_isGameOver = false;
+    m_pieceSelected = false;
+    m_selectedX = -1;
+    m_selectedY = -1;
     emit boardUpdated(m_currentBoard);
     requestAiMove();
 }
@@ -33,6 +40,14 @@ void GameManager::makeMove(const CBmove& move)
     if (m_isGameOver) {
         return;
     }
+
+    m_halfMoveCount++;
+    char notation[80];
+    move4tonotation(&move, notation);
+    log_c(LOG_LEVEL_INFO, "[GAME] Move %d (%s): %s", 
+          (m_halfMoveCount + 1) / 2, 
+          (m_currentColorToMove == CB_WHITE ? "White" : "Black"), 
+          notation);
 
     domove_c(&move, &m_currentBoard);
     switchPlayer();
@@ -190,12 +205,7 @@ int GameManager::getGameType() const { return m_options.gametype; }
 int GameManager::getTotalMoves() const { return m_boardHistory.size() - 1; } // Exclude initial position
 CBmove GameManager::getLastMove() const { return m_lastMove; }
 void GameManager::handleSquareClick(int x, int y) {
-    // This is a placeholder. Actual logic will involve move validation, piece selection, etc.
-
-    // For human player, if a piece is selected, try to make a move.
-    // If no piece selected, select the piece at (x,y) if it belongs to current player.
     if (m_isAITurn) {
-
         return;
     }
     
@@ -212,26 +222,47 @@ void GameManager::handleSquareClick(int x, int y) {
             m_selectedY = y;
             m_pieceSelected = true;
             emit pieceSelected(x, y);
-
         }
     } else {
         // A piece is already selected, try to make a move
-        CBmove proposed_move;
-        proposed_move.from.x = m_selectedX;
-        proposed_move.from.y = m_selectedY;
-        proposed_move.to.x = x;
-        proposed_move.to.y = y;
-        proposed_move.is_capture = false; // Will be determined by isLegalMove
+        CBmove legalMoves[MAXMOVES];
+        int nmoves = 0;
+        int isjump = 0;
+        get_legal_moves_c(m_currentBoard, m_currentColorToMove, legalMoves, nmoves, isjump, NULL, NULL);
 
-        if (isLegalMove(proposed_move)) {
-            makeMove(proposed_move);
+        CBmove full_move = {};
+        bool move_found = false;
+
+        for (int i = 0; i < nmoves; ++i) {
+            if (legalMoves[i].from.x == m_selectedX && legalMoves[i].from.y == m_selectedY &&
+                legalMoves[i].to.x == x && legalMoves[i].to.y == y) {
+                full_move = legalMoves[i];
+                move_found = true;
+                break;
+            }
+        }
+
+        if (move_found) {
+            makeMove(full_move);
+            m_pieceSelected = false;
+            m_selectedX = -1;
+            m_selectedY = -1;
             emit requestClearSelectedPiece();
             emit pieceDeselected();
         } else {
-            // Invalid move, deselect piece
-            emit requestClearSelectedPiece();
-            emit pieceDeselected();
-
+            // Check if user is trying to select a DIFFERENT piece of their own color
+            if (piece_at_clicked_square != CB_EMPTY && (piece_at_clicked_square & m_currentColorToMove)) {
+                m_selectedX = x;
+                m_selectedY = y;
+                m_pieceSelected = true;
+                emit pieceSelected(x, y);
+            } else {
+                m_pieceSelected = false;
+                m_selectedX = -1;
+                m_selectedY = -1;
+                emit requestClearSelectedPiece();
+                emit pieceDeselected();
+            }
         }
     }
 }

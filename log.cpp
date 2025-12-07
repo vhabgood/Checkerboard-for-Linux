@@ -5,7 +5,7 @@
 #include <QDateTime>
 #include <QString>
 
-static int s_minLogLevel = LOG_LEVEL_INFO;
+static int s_minLogLevel = LOG_LEVEL_DEBUG;
 
 void log_c(int level, const char* format, ...)
 {
@@ -39,4 +39,18 @@ void log_c(int level, const char* format, ...)
 
     // Send the message to the thread-safe logger
     Logger::instance()->log(finalMessage);
+}
+
+void qtMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
+{
+    Q_UNUSED(context);
+    int level = LOG_LEVEL_INFO;
+    switch (type) {
+        case QtDebugMsg:    level = LOG_LEVEL_DEBUG; break;
+        case QtInfoMsg:     level = LOG_LEVEL_INFO; break;
+        case QtWarningMsg:  level = LOG_LEVEL_WARNING; break;
+        case QtCriticalMsg: level = LOG_LEVEL_ERROR; break;
+        case QtFatalMsg:    level = LOG_LEVEL_FATAL; break;
+    }
+    log_c(level, "%s", msg.toUtf8().constData());
 }

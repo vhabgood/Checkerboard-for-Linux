@@ -1,6 +1,7 @@
 #pragma once
 
 #include "checkers_types.h"
+#include "egdb_driver/egdb/egdb_intl.h" // For egdb_interface types
 
 #include <stdbool.h>
 #include <stdint.h>

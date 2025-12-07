@@ -11,6 +11,16 @@ Logger* Logger::instance()
     return m_instance;
 }
 
+void Logger::cleanup()
+{
+    if (m_instance) {
+        m_instance->stop();
+        m_instance->wait();
+        delete m_instance;
+        m_instance = nullptr;
+    }
+}
+
 Logger::Logger(QObject *parent) : QThread(parent)
 {
     m_logFile.setFileName("log.txt");

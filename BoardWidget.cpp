@@ -166,7 +166,7 @@ void BoardWidget::setHighlight(bool highlight)
 void BoardWidget::loadPiecePixmaps()
 {
     m_piecePixmaps.clear();
-    QString basePath = ":/" + m_pieceSet + "/bmp/" + m_pieceSet + "/";
+    QString basePath = ":/bmp/" + m_pieceSet + "/";
 
     QPixmap bm(basePath + "bm.bmp");
     QPixmap bk(basePath + "bk.bmp");
@@ -193,6 +193,7 @@ QPoint BoardWidget::boardToScreen(int x, int y) const
     int screenY = y;
 
     if (m_inverted) {
+        screenX = 7 - screenX;
         screenY = 7 - screenY;
     }
     if (m_mirrored) {
@@ -208,6 +209,7 @@ QPoint BoardWidget::screenToBoard(const QPoint& screenPos) const
     int y = screenPos.y() / m_squareSize;
 
     if (m_inverted) {
+        x = 7 - x;
         y = 7 - y;
     }
     if (m_mirrored) {

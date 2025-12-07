@@ -49,13 +49,15 @@ QT_LIBS=$(pkg-config --libs Qt5Core)
 # Core C++ Source Files
 INCLUDE_DIRS=(
     "${RESOURCE_FILES_DIR}"
+    "${RESOURCE_FILES_DIR}/egdb_driver"
     "${RESOURCE_FILES_DIR}/CB172source"
 )
 
 INCLUDE_FLAGS="$(printf -- "-I%s " "${INCLUDE_DIRS[@]}")"
 
 # All source files for the main application
-APP_SOURCES="headless_main.cpp c_logic.cpp DBManager.cpp GeminiAI.cpp AIWorker.cpp log.cpp core_types.cpp Logger.cpp"
+APP_SOURCES="headless_main.cpp c_logic.cpp DBManager.cpp AIWorker.cpp log.cpp core_types.cpp Logger.cpp egdb_driver.cpp"
+APP_SOURCES+=" $(find egdb_driver -name '*.cpp' ! -name 'egdb_wld_tunstall_v1.cpp' ! -name 'egdb_wld_tunstall_v2.cpp')"
 
 # Object files for the main application
 APP_OBJS=()
@@ -71,8 +73,8 @@ for header_file in "${RESOURCE_FILES_DIR}"/*.h; do
         continue
     fi
 
-    # Skip GUI-specific headers
-    if [[ "${base_name}" == "MainWindow" || "${base_name}" == "BoardWidget" || "${base_name}" == "Dialogs" || "${base_name}" == "GameManager" || "${base_name}" == "engine_wrapper" ]]; then
+    # Skip GUI-specific headers and obsolete GeminiAI
+    if [[ "${base_name}" == "MainWindow" || "${base_name}" == "BoardWidget" || "${base_name}" == "Dialogs" || "${base_name}" == "GameManager" || "${base_name}" == "engine_wrapper" || "${base_name}" == "GeminiAI" ]]; then
         continue
     fi
 

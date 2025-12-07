@@ -5,9 +5,7 @@
 #include <random>
 #include <chrono>
 #include <algorithm>
-#include "GeminiAI.h"
 #include "DBManager.h"
-
 #include "c_logic.h"
 
 // Piece-Square Tables and other constants from GeminiAI
@@ -57,10 +55,14 @@ const int AIWorker::blackKingPST[8][8] = {
 
 uint64_t AIWorker::ZobristTable[8][8][5] = {};
 uint64_t AIWorker::ZobristWhiteToMove = 0;
+bool AIWorker::m_zobristInitialized = false;
 
 AIWorker::AIWorker(QObject *parent) : QObject(parent), m_lastEvaluationScore(0), m_lastSearchDepth(0)
 {
-    initZobristKeys();
+    if (!m_zobristInitialized) {
+        initZobristKeys();
+        m_zobristInitialized = true;
+    }
     memset(m_killerMoves, 0, sizeof(m_killerMoves));
     memset(m_historyTable, 0, sizeof(m_historyTable));
 }
@@ -155,96 +157,158 @@ void AIWorker::searchBestMove(bitboard_pos board, int color, double maxtime)
             }
         }
         nmoves = capture_count;
-    } else {
-        // Re-enable EGDB Logic
-    /* BEGIN EGDB BLOCK */
+    }
+
+    // --- EGDB Logic ---
     log_c(LOG_LEVEL_DEBUG, "searchBestMove: EGDB block enabled.");
     int piece_count = count_pieces(board);
-    if (piece_count <= 8) { // Assuming EGDB is configured for up to 8 pieces
-        int wld_main = DBManager::instance()->dblookup(&board, color);
-        char log_msg[512];
-        m_egdbLookupResult = ""; // Clear previous result
+    
+    if (!isjump && piece_count <= 10) { 
+        EGDB_POSITION egdb_pos;
+        egdb_pos.black_pieces = board.bm | board.bk;
+        egdb_pos.white_pieces = board.wm | board.wk;
+        egdb_pos.king = board.bk | board.wk; 
+        egdb_pos.stm = (color == CB_WHITE) ? EGDB_WHITE_TO_MOVE : EGDB_BLACK_TO_MOVE;
 
-        if (wld_main == DB_WIN) {
-            int best_mtc = 999;
+        EGDB_ERR wld_err = EGDB_ERR_NORMAL; 
+        int wld_main = DBManager::instance()->dblookup(&egdb_pos, &wld_err);
+        m_egdbLookupResult = ""; 
+
+        if (wld_err == EGDB_ERR_NORMAL) {
+            int best_win_mtc = 999;
             CBmove winning_move = {};
             bool found_win = false;
+            
+            CBmove drawing_moves[MAXMOVES];
+            int draw_move_count = 0;
+            
             for (int i = 0; i < nmoves; ++i) {
                 bitboard_pos next_board = board;
                 domove_c(&legalMoves[i], &next_board);
-                if (DBManager::instance()->dblookup(&next_board, (color == CB_WHITE) ? CB_BLACK : CB_WHITE) == DB_LOSS) {
-                    int next_mtc = DBManager::instance()->dblookup_mtc(&next_board);
-                    if (next_mtc < best_mtc) {
-                        best_mtc = next_mtc;
-                        winning_move = legalMoves[i];
-                        found_win = true;
+
+                EGDB_POSITION next_egdb_pos;
+                next_egdb_pos.black_pieces = next_board.bm | next_board.bk;
+                next_egdb_pos.white_pieces = next_board.wm | next_board.wk;
+                next_egdb_pos.king = next_board.bk | next_board.wk;
+                next_egdb_pos.stm = (color == CB_WHITE) ? EGDB_BLACK_TO_MOVE : EGDB_WHITE_TO_MOVE;
+
+                // Skip EGDB if successor has captures
+                CBmove dummy_ml[MAXMOVES];
+                int dummy_nm, next_isjump;
+                get_legal_moves_c(next_board, next_egdb_pos.stm == EGDB_WHITE_TO_MOVE ? CB_WHITE : CB_BLACK, dummy_ml, dummy_nm, next_isjump, nullptr, nullptr);
+                
+                EGDB_ERR next_wld_err = EGDB_ERR_NORMAL;
+                int next_wld = DB_UNKNOWN;
+                if (!next_isjump) {
+                    next_wld = DBManager::instance()->dblookup(&next_egdb_pos, &next_wld_err);
+                } else {
+                    next_wld_err = EGDB_POS_IS_CAPTURE;
+                }
+                
+                if (next_wld_err == EGDB_ERR_NORMAL) {
+                    if (next_wld == DB_LOSS) {
+                        EGDB_ERR mtc_err = EGDB_ERR_NORMAL;
+                        int next_mtc = DBManager::instance()->dblookup_mtc(&next_egdb_pos, &mtc_err);
+                        if (mtc_err == EGDB_ERR_NORMAL && next_mtc < best_win_mtc) {
+                            best_win_mtc = next_mtc;
+                            winning_move = legalMoves[i];
+                            found_win = true;
+                        } else if (mtc_err != EGDB_ERR_NORMAL) {
+                            winning_move = legalMoves[i];
+                            found_win = true;
+                            best_win_mtc = 998; 
+                        }
+                    } else if (next_wld == DB_DRAW) {
+                        drawing_moves[draw_move_count++] = legalMoves[i];
                     }
                 }
             }
+
             if (found_win) {
-                snprintf(log_msg, sizeof(log_msg), "EGDB MOVE: Found pre-search winning move, MTC=%d", best_mtc);
-                log_c(LOG_LEVEL_INFO, log_msg);
-                m_egdbLookupResult = QString("WIN (MTC=%1)").arg(best_mtc);
+                log_c(LOG_LEVEL_INFO, "EGDB MOVE: Taking WINNING move, MTC=%d", best_win_mtc);
+                m_egdbLookupResult = QString("WIN (MTC=%1)").arg(best_win_mtc);
+                emit evaluationReady(WIN_SCORE, 0, m_egdbLookupResult);
                 emit searchFinished(true, false, winning_move, "Found winning move via EGDB.", 0, "", timer.elapsed() / 1000.0);
                 return;
             }
-        }
-        else if (wld_main == DB_DRAW) {
-            m_egdbLookupResult = "DRAW";
-            CBmove drawing_moves[MAXMOVES];
-            int draw_move_count = 0;
-            for (int i = 0; i < nmoves; ++i) {
-                bitboard_pos next_board = board;
-                domove_c(&legalMoves[i], &next_board);
-                int next_wld = DBManager::instance()->dblookup(&next_board, (color == CB_WHITE) ? CB_BLACK : CB_WHITE);
-                if (next_wld != DB_WIN) { // Opponent does not win
-                    drawing_moves[draw_move_count++] = legalMoves[i];
+            
+            if (wld_main == DB_WIN) {
+                m_egdbLookupResult = "WIN (MTC pending)";
+                log_c(LOG_LEVEL_INFO, "EGDB: Position is WIN, but no immediate winning move found in successors. Searching...");
+            }
+            else if (wld_main == DB_DRAW) {
+                m_egdbLookupResult = "DRAW";
+                if (draw_move_count > 0) {
+                    memcpy(legalMoves, drawing_moves, draw_move_count * sizeof(CBmove));
+                    nmoves = draw_move_count;
+                    log_c(LOG_LEVEL_INFO, "EGDB: In DRAW, pruned move list to %d non-losing moves.", nmoves);
                 }
             }
-            if (draw_move_count > 0) {
-                memcpy(legalMoves, drawing_moves, draw_move_count * sizeof(CBmove));
-                nmoves = draw_move_count;
-                log_c(LOG_LEVEL_INFO, "EGDB: In DRAW, pruning move list to non-losing moves.");
-            }
-        }
-        else if (wld_main == DB_LOSS) {
-            m_egdbLookupResult = "LOSS";
-            // Try to find a move that leads to a draw
-            for (int i = 0; i < nmoves; ++i) {
-                bitboard_pos next_board = board;
-                domove_c(&legalMoves[i], &next_board);
-                if (DBManager::instance()->dblookup(&next_board, (color == CB_WHITE) ? CB_BLACK : CB_WHITE) == DB_DRAW) {
-                    log_c(LOG_LEVEL_INFO, "EGDB MOVE: Found move to a DRAW from a LOSING position.");
-                    m_egdbLookupResult = "LOSS (found drawing move)";
-                    emit searchFinished(true, false, legalMoves[i], "Found drawing move via EGDB.", 0, "", timer.elapsed() / 1000.0);
+            else if (wld_main == DB_LOSS) {
+                m_egdbLookupResult = "LOSS";
+                int longest_loss_mtc = -1;
+                CBmove best_losing_move = legalMoves[0];
+                bool found_draw_from_loss = false;
+                CBmove drawing_move = {};
+
+                for (int i = 0; i < nmoves; ++i) {
+                    bitboard_pos next_board = board;
+                    domove_c(&legalMoves[i], &next_board);
+                    EGDB_POSITION next_egdb_pos;
+                    next_egdb_pos.black_pieces = next_board.bm | next_board.bk;
+                    next_egdb_pos.white_pieces = next_board.wm | next_board.wk;
+                    next_egdb_pos.king = next_board.bk | next_board.wk;
+                    next_egdb_pos.stm = (color == CB_WHITE) ? EGDB_BLACK_TO_MOVE : EGDB_WHITE_TO_MOVE;
+
+                    // Skip EGDB if successor has captures
+                    CBmove dummy_ml2[MAXMOVES];
+                    int dummy_nm2, next_isjump2;
+                    get_legal_moves_c(next_board, next_egdb_pos.stm == EGDB_WHITE_TO_MOVE ? CB_WHITE : CB_BLACK, dummy_ml2, dummy_nm2, next_isjump2, nullptr, nullptr);
+
+                    EGDB_ERR next_wld_err = EGDB_ERR_NORMAL;
+                    int next_wld = DB_UNKNOWN;
+                    if (!next_isjump2) {
+                        next_wld = DBManager::instance()->dblookup(&next_egdb_pos, &next_wld_err);
+                    } else {
+                        next_wld_err = EGDB_POS_IS_CAPTURE;
+                    }
+                    if (next_wld_err == EGDB_ERR_NORMAL && next_wld == DB_DRAW) {
+                        found_draw_from_loss = true;
+                        drawing_move = legalMoves[i];
+                        break;
+                    }
+
+                    EGDB_ERR mtc_err = EGDB_ERR_NORMAL;
+                    int next_mtc = DBManager::instance()->dblookup_mtc(&next_egdb_pos, &mtc_err);
+                    if (mtc_err == EGDB_ERR_NORMAL && next_mtc > longest_loss_mtc) {
+                        longest_loss_mtc = next_mtc;
+                        best_losing_move = legalMoves[i];
+                    }
+                }
+
+                if (found_draw_from_loss) {
+                    log_c(LOG_LEVEL_INFO, "EGDB MOVE: Found DRAW from LOSS.");
+                    m_egdbLookupResult = "LOSS (found draw)";
+                    emit evaluationReady(LOSS_SCORE, 0, m_egdbLookupResult);
+                    emit searchFinished(true, false, drawing_move, "Found drawing move via EGDB.", 0, "", timer.elapsed() / 1000.0);
                     return;
                 }
-            }
-            // If no draw is possible, find the move that prolongs the loss
-            int longest_loss_mtc = -1;
-            CBmove best_losing_move = legalMoves[0];
-            for (int i = 0; i < nmoves; ++i) {
-                bitboard_pos next_board = board;
-                domove_c(&legalMoves[i], &next_board);
-                int next_mtc = DBManager::instance()->dblookup_mtc(&next_board);
-                if (next_mtc > longest_loss_mtc) {
-                    longest_loss_mtc = next_mtc;
-                    best_losing_move = legalMoves[i];
-                }
-            }
-            snprintf(log_msg, sizeof(log_msg), "EGDB MOVE: No drawing move found. Choosing longest loss, MTC=%d", longest_loss_mtc);
-            log_c(LOG_LEVEL_INFO, log_msg);
-            m_egdbLookupResult = QString("LOSS (MTC=%1)").arg(longest_loss_mtc);
-            emit searchFinished(true, false, best_losing_move, "Found best losing move via EGDB.", 0, "", timer.elapsed() / 1000.0);
+
+                log_c(LOG_LEVEL_INFO, "EGDB MOVE: Choosing longest loss path, MTC=%d", longest_loss_mtc);
+                m_egdbLookupResult = QString("LOSS (MTC=%1)").arg(longest_loss_mtc);
+                emit evaluationReady(LOSS_SCORE, 0, m_egdbLookupResult);
+                emit searchFinished(true, false, best_losing_move, "Found best losing move via EGDB.", 0, "", timer.elapsed() / 1000.0);
                 return;
-        } else {
-            m_egdbLookupResult = "UNKNOWN (no lookup)";
+            }
         }
     } else {
-        m_egdbLookupResult = "UNKNOWN (too many pieces)";
-    }
-    
-    /* END EGDB BLOCK */
+        if (isjump) {
+            m_egdbLookupResult = "SKIPPED (capture available)";
+            log_c(LOG_LEVEL_DEBUG, "EGDB WLD Lookup SKIPPED: Capture available.");
+        } else {
+            m_egdbLookupResult = "SKIPPED (too many pieces)";
+            log_c(LOG_LEVEL_DEBUG, "EGDB WLD Lookup SKIPPED: Too many pieces.");
+        }
     }
 
     std::sort(legalMoves, legalMoves + nmoves, compareMoves);
@@ -287,24 +351,93 @@ void AIWorker::searchBestMove(bitboard_pos board, int color, double maxtime)
     }
 
     log_c(LOG_LEVEL_DEBUG, "AIWorker::searchBestMove: Iterative deepening loop finished. bestValue: %d, actualSearchDepth: %d", bestValue, actualSearchDepth);
-    m_lastEvaluationScore = bestValue;
-    m_lastSearchDepth = actualSearchDepth;
-    emit evaluationReady(m_lastEvaluationScore, m_lastSearchDepth);
-    
-    
-    char psw_log_msg[256];
-    snprintf(psw_log_msg, sizeof(psw_log_msg), "AI Move PSW: 0x%08X", getProgramStatusWord());
-    log_c(LOG_LEVEL_INFO, psw_log_msg);
+    log_c(LOG_LEVEL_INFO, "[AI] %s decision: Eval: %.2f, Depth: %d, EGDB: %s", 
+          (color == CB_WHITE ? "White" : "Black"), 
+          bestValue / 100.0, actualSearchDepth, 
+          m_egdbLookupResult.isEmpty() ? "None" : m_egdbLookupResult.toUtf8().constData());
 
-    bool aborted = m_abortRequested.loadRelaxed();
-    log_c(LOG_LEVEL_DEBUG, "AIWorker::searchBestMove: Emitting searchFinished. Aborted: %d", aborted);
-    emit searchFinished(true, aborted, bestMove, "Search complete.", 0, "", timer.elapsed() / 1000.0);
+    emit evaluationReady(bestValue, actualSearchDepth, m_egdbLookupResult);
+    emit searchFinished(true, false, bestMove, "Search completed.", 0, "", timer.elapsed() / 1000.0);
     log_c(LOG_LEVEL_DEBUG, "AIWorker::searchBestMove: Exiting successfully.");
 }
 
 // ... (minimax, evaluateBoard, and other helper implementations are identical to GeminiAI's)
 // The following are copied from GeminiAI.cpp and adapted for AIWorker
+// Evaluation helpers for EGDB
+static int black_tempo(uint32_t bm) {
+    return (4 * recbitcount((0xF0000ULL | 0xF00000ULL | 0xF000000ULL) & bm) + 
+            2 * recbitcount((0xF00ULL | 0xF000ULL | 0xF000000ULL) & bm) + 
+            recbitcount((0xF0ULL | 0xF000ULL | 0xF00000ULL) & bm));
+}
+
+static int white_tempo(uint32_t wm) {
+    return (4 * recbitcount((0xF000ULL | 0xF00ULL | 0xF0ULL) & wm) + 
+            2 * recbitcount((0xF00000ULL | 0xF0000ULL | 0xF0ULL) & wm) + 
+            recbitcount((0xF000000ULL | 0xF0000ULL | 0xF00ULL) & wm));
+}
+
+int AIWorker::allKingsEval(const bitboard_pos& board) const {
+    const uint32_t WK = board.wk;
+    const uint32_t BK = board.bk;
+    const int KingCount[2] = { recbitcount(BK), recbitcount(WK) };
+    const int numWhite = recbitcount(board.wm | board.wk);
+    const int numBlack = recbitcount(board.bm | board.bk);
+
+    int eval = 0;
+    eval += (KingCount[CB_WHITE == CB_WHITE ? 1 : 0] - KingCount[0]) * 25; // Adjusted indexing
+    eval += (numWhite - numBlack) * 75;
+    
+    // Simplification for AIWorker (using constants)
+    const uint32_t SINGLE_EDGE = 0x81818181; // Squares 1,8,9,16,17,24,25,32? No.
+    // ... just use piece diffs for now ...
+    return eval;
+}
+
+int AIWorker::dbWinEval(const bitboard_pos& board, int dbresult) const {
+    const int dbwin_offset = 400;
+    const uint32_t wm = board.wm;
+    const uint32_t bm = board.bm;
+    const uint32_t WK = board.wk;
+    const uint32_t BK = board.bk;
+    const int numWhite = recbitcount(wm | WK);
+    const int numBlack = recbitcount(bm | BK);
+    const int KingCountWhite = recbitcount(WK);
+    const int KingCountBlack = recbitcount(BK);
+
+    int eval = 0;
+    eval += (KingCountWhite - KingCountBlack) * 25;
+    eval += (numWhite - numBlack) * 75;
+    eval += (numWhite - numBlack) * (240 - (numWhite + numBlack) * 20);
+
+    if (dbresult == DB_WHITE) {
+        eval += dbwin_offset;
+        if (wm) eval += white_tempo(wm);
+        if (numWhite == numBlack) eval += black_tempo(bm);
+    } else if (dbresult == DB_BLACK) {
+        eval -= dbwin_offset;
+        if (bm) eval -= black_tempo(bm);
+        if (numWhite == numBlack) eval -= white_tempo(wm);
+    }
+    return eval;
+}
+
 int AIWorker::evaluateBoard(const bitboard_pos& board, int colorToMove) {
+    int piece_count = count_pieces(board);
+    if (piece_count <= 10) {
+        EGDB_POSITION egdb_pos;
+        egdb_pos.black_pieces = board.bm | board.bk;
+        egdb_pos.white_pieces = board.wm | board.wk;
+        egdb_pos.king = board.bk | board.wk;
+        egdb_pos.stm = (colorToMove == CB_WHITE) ? EGDB_WHITE_TO_MOVE : EGDB_BLACK_TO_MOVE;
+
+        EGDB_ERR err = EGDB_ERR_NORMAL;
+        int result = DBManager::instance()->dblookup(&egdb_pos, &err);
+        if (err == EGDB_ERR_NORMAL) {
+            if (result == DB_WIN) return (colorToMove == CB_WHITE) ? dbWinEval(board, DB_WHITE) : -dbWinEval(board, DB_WHITE);
+            if (result == DB_LOSS) return (colorToMove == CB_WHITE) ? -dbWinEval(board, DB_BLACK) : dbWinEval(board, DB_BLACK);
+            if (result == DB_DRAW) return DRAW_SCORE;
+        }
+    }
 
     int score = 0;
     int white_pieces = 0;
@@ -380,7 +513,7 @@ int AIWorker::evaluateBoard(const bitboard_pos& board, int colorToMove) {
 
 int AIWorker::minimax(bitboard_pos board, int color, int depth, int alpha, int beta, CBmove *bestMove, bool allowNull)
 {
-    log_c(LOG_LEVEL_DEBUG, "minimax: Enter (depth %d, color %d)", depth, color);
+    // log_c(LOG_LEVEL_DEBUG, "minimax: Enter (depth %d, color %d)", depth, color);
     if (m_abortRequested.loadRelaxed()) {
         return 0;
     }
@@ -466,7 +599,7 @@ int AIWorker::minimax(bitboard_pos board, int color, int depth, int alpha, int b
 
 int AIWorker::quiescenceSearch(bitboard_pos board, int color, int alpha, int beta)
 {
-    log_c(LOG_LEVEL_DEBUG, "quiescenceSearch: Enter (color %d)", color);
+    // log_c(LOG_LEVEL_DEBUG, "quiescenceSearch: Enter (color %d)", color);
     if (m_abortRequested.loadRelaxed()) { // Add abort check
         return 0;
     }

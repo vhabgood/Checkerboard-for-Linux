@@ -9,28 +9,34 @@
 
 
 // Define constants for piece types
-#define CB_MAN			1
-#define CB_KING			2
-#define CB_WHITE		4
-#define CB_BLACK		8
-#define CB_EMPTY		16
-#define CB_REMOVED		32
+enum PieceType {
+    CB_MAN = 1,
+    CB_KING = 2,
+    CB_WHITE = 4,
+    CB_BLACK = 8,
+    CB_EMPTY = 16,
+    CB_REMOVED = 32
+};
 
 // Define constants for game types
-#define GT_ENGLISH		1
-#define GT_ITALIAN		2
-#define GT_SPANISH		3
-#define GT_GERMAN		4
-#define GT_CZECH		5
-#define GT_POOLS		6
-#define GT_RUSSIAN		7
-#define GT_BRAZILIAN	8
+enum GameType {
+    GT_ENGLISH = 1,
+    GT_ITALIAN = 2,
+    GT_SPANISH = 3,
+    GT_GERMAN = 4,
+    GT_CZECH = 5,
+    GT_POOLS = 6,
+    GT_RUSSIAN = 7,
+    GT_BRAZILIAN = 8
+};
 
 // Define constants for game results
-#define CB_WIN			1
-#define CB_LOSS			2
-#define CB_DRAW			3
-#define CB_UNKNOWN		4
+enum GameResult {
+    CB_WIN = 1,
+    CB_LOSS = 2,
+    CB_DRAW = 3,
+    CB_UNKNOWN = 4
+};
 
 // Enum for PDN game results
 enum PDN_RESULT {
@@ -188,7 +194,7 @@ struct PdnGameWrapper {
 Q_DECLARE_METATYPE(PdnGameWrapper)
 
 // AI Evaluation constants
-#define KING_VALUE 300
+#define KING_VALUE 130
 #define MAN_VALUE 100
 #define MOBILITY_MULTIPLIER 5
 
