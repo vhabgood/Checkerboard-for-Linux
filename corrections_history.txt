@@ -1,0 +1,12 @@
+2025-12-23: [AI/EGDB] Integrated EGDB evaluation gradient.
+- Added dbWinEval, AllKingsEval, white_tempo, and black_tempo to AIWorker.cpp.
+- Updated AIWorker::evaluateBoard to perform EGDB lookups at search leaves.
+- Finalized WLD mapping (0=LOSS, 1=DRAW, 2=WIN).
+
+2025-12-24: Optimized search engine.
+- Implemented Zobrist repetition detection to fix shuffling bug.
+- Added NMP (Null Move Pruning), LMR (Late Move Reductions), and Aspiration Windows.
+- Fixed critical multi-jump board simulation bug in find_captures_recursive.
+- Corrected NegaMax sign error in EGDB evaluation logic.
+- Enhanced king evaluation with mobility bonuses and trapped penalties.
+- Improved UI status bar consistency for mate scores.

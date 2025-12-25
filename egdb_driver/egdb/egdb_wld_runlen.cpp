@@ -681,8 +681,11 @@ namespace egdb_interface {
              decompressed_index += run;
              offset++;
              if (offset >= current_block_size) {
+                 // If we have reached the target index exactly at the block boundary, we're done.
+                 if (decompressed_index > current_index) break;
+
                  if (current_block_size < 1024) {
-                      log_c(LOG_LEVEL_DEBUG, "dblookup_wld_internal: EOF reached in short block %d at Idx: %llu", blocknumber, (unsigned long long)decompressed_index);
+                      // log_c(LOG_LEVEL_DEBUG, "dblookup_wld_internal: EOF reached in short block %d at Idx: %llu", blocknumber, (unsigned long long)decompressed_index);
                       break;
                  }
                  blocknumber++;
@@ -696,10 +699,14 @@ namespace egdb_interface {
              }
         }
         
-        log_c(LOG_LEVEL_DEBUG, "dblookup_wld_internal: Decompression FAILED. Final Idx: %llu", (unsigned long long)decompressed_index);
-
-        *err = EGDB_DECOMPRESSION_FAILED;
-        return(EGDB_UNKNOWN);
+        if (decompressed_index < current_index) {
+            log_c(LOG_LEVEL_DEBUG, "dblookup_wld_internal: Decompression FAILED for piece counts %d,%d,%d,%d stm %d. Final Idx: %llu, Target: %llu", 
+                  idx_rec->num_bmen, idx_rec->num_bkings, idx_rec->num_wmen, idx_rec->num_wkings, idx_rec->side_to_move,
+                  (unsigned long long)decompressed_index, (unsigned long long)current_index);
+            *err = EGDB_DECOMPRESSION_FAILED;
+            return(EGDB_UNKNOWN);
+        }
+        return EGDB_UNKNOWN;
     }
 
     static void exitdblookup(DBHANDLE h)

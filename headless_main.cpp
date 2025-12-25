@@ -142,6 +142,10 @@ int main(int argc, char *argv[]) {
             loop.quit();
         });
         
+        // Feed current board to history for repetition detection
+        uint64_t boardKey = aiWorker->generateZobristKey(board, board.color);
+        aiWorker->addHistoryKey(boardKey);
+
         emit controller.requestAiSearch(Autoplay, board, board.color, 1.0);
         
         loop.exec(); // Block until loop.quit() is called

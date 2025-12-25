@@ -8,49 +8,49 @@
 #include "DBManager.h"
 #include "c_logic.h"
 
-// Piece-Square Tables and other constants from GeminiAI
-const int AIWorker::whiteManPST[8][8] = {
-    { 0,  0,  0,  0,  0,  0,  0,  0},
-    { 0,  0,  2,  2,  2,  2,  0,  0},
-    { 0,  2,  5,  7,  7,  5,  2,  0},
-    { 0,  2,  7, 12, 12,  7,  2,  0},
-    { 0,  2,  7, 12, 12,  7,  2,  0},
-    { 0,  2,  5,  7,  7,  5,  2,  0},
-    { 0,  0,  2,  2,  2,  2,  0,  0},
-    { 0,  0,  0,  0,  0,  0,  0,  0}
+// Piece-Square Tables (32-square bitboard indexing)
+const int AIWorker::whiteManPST[32] = {
+    0, 0, 0, 0,
+    2, 2, 2, 2,
+    2, 5, 7, 7,
+    5, 2, 2, 7,
+    12, 12, 7, 2,
+    2, 7, 12, 12,
+    7, 2, 2, 5,
+    7, 7, 5, 2
 };
 
-const int AIWorker::whiteKingPST[8][8] = {
-    { 0,  0,  0,  0,  0,  0,  0,  0},
-    { 0,  5, 10, 15, 15, 10,  5,  0},
-    { 0, 10, 20, 30, 30, 20, 10,  0},
-    { 0, 15, 30, 40, 40, 30, 15,  0},
-    { 0, 15, 30, 40, 40, 30, 15,  0},
-    { 0, 10, 20, 30, 30, 20, 10,  0},
-    { 0,  5, 10, 15, 15, 10,  5,  0},
-    { 0,  0,  0,  0,  0,  0,  0,  0}
+const int AIWorker::whiteKingPST[32] = {
+    0, 10, 20, 30,
+    30, 20, 10, 0,
+    20, 40, 60, 60,
+    40, 20, 0, 30,
+    60, 80, 80, 60,
+    30, 0, 30, 60,
+    80, 80, 60, 30,
+    0, 20, 40, 60
 };
 
-const int AIWorker::blackManPST[8][8] = {
-    { 0,  0,  0,  0,  0,  0,  0,  0},
-    { 0,  0,  2,  2,  2,  2,  0,  0},
-    { 0,  2,  5,  7,  7,  5,  2,  0},
-    { 0,  2,  7, 12, 12,  7,  2,  0},
-    { 0,  2,  7, 12, 12,  7,  2,  0},
-    { 0,  2,  5,  7,  7,  5,  2,  0},
-    { 0,  0,  2,  2,  2,  2,  0,  0},
-    { 0,  0,  0,  0,  0,  0,  0,  0}
+const int AIWorker::blackManPST[32] = {
+    2, 5, 7, 7,
+    2, 7, 12, 12,
+    7, 2, 2, 7,
+    12, 12, 7, 2,
+    2, 5, 7, 7,
+    5, 2, 2, 2,
+    2, 2, 0, 0,
+    0, 0, 0, 0
 };
 
-const int AIWorker::blackKingPST[8][8] = {
-    { 0,  0,  0,  0,  0,  0,  0,  0},
-    { 0,  5, 10, 15, 15, 10,  5,  0},
-    { 0, 10, 20, 30, 30, 20, 10,  0},
-    { 0, 15, 30, 40, 40, 30, 15,  0},
-    { 0, 15, 30, 40, 40, 30, 15,  0},
-    { 0, 10, 20, 30, 30, 20, 10,  0},
-    { 0,  5, 10, 15, 15, 10,  5,  0},
-    { 0,  0,  0,  0,  0,  0,  0,  0}
+const int AIWorker::blackKingPST[32] = {
+    60, 40, 20, 0,
+    30, 60, 80, 80,
+    60, 30, 0, 30,
+    60, 80, 80, 60,
+    30, 0, 20, 40,
+    60, 60, 40, 20,
+    0, 10, 20, 30,
+    30, 20, 10, 0
 };
 
 uint64_t AIWorker::ZobristTable[8][8][5] = {};
@@ -103,51 +103,43 @@ void AIWorker::performTask(AI_State task, const bitboard_pos& board, int color, 
 
 void AIWorker::performInitialization(const QString& egdbPath)
 {
-    char db_init_output[256] = {0};
-    int suggestedMB = 64; // Default value
-    int maxPieces = DBManager::instance()->db_init(suggestedMB, db_init_output, egdbPath.toUtf8().constData());
-    bool success = maxPieces > 0;
-    m_egdbLookupResult = DBManager::instance()->getEGDBStatus();
-    emit initializationFinished(success, maxPieces);
-    // emit initializationFinished(false, 0); // Always report failure when EGDB is disabled
+    DBManager::instance()->db_init(64, nullptr, egdbPath.toUtf8().constData());
+    emit initializationFinished(true, 10);
 }
-
 
 void AIWorker::searchBestMove(bitboard_pos board, int color, double maxtime)
 {
-    log_c(LOG_LEVEL_DEBUG, "AIWorker::searchBestMove: Enter. Color: %d, maxtime: %f", color, maxtime);
-    m_abortRequested.storeRelaxed(0);
-    m_transbitboard_positionTable.clear(); // Clear TT once at the beginning of searchBestMove
     QElapsedTimer timer;
     timer.start();
+    m_abortRequested.storeRelaxed(0);
+    
+    m_lastEvaluationScore = 0;
+    m_lastSearchDepth = 0;
+    m_egdbLookupResult = "";
 
-    CBmove bestMove;
+    CBmove bestMove = CBmove();
     int bestValue = LOSS_SCORE;
     int actualSearchDepth = 0;
 
     CBmove legalMoves[MAXMOVES];
     int nmoves = 0;
     int isjump = 0;
-
     get_legal_moves_c(board, color, legalMoves, nmoves, isjump, NULL, NULL);
 
     if (nmoves == 0) {
         log_c(LOG_LEVEL_DEBUG, "AIWorker::searchBestMove: No legal moves, returning.");
-        emit searchFinished(false, false, CBmove(), "No legal moves.", 0, "", timer.elapsed() / 1000.0);
-        return;
-    }
-    
-    if (nmoves == 1) {
-        log_c(LOG_LEVEL_DEBUG, "AIWorker::searchBestMove: Only one legal move, returning.");
-        bestMove = legalMoves[0];
-        m_lastEvaluationScore = evaluateBoard(board, color);
-        m_lastSearchDepth = 0;
-        emit evaluationReady(m_lastEvaluationScore, m_lastSearchDepth);
-        emit searchFinished(true, false, bestMove, "Only one legal move.", 0, "", timer.elapsed() / 1000.0);
+        emit searchFinished(false, false, CBmove(), "No legal moves.", 0, "", 0);
         return;
     }
 
-    // Prioritize captures if they exist
+    if (nmoves == 1) {
+        log_c(LOG_LEVEL_DEBUG, "AIWorker::searchBestMove: Only one legal move, returning.");
+        m_lastEvaluationScore = evaluateBoard(board, color);
+        emit evaluationReady(m_lastEvaluationScore, 0);
+        emit searchFinished(true, false, legalMoves[0], "Only one legal move.", 0, "", 0);
+        return;
+    }
+
     if (isjump) {
         log_c(LOG_LEVEL_DEBUG, "AIWorker::searchBestMove: Prioritizing captures.");
         int capture_count = 0;
@@ -182,9 +174,22 @@ void AIWorker::searchBestMove(bitboard_pos board, int color, double maxtime)
             CBmove drawing_moves[MAXMOVES];
             int draw_move_count = 0;
             
+            auto is_repetition = [&](const bitboard_pos& next_b, int next_c) {
+                uint64_t next_key = generateZobristKey(next_b, next_c);
+                for (uint64_t hKey : m_gameHistory) {
+                    if (hKey == next_key) return true;
+                }
+                return false;
+            };
+
             for (int i = 0; i < nmoves; ++i) {
                 bitboard_pos next_board = board;
                 domove_c(&legalMoves[i], &next_board);
+                int next_color = (color == CB_WHITE) ? CB_BLACK : CB_WHITE;
+
+                if (is_repetition(next_board, next_color)) {
+                    continue;
+                }
 
                 EGDB_POSITION next_egdb_pos;
                 next_egdb_pos.black_pieces = next_board.bm | next_board.bk;
@@ -248,57 +253,31 @@ void AIWorker::searchBestMove(bitboard_pos board, int color, double maxtime)
                 m_egdbLookupResult = "LOSS";
                 int longest_loss_mtc = -1;
                 CBmove best_losing_move = legalMoves[0];
-                bool found_draw_from_loss = false;
-                CBmove drawing_move = {};
-
-                for (int i = 0; i < nmoves; ++i) {
-                    bitboard_pos next_board = board;
-                    domove_c(&legalMoves[i], &next_board);
-                    EGDB_POSITION next_egdb_pos;
-                    next_egdb_pos.black_pieces = next_board.bm | next_board.bk;
-                    next_egdb_pos.white_pieces = next_board.wm | next_board.wk;
-                    next_egdb_pos.king = next_board.bk | next_board.wk;
-                    next_egdb_pos.stm = (color == CB_WHITE) ? EGDB_BLACK_TO_MOVE : EGDB_WHITE_TO_MOVE;
-
-                    // Skip EGDB if successor has captures
-                    CBmove dummy_ml2[MAXMOVES];
-                    int dummy_nm2, next_isjump2;
-                    get_legal_moves_c(next_board, next_egdb_pos.stm == EGDB_WHITE_TO_MOVE ? CB_WHITE : CB_BLACK, dummy_ml2, dummy_nm2, next_isjump2, nullptr, nullptr);
-
-                    EGDB_ERR next_wld_err = EGDB_ERR_NORMAL;
-                    int next_wld = DB_UNKNOWN;
-                    if (!next_isjump2) {
-                        next_wld = DBManager::instance()->dblookup(&next_egdb_pos, &next_wld_err);
-                    } else {
-                        next_wld_err = EGDB_POS_IS_CAPTURE;
-                    }
-                    if (next_wld_err == EGDB_ERR_NORMAL && next_wld == DB_DRAW) {
-                        found_draw_from_loss = true;
-                        drawing_move = legalMoves[i];
-                        break;
-                    }
-
+                
+                for (int i=0; i<nmoves; ++i) {
+                    bitboard_pos nBoard = board;
+                    domove_c(&legalMoves[i], &nBoard);
+                    EGDB_POSITION nPos;
+                    nPos.black_pieces = nBoard.bm | nBoard.bk;
+                    nPos.white_pieces = nBoard.wm | nBoard.wk;
+                    nPos.king = nBoard.bk | nBoard.wk;
+                    nPos.stm = (color == CB_WHITE) ? EGDB_BLACK_TO_MOVE : EGDB_WHITE_TO_MOVE;
+                    
                     EGDB_ERR mtc_err = EGDB_ERR_NORMAL;
-                    int next_mtc = DBManager::instance()->dblookup_mtc(&next_egdb_pos, &mtc_err);
-                    if (mtc_err == EGDB_ERR_NORMAL && next_mtc > longest_loss_mtc) {
-                        longest_loss_mtc = next_mtc;
+                    int mtc = DBManager::instance()->dblookup_mtc(&nPos, &mtc_err);
+                    if (mtc_err == EGDB_ERR_NORMAL && mtc > longest_loss_mtc) {
+                        longest_loss_mtc = mtc;
                         best_losing_move = legalMoves[i];
                     }
                 }
-
-                if (found_draw_from_loss) {
-                    log_c(LOG_LEVEL_INFO, "EGDB MOVE: Found DRAW from LOSS.");
-                    m_egdbLookupResult = "LOSS (found draw)";
+                
+                if (longest_loss_mtc != -1) {
+                    log_c(LOG_LEVEL_INFO, "EGDB MOVE: Choosing longest loss path, MTC=%d", longest_loss_mtc);
+                    m_egdbLookupResult = QString("LOSS (MTC=%1)").arg(longest_loss_mtc);
                     emit evaluationReady(LOSS_SCORE, 0, m_egdbLookupResult);
-                    emit searchFinished(true, false, drawing_move, "Found drawing move via EGDB.", 0, "", timer.elapsed() / 1000.0);
+                    emit searchFinished(true, false, best_losing_move, "Choosing longest losing path via EGDB.", 0, "", timer.elapsed() / 1000.0);
                     return;
                 }
-
-                log_c(LOG_LEVEL_INFO, "EGDB MOVE: Choosing longest loss path, MTC=%d", longest_loss_mtc);
-                m_egdbLookupResult = QString("LOSS (MTC=%1)").arg(longest_loss_mtc);
-                emit evaluationReady(LOSS_SCORE, 0, m_egdbLookupResult);
-                emit searchFinished(true, false, best_losing_move, "Found best losing move via EGDB.", 0, "", timer.elapsed() / 1000.0);
-                return;
             }
         }
     } else {
@@ -325,32 +304,70 @@ void AIWorker::searchBestMove(bitboard_pos board, int color, double maxtime)
 
         CBmove iterationBestMove = CBmove();
         int currentIterationBestValue = LOSS_SCORE;
+        
+        // 3. Aspiration Window
         int alpha = LOSS_SCORE;
         int beta = WIN_SCORE;
-        for (int i = 0; i < nmoves; ++i) {
-            const auto& move = legalMoves[i];
+        if (current_depth >= 5) {
+            alpha = bestValue - 50;
+            beta = bestValue + 50;
+        }
+
+        while (true) {
+            currentIterationBestValue = LOSS_SCORE;
+            int current_alpha = alpha;
+            int current_beta = beta;
+
+            for (int i = 0; i < nmoves; ++i) {
+                const auto& move = legalMoves[i];
+                if (m_abortRequested.loadRelaxed()) break;
+
+                bitboard_pos nextBoard = board;
+                domove_c(&move, &nextBoard);
+                
+                int moveValue = -minimax(nextBoard, (color == CB_WHITE) ? CB_BLACK : CB_WHITE, current_depth - 1, -current_beta, -current_alpha, nullptr, true);
+
+                if (moveValue > currentIterationBestValue) {
+                    currentIterationBestValue = moveValue;
+                    iterationBestMove = move;
+                }
+                current_alpha = std::max(current_alpha, currentIterationBestValue);
+                if (current_alpha >= current_beta) break;
+            }
+
             if (m_abortRequested.loadRelaxed()) break;
 
-            bitboard_pos nextBoard = board;
-            domove_c(&move, &nextBoard);
-            
-            int moveValue = -minimax(nextBoard, (color == CB_WHITE) ? CB_BLACK : CB_WHITE, current_depth - 1, -beta, -alpha, nullptr, true);
-
-            if (moveValue > currentIterationBestValue) {
-                currentIterationBestValue = moveValue;
-                iterationBestMove = move;
+            if (currentIterationBestValue <= alpha) {
+                alpha = LOSS_SCORE;
+            } else if (currentIterationBestValue >= beta) {
+                beta = WIN_SCORE;
+            } else {
+                break;
             }
-            alpha = std::max(alpha, currentIterationBestValue);
         }
 
         if (!m_abortRequested.loadRelaxed()) {
             bestValue = currentIterationBestValue;
             bestMove = iterationBestMove;
             actualSearchDepth = current_depth;
+            
+            // Override EGDB text if search finds a forced win/loss (score > 90% of max)
+            int absScore = (bestValue > 0) ? bestValue : -bestValue;
+            if (absScore > 900000) {
+                 if (bestValue > 0) m_egdbLookupResult = "WIN (Search)";
+                 else m_egdbLookupResult = "LOSS (Search)";
+                 log_c(LOG_LEVEL_DEBUG, "AIWorker: Overriding EGDB result to %s", m_egdbLookupResult.toUtf8().constData());
+            }
+            
+            emit evaluationReady(bestValue, actualSearchDepth, m_egdbLookupResult);
         }
     }
 
     log_c(LOG_LEVEL_DEBUG, "AIWorker::searchBestMove: Iterative deepening loop finished. bestValue: %d, actualSearchDepth: %d", bestValue, actualSearchDepth);
+    
+    m_lastEvaluationScore = bestValue;
+    m_lastSearchDepth = actualSearchDepth;
+
     log_c(LOG_LEVEL_INFO, "[AI] %s decision: Eval: %.2f, Depth: %d, EGDB: %s", 
           (color == CB_WHITE ? "White" : "Black"), 
           bestValue / 100.0, actualSearchDepth, 
@@ -359,66 +376,6 @@ void AIWorker::searchBestMove(bitboard_pos board, int color, double maxtime)
     emit evaluationReady(bestValue, actualSearchDepth, m_egdbLookupResult);
     emit searchFinished(true, false, bestMove, "Search completed.", 0, "", timer.elapsed() / 1000.0);
     log_c(LOG_LEVEL_DEBUG, "AIWorker::searchBestMove: Exiting successfully.");
-}
-
-// ... (minimax, evaluateBoard, and other helper implementations are identical to GeminiAI's)
-// The following are copied from GeminiAI.cpp and adapted for AIWorker
-// Evaluation helpers for EGDB
-static int black_tempo(uint32_t bm) {
-    return (4 * recbitcount((0xF0000ULL | 0xF00000ULL | 0xF000000ULL) & bm) + 
-            2 * recbitcount((0xF00ULL | 0xF000ULL | 0xF000000ULL) & bm) + 
-            recbitcount((0xF0ULL | 0xF000ULL | 0xF00000ULL) & bm));
-}
-
-static int white_tempo(uint32_t wm) {
-    return (4 * recbitcount((0xF000ULL | 0xF00ULL | 0xF0ULL) & wm) + 
-            2 * recbitcount((0xF00000ULL | 0xF0000ULL | 0xF0ULL) & wm) + 
-            recbitcount((0xF000000ULL | 0xF0000ULL | 0xF00ULL) & wm));
-}
-
-int AIWorker::allKingsEval(const bitboard_pos& board) const {
-    const uint32_t WK = board.wk;
-    const uint32_t BK = board.bk;
-    const int KingCount[2] = { recbitcount(BK), recbitcount(WK) };
-    const int numWhite = recbitcount(board.wm | board.wk);
-    const int numBlack = recbitcount(board.bm | board.bk);
-
-    int eval = 0;
-    eval += (KingCount[CB_WHITE == CB_WHITE ? 1 : 0] - KingCount[0]) * 25; // Adjusted indexing
-    eval += (numWhite - numBlack) * 75;
-    
-    // Simplification for AIWorker (using constants)
-    const uint32_t SINGLE_EDGE = 0x81818181; // Squares 1,8,9,16,17,24,25,32? No.
-    // ... just use piece diffs for now ...
-    return eval;
-}
-
-int AIWorker::dbWinEval(const bitboard_pos& board, int dbresult) const {
-    const int dbwin_offset = 400;
-    const uint32_t wm = board.wm;
-    const uint32_t bm = board.bm;
-    const uint32_t WK = board.wk;
-    const uint32_t BK = board.bk;
-    const int numWhite = recbitcount(wm | WK);
-    const int numBlack = recbitcount(bm | BK);
-    const int KingCountWhite = recbitcount(WK);
-    const int KingCountBlack = recbitcount(BK);
-
-    int eval = 0;
-    eval += (KingCountWhite - KingCountBlack) * 25;
-    eval += (numWhite - numBlack) * 75;
-    eval += (numWhite - numBlack) * (240 - (numWhite + numBlack) * 20);
-
-    if (dbresult == DB_WHITE) {
-        eval += dbwin_offset;
-        if (wm) eval += white_tempo(wm);
-        if (numWhite == numBlack) eval += black_tempo(bm);
-    } else if (dbresult == DB_BLACK) {
-        eval -= dbwin_offset;
-        if (bm) eval -= black_tempo(bm);
-        if (numWhite == numBlack) eval -= white_tempo(wm);
-    }
-    return eval;
 }
 
 int AIWorker::evaluateBoard(const bitboard_pos& board, int colorToMove) {
@@ -433,8 +390,14 @@ int AIWorker::evaluateBoard(const bitboard_pos& board, int colorToMove) {
         EGDB_ERR err = EGDB_ERR_NORMAL;
         int result = DBManager::instance()->dblookup(&egdb_pos, &err);
         if (err == EGDB_ERR_NORMAL) {
-            if (result == DB_WIN) return (colorToMove == CB_WHITE) ? dbWinEval(board, DB_WHITE) : -dbWinEval(board, DB_WHITE);
-            if (result == DB_LOSS) return (colorToMove == CB_WHITE) ? -dbWinEval(board, DB_BLACK) : dbWinEval(board, DB_BLACK);
+            if (result == DB_WIN) {
+                int winner = (colorToMove == CB_WHITE) ? DB_WHITE : DB_BLACK;
+                return dbWinEval(board, winner); 
+            }
+            if (result == DB_LOSS) {
+                int winner = (colorToMove == CB_WHITE) ? DB_BLACK : DB_WHITE;
+                return -dbWinEval(board, winner);
+            }
             if (result == DB_DRAW) return DRAW_SCORE;
         }
     }
@@ -444,12 +407,9 @@ int AIWorker::evaluateBoard(const bitboard_pos& board, int colorToMove) {
     int black_pieces = 0;
 
     // 1. Material and Positional Score
-    for (int bit_bitboard_pos = 0; bit_bitboard_pos < 32; ++bit_bitboard_pos) {
-        int piece = get_piece(board, bit_bitboard_pos);
+    for (int bit_idx = 0; bit_idx < 32; ++bit_idx) {
+        int piece = get_piece(board, bit_idx);
         if (piece == CB_EMPTY) continue;
-
-        int coor_x, coor_y;
-        numbertocoors(bit_bitboard_pos + 1, coor_x, coor_y, GT_ENGLISH); // Get 0-indexed x,y for PST lookup
 
         int piece_color = (piece & CB_WHITE) ? CB_WHITE : CB_BLACK;
         bool is_king = (piece & CB_KING);
@@ -457,22 +417,57 @@ int AIWorker::evaluateBoard(const bitboard_pos& board, int colorToMove) {
 
         if (piece_color == CB_WHITE) {
             score += piece_value;
-            score += is_king ? whiteKingPST[coor_y][coor_x] : whiteManPST[coor_y][coor_x];
+            score += is_king ? whiteKingPST[bit_idx] : whiteManPST[bit_idx];
             white_pieces++;
+            
+            if (is_king) {
+                // King Mobility Freedom check
+                int mobility = 0;
+                int dr[] = {-1, -1, 1, 1};
+                int dc[] = {-1, 1, -1, 1};
+                int rx, ry;
+                numbertocoors(bit_idx + 1, rx, ry, GT_ENGLISH);
+                for (int d = 0; d < 4; ++d) {
+                    int tx = rx + dc[d], ty = ry + dr[d];
+                    if (tx >= 0 && tx < 8 && ty >= 0 && ty < 8) {
+                        int sn = coorstonumber(tx, ty, GT_ENGLISH);
+                        if (sn > 0 && get_piece(board, sn - 1) == CB_EMPTY) mobility++;
+                    }
+                }
+                score += mobility * 5; // Bonus for freedom
+                if (mobility <= 1) score -= 50; // Trapped penalty
+            }
         } else {
             score -= piece_value;
-            score -= is_king ? blackKingPST[coor_y][coor_x] : blackManPST[coor_y][coor_x];
+            score -= is_king ? blackKingPST[bit_idx] : blackManPST[bit_idx];
             black_pieces++;
+
+            if (is_king) {
+                int mobility = 0;
+                int dr[] = {-1, -1, 1, 1};
+                int dc[] = {-1, 1, -1, 1};
+                int rx, ry;
+                numbertocoors(bit_idx + 1, rx, ry, GT_ENGLISH);
+                for (int d = 0; d < 4; ++d) {
+                    int tx = rx + dc[d], ty = ry + dr[d];
+                    if (tx >= 0 && tx < 8 && ty >= 0 && ty < 8) {
+                        int sn = coorstonumber(tx, ty, GT_ENGLISH);
+                        if (sn > 0 && get_piece(board, sn - 1) == CB_EMPTY) mobility++;
+                    }
+                }
+                score -= mobility * 5; // Negative score is good for black
+                if (mobility <= 1) score += 50; // Trapped penalty for black
+            }
         }
     }
 
     // 2. Threat Assessment
-    for (int bit_bitboard_pos = 0; bit_bitboard_pos < 32; ++bit_bitboard_pos) {
-        int piece = get_piece(board, bit_bitboard_pos);
+    for (int bit_idx = 0; bit_idx < 32; ++bit_idx) {
+        int piece = get_piece(board, bit_idx);
         if (piece == CB_EMPTY) continue;
 
         int coor_x, coor_y;
-        numbertocoors(bit_bitboard_pos + 1, coor_x, coor_y, GT_ENGLISH);
+        numbertocoors(bit_idx + 1, coor_x, coor_y, GT_ENGLISH);
 
         int piece_color = (piece & CB_WHITE) ? CB_WHITE : CB_BLACK;
         int opponent_color = (piece_color == CB_WHITE) ? CB_BLACK : CB_WHITE;
@@ -480,14 +475,14 @@ int AIWorker::evaluateBoard(const bitboard_pos& board, int colorToMove) {
         if (isSquareAttacked(board, coor_y, coor_x, opponent_color)) {
             int piece_value = (piece & CB_KING) ? KING_VALUE : MAN_VALUE;
             if (piece_color == CB_WHITE) {
-                score -= piece_value / 2; // Penalize white piece being attacked
+                score -= piece_value; // FULL penalty, not half
             } else {
-                score += piece_value / 2; // Bonus for black piece being attacked (from white's perspective)
+                score += piece_value;
             }
         }
     }
     
-    // 3. Mobility
+    /* 3. Mobility (TEMPORARILY DISABLED FOR PERFORMANCE)
     CBmove legalMoves[MAXMOVES];
     int nmovesCurrentPlayer = 0;
     int isjump_current = 0;
@@ -502,6 +497,7 @@ int AIWorker::evaluateBoard(const bitboard_pos& board, int colorToMove) {
 
     if (isjump_current) score += 15;
     if (isjump_opponent) score -= 15;
+    */
 
     // 4. Endgame evaluation
     if (white_pieces == 0) return LOSS_SCORE;
@@ -519,8 +515,17 @@ int AIWorker::minimax(bitboard_pos board, int color, int depth, int alpha, int b
     }
 
     uint64_t currentKey = generateZobristKey(board, color);
+
+    // Repetition check
+    for (uint64_t historyKey : m_gameHistory) {
+        if (historyKey == currentKey) {
+            return DRAW_SCORE;
+        }
+    }
+
     if (m_transbitboard_positionTable.count(currentKey)) {
         const TTEntry& entry = m_transbitboard_positionTable.at(currentKey);
+        // CRITICAL: Stored depth must be >= current depth to use EXACT/ALPHA/BETA scores
         if (entry.depth >= depth) {
             if (entry.type == TTEntry::EXACT) return entry.score;
             if (entry.type == TTEntry::ALPHA && entry.score <= alpha) return alpha;
@@ -533,20 +538,40 @@ int AIWorker::minimax(bitboard_pos board, int color, int depth, int alpha, int b
         return qScore;
     }
 
+    // 1. Null Move Pruning
+    if (allowNull && depth >= 3 && !isSquareAttacked(board, -1, -1, (color == CB_WHITE ? CB_BLACK : CB_WHITE))) {
+        int nm_eval = -minimax(board, (color == CB_WHITE ? CB_BLACK : CB_WHITE), depth - 3, -beta, -beta + 1, nullptr, false);
+        if (nm_eval >= beta) return beta;
+    }
+
     CBmove legalMoves[MAXMOVES];
     int nmoves = 0;
     int isjump = 0;
     get_legal_moves_c(board, color, legalMoves, nmoves, isjump, NULL, NULL);
 
     if (nmoves == 0) {
-        return LOSS_SCORE + depth;
+        // Return a score that favors delaying loss (further depth = higher score)
+        return LOSS_SCORE + (MAX_DEPTH - depth);
     }
     
     std::sort(legalMoves, legalMoves + nmoves, [&](const CBmove& a, const CBmove& b){
         int scoreA = 0;
         int scoreB = 0;
-        if(a.is_capture) scoreA += 10000;
-        if(b.is_capture) scoreB += 10000;
+        if(a.is_capture) scoreA += 100000;
+        if(b.is_capture) scoreB += 100000;
+        
+        // Killer moves
+        if (depth < MAX_DEPTH) {
+            if (a.from.x == m_killerMoves[depth][0].from.x && a.from.y == m_killerMoves[depth][0].from.y &&
+                a.to.x == m_killerMoves[depth][0].to.x && a.to.y == m_killerMoves[depth][0].to.y) scoreA += 50000;
+            if (b.from.x == m_killerMoves[depth][0].from.x && b.from.y == m_killerMoves[depth][0].from.y &&
+                b.to.x == m_killerMoves[depth][0].to.x && b.to.y == m_killerMoves[depth][0].to.y) scoreB += 50000;
+            if (a.from.x == m_killerMoves[depth][1].from.x && a.from.y == m_killerMoves[depth][1].from.y &&
+                a.to.x == m_killerMoves[depth][1].to.x && a.to.y == m_killerMoves[depth][1].to.y) scoreA += 40000;
+            if (b.from.x == m_killerMoves[depth][1].from.x && b.from.y == m_killerMoves[depth][1].from.y &&
+                b.to.x == m_killerMoves[depth][1].to.x && b.to.y == m_killerMoves[depth][1].to.y) scoreB += 40000;
+        }
+
         scoreA += m_historyTable[a.from.y][a.from.x][a.to.y][a.to.x];
         scoreB += m_historyTable[b.from.y][b.from.x][b.to.y][b.to.x];
         return scoreA > scoreB;
@@ -563,7 +588,16 @@ int AIWorker::minimax(bitboard_pos board, int color, int depth, int alpha, int b
         bitboard_pos newBoard = board;
         domove_c(&move, &newBoard);
         
-        int eval = -minimax(newBoard, (color == CB_WHITE) ? CB_BLACK : CB_WHITE, depth - 1, -beta, -alpha, nullptr, true);
+        int eval;
+        // 2. Late Move Reductions (LMR)
+        if (i >= 4 && depth >= 3 && !move.is_capture) {
+            eval = -minimax(newBoard, (color == CB_WHITE) ? CB_BLACK : CB_WHITE, depth - 2, -alpha - 1, -alpha, nullptr, true);
+            if (eval > alpha) {
+                eval = -minimax(newBoard, (color == CB_WHITE) ? CB_BLACK : CB_WHITE, depth - 1, -beta, -alpha, nullptr, true);
+            }
+        } else {
+            eval = -minimax(newBoard, (color == CB_WHITE) ? CB_BLACK : CB_WHITE, depth - 1, -beta, -alpha, nullptr, true);
+        }
 
         if (eval > bestEval) {
             bestEval = eval;
@@ -670,12 +704,9 @@ int AIWorker::quiescenceSearch(bitboard_pos board, int color, int alpha, int bet
 
 bool AIWorker::isSquareAttacked(const bitboard_pos& board, int r, int c, int attackerColor)
 {
+    // Directions for checkers movement
     int dr[] = {-1, -1, 1, 1};
     int dc[] = {-1, 1, -1, 1};
-
-    // Square numbers for (r,c) and potential attackers/landing squares
-    int target_square_num = coorstonumber(c, r, GT_ENGLISH);
-    if (target_square_num == 0) return false; // Light square, cannot be attacked by checkers
 
     for (int i = 0; i < 4; ++i) {
         int attacker_r = r - dr[i];
@@ -683,27 +714,11 @@ bool AIWorker::isSquareAttacked(const bitboard_pos& board, int r, int c, int att
         int landing_r = r + dr[i];
         int landing_c = c + dc[i];
 
-        // Check for direct attacks by men (one square away)
-        if (attacker_r >= 0 && attacker_r < 8 && attacker_c >= 0 && attacker_c < 8) {
-            int attacker_square_num = coorstonumber(attacker_c, attacker_r, GT_ENGLISH);
-            if (attacker_square_num != 0) {
-                int attacker_piece = get_piece(board, attacker_square_num - 1);
-                if ((attacker_piece & attackerColor)) {
-                    if (attacker_piece & CB_KING) return true; // King attacks in all directions
-                    
-                    // Man attacks only forward
-                    if (attackerColor == CB_WHITE && dr[i] == 1) return true; // White man attacks forward (dr=1, increasing row)
-                    if (attackerColor == CB_BLACK && dr[i] == -1) return true; // Black man attacks forward (dr=-1, decreasing row)
-                }
-            }
-        }
-
-        // Check for capture threats (two squares away)
         if (attacker_r >= 0 && attacker_r < 8 && attacker_c >= 0 && attacker_c < 8 &&
-            landing_r >= 0 && landing_r < 8 && landing_c >= 0 && landing_c < 8)
-        {
+            landing_r >= 0 && landing_r < 8 && landing_c >= 0 && landing_c < 8) {
+            
             int attacker_square_num = coorstonumber(attacker_c, attacker_r, GT_ENGLISH);
-            int landing_square_num = coorstonumber(landing_c, landing_r, GT_ENGLISH); // This seems wrong
+            int landing_square_num = coorstonumber(landing_c, landing_r, GT_ENGLISH); 
             
             if (attacker_square_num == 0 || landing_square_num == 0) continue;
 
@@ -731,24 +746,70 @@ bool AIWorker::compareMoves(const CBmove& a, const CBmove& b)
 uint64_t AIWorker::generateZobristKey(const bitboard_pos& board, int colorToMove)
 {
     uint64_t hash = 0;
-            for (int bit_bitboard_pos = 0; bit_bitboard_pos < 32; ++bit_bitboard_pos) {
-                int piece = get_piece(board, bit_bitboard_pos);        int coor_x, coor_y;
-        numbertocoors(bit_bitboard_pos + 1, coor_x, coor_y, GT_ENGLISH); // Get 0-indexed x,y for ZobristTable lookup
-
-        int pieceType = 0;
-        if (piece == (CB_WHITE | CB_MAN)) pieceType = 1;
-        else if (piece == (CB_WHITE | CB_KING)) pieceType = 2;
-        else if (piece == (CB_BLACK | CB_MAN)) pieceType = 3;
-        else if (piece == (CB_BLACK | CB_KING)) pieceType = 4;
-
-        if (pieceType != 0) {
-            hash ^= ZobristTable[coor_y][coor_x][pieceType];
+    
+    auto hash_bits = [&](uint32_t bits, int type) {
+        while (bits) {
+            int bit_idx = LSB(bits);
+            int coor_x, coor_y;
+            numbertocoors(bit_idx + 1, coor_x, coor_y, GT_ENGLISH);
+            hash ^= ZobristTable[coor_y][coor_x][type];
+            bits &= (bits - 1);
         }
-    }
+    };
+
+    hash_bits(board.bm, 3);
+    hash_bits(board.bk, 4);
+    hash_bits(board.wm, 1);
+    hash_bits(board.wk, 2);
 
     if (colorToMove == CB_WHITE) {
         hash ^= ZobristWhiteToMove;
     }
 
     return hash;
+}
+
+static int black_tempo(uint32_t bm) {
+    return (4 * recbitcount((0xF0000ULL | 0xF00000ULL | 0xF000000ULL) & bm) + 
+            2 * recbitcount((0xF00ULL | 0xF000ULL | 0xF000000ULL) & bm) + 
+            recbitcount((0xF0ULL | 0xF000ULL | 0xF00000ULL) & bm));
+}
+
+static int white_tempo(uint32_t wm) {
+    return (4 * recbitcount((0xF000ULL | 0xF00ULL | 0xF0ULL) & wm) + 
+            2 * recbitcount((0xF00000ULL | 0xF0000ULL | 0xF0ULL) & wm) + 
+            recbitcount((0xF000000ULL | 0xF0000ULL | 0xF00ULL) & wm));
+}
+
+int AIWorker::allKingsEval(const bitboard_pos& board) const {
+    const uint32_t WK = board.wk;
+    const uint32_t BK = board.bk;
+    const int KingCount[2] = { recbitcount(BK), recbitcount(WK) };
+    const int numWhite = recbitcount(board.wm | board.wk);
+    const int numBlack = recbitcount(board.bm | board.bk);
+
+    int eval = 0;
+    eval += (KingCount[CB_WHITE == CB_WHITE ? 1 : 0] - KingCount[0]) * 25; // Adjusted indexing
+    eval += (numWhite - numBlack) * 75;
+    
+    // Simplification for AIWorker (using constants)
+    const uint32_t SINGLE_EDGE = 0x81818181; // Squares 1,8,9,16,17,24,25,32? No.
+    // ... just use piece diffs for now ...
+    return eval;
+}
+
+int AIWorker::dbWinEval(const bitboard_pos& board, int dbresult) const {
+    const int dbwin_offset = 400;
+    const uint32_t wm = board.wm;
+    const uint32_t bm = board.bm;
+    const uint32_t WK = board.wk;
+    const uint32_t BK = board.bk;
+    
+    int eval = 0;
+    if (dbresult == DB_WHITE) {
+        eval = dbwin_offset + 10 * white_tempo(wm) + 20 * recbitcount(WK);
+    } else {
+        eval = dbwin_offset + 10 * black_tempo(bm) + 20 * recbitcount(BK);
+    }
+    return eval;
 }

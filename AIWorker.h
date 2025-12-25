@@ -29,12 +29,15 @@ public:
     int getLastEvaluationScore() const { return m_lastEvaluationScore; }
     int getLastSearchDepth() const { return m_lastSearchDepth; }
     QString getEgdbLookupResult() const { return m_egdbLookupResult; }
+    uint64_t generateZobristKey(const bitboard_pos& board, int colorToMove);
 
 public slots:
     void performTask(AI_State task, const bitboard_pos& board, int color, double maxtime);
     void performInitialization(const QString& egdbPath);
     void requestAbort();
     void searchBestMove(bitboard_pos board, int color, double maxtime);
+    void clearHistory() { m_gameHistory.clear(); }
+    void addHistoryKey(uint64_t key) { m_gameHistory.push_back(key); }
 
 private slots:
     int evaluateBoard(const bitboard_pos& board, int colorToMove);
@@ -51,10 +54,10 @@ signals:
 
 private:
     static bool compareMoves(const CBmove& a, const CBmove& b);
-    uint64_t generateZobristKey(const bitboard_pos& board, int colorToMove);
     static void initZobristKeys();
 
     QAtomicInt m_abortRequested;
+    std::vector<uint64_t> m_gameHistory;
     std::unordered_map<uint64_t, TTEntry> m_transbitboard_positionTable;
     CBmove m_killerMoves[MAX_DEPTH][2];
     int m_historyTable[8][8][8][8];
@@ -63,10 +66,10 @@ private:
     QString m_egdbLookupResult;
 
     // Piece-Square Tables (PSTs) for evaluation
-    static const int whiteManPST[8][8];
-    static const int whiteKingPST[8][8];
-    static const int blackManPST[8][8];
-    static const int blackKingPST[8][8];
+    static const int whiteManPST[32];
+    static const int whiteKingPST[32];
+    static const int blackManPST[32];
+    static const int blackKingPST[32];
 
     // Zobrist Hashing
     static uint64_t ZobristTable[8][8][5];

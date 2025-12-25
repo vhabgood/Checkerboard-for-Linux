@@ -12,7 +12,8 @@ GameManager::GameManager(QObject *parent)
       m_selectedX(-1),
       m_selectedY(-1),
       m_isGameOver(false),
-      m_isAITurn(false)
+      m_isAITurn(false),
+      m_halfMoveCount(0)
 {
     m_options.time_per_move = 1.0;
     m_gameTimer = new QTimer(this);
@@ -31,6 +32,7 @@ void GameManager::newGame(int gameType)
     m_pieceSelected = false;
     m_selectedX = -1;
     m_selectedY = -1;
+    m_halfMoveCount = 0;
     emit boardUpdated(m_currentBoard);
     requestAiMove();
 }

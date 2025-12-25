@@ -17,6 +17,7 @@ public:
     static Logger* instance();
     static void cleanup();
     void log(const QString &message);
+    void stop();
 
 protected:
     void run() override;

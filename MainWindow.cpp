@@ -58,6 +58,10 @@ MainWindow::MainWindow(GameManager *gameManager, QWidget *parent) : m_gameManage
     m_depthLabel = new QLabel("Depth: 0", this);
     m_egdbLabel = new QLabel(this);
 
+    m_evaluationLabel->setMinimumWidth(100);
+    m_depthLabel->setMinimumWidth(80);
+    m_egdbLabel->setMinimumWidth(150);
+
     statusBar()->addPermanentWidget(m_evaluationLabel);
     statusBar()->addPermanentWidget(m_depthLabel);
     statusBar()->addPermanentWidget(m_egdbLabel);
@@ -71,7 +75,7 @@ MainWindow::MainWindow(GameManager *gameManager, QWidget *parent) : m_gameManage
     connect(&m_aiThread, &QThread::finished, m_aiWorker, &QObject::deleteLater);
     connect(m_gameManager, &GameManager::requestEngineSearch, m_aiWorker, &AIWorker::performTask, Qt::QueuedConnection);
     connect(m_aiWorker, &AIWorker::searchFinished, m_gameManager, &GameManager::handleAiMove, Qt::QueuedConnection);
-    connect(m_aiWorker, &AIWorker::evaluationReady, this, &MainWindow::updateEvaluationDisplay);
+    connect(m_aiWorker, &AIWorker::evaluationReady, this, &MainWindow::updateEvaluationDisplay, Qt::QueuedConnection);
     connect(this, &MainWindow::setEgdbPath, m_aiWorker, &AIWorker::performInitialization, Qt::QueuedConnection);
 
     m_aiThread.start();
@@ -86,6 +90,9 @@ MainWindow::MainWindow(GameManager *gameManager, QWidget *parent) : m_gameManage
 
 void MainWindow::startGame()
 {
+    if (m_evaluationLabel) m_evaluationLabel->setText("Eval: 0.00");
+    if (m_depthLabel) m_depthLabel->setText("Depth: 0");
+    if (m_egdbLabel) m_egdbLabel->clear();
     m_gameManager->newGame(GT_ENGLISH);
 }
 
@@ -538,7 +545,14 @@ void MainWindow::setStatusBarText(const QString& text)
 
 void MainWindow::updateEvaluationDisplay(int score, int depth, const QString& egdbInfo)
 {
-    m_evaluationLabel->setText(QString("Eval: %1").arg(score / 100.0, 0, 'f', 2));
+    log_c(LOG_LEVEL_DEBUG, "MainWindow::updateEvaluationDisplay: score=%d, depth=%d, info=%s", score, depth, egdbInfo.toUtf8().constData());
+    
+    QString scoreText;
+    if (score >= WIN_SCORE - 1000) scoreText = "Win";
+    else if (score <= LOSS_SCORE + 1000) scoreText = "Loss";
+    else scoreText = QString::number(score / 100.0, 'f', 2);
+
+    m_evaluationLabel->setText(QString("Eval: %1").arg(scoreText));
     m_depthLabel->setText(QString("Depth: %1").arg(depth));
     if (!egdbInfo.isEmpty()) {
         m_egdbLabel->setText(QString("EGDB: %1").arg(egdbInfo));
@@ -931,9 +945,6 @@ void MainWindow::helpContents()
 void MainWindow::handleBoardUpdated(const bitboard_pos& board)
 {
     if (m_boardWidget) m_boardWidget->setBoard(board);
-    if (m_evaluationLabel) m_evaluationLabel->clear();
-    if (m_depthLabel) m_depthLabel->clear();
-    if (m_egdbLabel) m_egdbLabel->clear();
 }
 void MainWindow::handleGameMessage(const QString& message)
 {

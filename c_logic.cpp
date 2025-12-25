@@ -636,14 +636,18 @@ void find_captures_recursive(const bitboard_pos& board, CBmove* movelist, CBmove
                     if (n < MAXMOVES) { // n is ref
                         movelist[n] = mm;
                         n++;
-                    } else {
-                        // qWarning() << "MAXMOVES exceeded in find_captures_recursive (becomes_king)"; // Re-enable custom logging first
                     }
                 } else {
                     // Continue searching for more jumps in the sequence
                     bitboard_pos next_board = board; // board is ref
-                    clear_square(&next_board, jump_square_num - 1);
-                    find_captures_recursive(next_board, movelist, &mm, land_x, land_y, d + 1, n, color, next_is_king, visited); // mm is ptr
+                    int jmp_sq = jump_square_num - 1;
+                    int lnd_sq = land_square_num - 1;
+                    
+                    clear_square(&next_board, current_square_bit_bitboard_pos); 
+                    clear_square(&next_board, jmp_sq);
+                    set_piece(&next_board, lnd_sq, next_is_king ? (color | CB_KING) : (color | CB_MAN));
+                    
+                    find_captures_recursive(next_board, movelist, &mm, land_x, land_y, d + 1, n, color, next_is_king, visited); 
                 }
             }
         }
