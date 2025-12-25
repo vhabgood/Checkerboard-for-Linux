@@ -214,16 +214,17 @@ namespace egdb_interface {
 
 			// open the cpr file.
 			if (csdb->num_pieces < SPLIT_POINT_TUNSTALL_V1) {
-				std::sprintf(cpr_fname, "wld-%d-v2.bin", csdb->num_pieces);
+				sprintf(cpr_fname, "db%d.cpr", csdb->num_pieces);
 			}
 			else {
-				std::sprintf(cpr_fname, "wld-%d-%d-%d-%d-v2.bin", csdb->num_pieces, 0, 0, 0);
+				// For larger piece counts, handle split files
+                sprintf(cpr_fname, "db%d.cpr", csdb->num_pieces);
 			}
 			s = egtb_dir;
 			s += "/";
 			s += cpr_fname;
-			std::strncpy(fullpath, s.c_str(), sizeof(fullpath) - 1);
-			csdb->file = std::fopen(fullpath, "rb");
+			strncpy(fullpath, s.c_str(), sizeof(fullpath) - 1);
+			csdb->file = (FILE_HANDLE)std::fopen(fullpath, "rb");
 			if (!csdb->file) {
 				// File does not exist, or could not be opened.  Do not treat as an error.
 				csdb->ispresent = false;
@@ -232,11 +233,11 @@ namespace egdb_interface {
 
 			// open the idx file.
 			if (csdb->num_pieces < SPLIT_POINT_TUNSTALL_V1) {
-				std::sprintf(idx_fname, "wld-%d-v2.idx", csdb->num_pieces);
+				sprintf(idx_fname, "db%d.idx", csdb->num_pieces);
 			}
-			else {
-				std::sprintf(idx_fname, "wld-%d-%d-%d-%d-v2.idx", csdb->num_pieces, 0, 0, 0);
-			}
+            else {
+                sprintf(idx_fname, "db%d.idx", csdb->num_pieces);
+            }
 
 			if (parseindexfile(h, idx_fname, file_num)) {
 				csdb->ispresent = false;

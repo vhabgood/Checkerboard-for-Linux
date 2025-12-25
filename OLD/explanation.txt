@@ -1,1 +1,0 @@
-That's excellent news! I'm glad to hear that the FEN loading is now working perfectly for you. It seems the fix to the  function, combined with the earlier FEN parsing improvements, has resolved the issues.

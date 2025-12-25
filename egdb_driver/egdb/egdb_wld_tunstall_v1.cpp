@@ -205,7 +205,7 @@ namespace egdb_interface {
 
 			// open the cpr file.
 			if (csdb->num_pieces < SPLIT_POINT_TUNSTALL_V1) {
-				sprintf(cpr_fname, "wld-%d.bin", csdb->num_pieces);
+				sprintf(cpr_fname, "db%d.cpr", csdb->num_pieces);
 			}
 			else {
 				// We don't have split dbs for wld tunstall v1.
@@ -225,7 +225,7 @@ namespace egdb_interface {
 
 			// open the idx file.
 			if (csdb->num_pieces < SPLIT_POINT_TUNSTALL_V1) {
-				sprintf(idx_fname, "wld-%d.idx", csdb->num_pieces);
+				sprintf(idx_fname, "db%d.idx", csdb->num_pieces);
 			}
 			else {
 				csdb->ispresent = false;
@@ -441,11 +441,9 @@ namespace egdb_interface {
 
 		// now decompress the data.
 		// These dbs are split by piece count (4 and 5 pieces).
-		// We have to get the lsb_index and msb_index from the index.
-		lsb_index = lsb64_(index);
-		msb_index = msb64_(index);
+		// We pass the raw index to the decompressor.
 		decompress_wld_tunstall_v1(db_data_block, db_len_bytes,
-								   lsb_index, msb_index, &value);
+								   index, 0, &value);
 		
 		// The egdb stores values as:
 		// 0 = white win, 1 = black win, 2 = draw.

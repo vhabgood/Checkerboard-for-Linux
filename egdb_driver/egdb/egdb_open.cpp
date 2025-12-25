@@ -95,6 +95,8 @@ namespace egdb_interface {
 		// now open the specific type of db
 		switch (driver->db_type) {
 		case EGDB_WLD_RUNLEN:
+		case EGDB_WLD_TUN_V1:
+		case EGDB_WLD_TUN_V2:
 			err = egdb_open_wld_runlen(driver);
 			break;
 		case EGDB_MTC_RUNLEN:

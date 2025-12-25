@@ -55,7 +55,7 @@ INCLUDE_DIRS=(
 
 INCLUDE_FLAGS="$(printf -- "-I%s " "${INCLUDE_DIRS[@]}")"
 
-# All source files for the main application
+# Source files
 APP_SOURCES="headless_main.cpp c_logic.cpp DBManager.cpp AIWorker.cpp log.cpp core_types.cpp Logger.cpp egdb_driver.cpp"
 APP_SOURCES+=" $(find egdb_driver -name '*.cpp' ! -name 'egdb_wld_tunstall_v1.cpp' ! -name 'egdb_wld_tunstall_v2.cpp')"
 

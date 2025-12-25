@@ -64,6 +64,13 @@ struct CPRSUBDB_MTC {
     bool haspartials;
 };
 
+// Checkpoint structure for WLD and MTC
+struct Checkpoint {
+    uint64_t index;
+    uint64_t file_offset;
+    uint8_t initial_byte;
+};
+
 // INDEX_REC struct based on usage in egdb_wld_runlen.cpp
 typedef struct INDEX_REC {
     struct INDEX_REC *next;
@@ -80,9 +87,8 @@ typedef struct INDEX_REC {
     int file_num;
     unsigned int first_block_id;
     unsigned int startbyte;
-    uint64_t *idx;
-    int idx_size;
-    int num_idx_blocks; // Added member
+    Checkpoint *checkpoints;
+    int num_checkpoints;
     int initial_value; // Added for MTC
 } INDEX_REC;
 

@@ -12,7 +12,7 @@ namespace egdb_interface {
     typedef struct {
         int prev;
         int next;
-        int unique_id;
+        uint64_t unique_id_64;
         int bytes_in_block; // Track actual bytes read
     } BLOCK_INFO;
 
@@ -35,7 +35,7 @@ namespace egdb_interface {
     typedef struct DB_HANDLE_T* DBHANDLE;
 
     // Missing defines
-    #define MAXCACHEDBLOCKS 128
+    #define MAXCACHEDBLOCKS 1024
     #define SPLIT_POINT_RUNLEN 11
     #define SPLIT_POINT_TUNSTALL_V1 6 // Added this line
 

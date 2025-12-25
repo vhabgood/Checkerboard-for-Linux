@@ -10,3 +10,31 @@
 - Corrected NegaMax sign error in EGDB evaluation logic.
 - Enhanced king evaluation with mobility bonuses and trapped penalties.
 - Improved UI status bar consistency for mate scores.
+
+2025-12-25: Fixed EGDB driver and MTC decoding.
+- Reverted EGDB block size to 1024 bytes in db_io.cpp and drivers to match index checkpoints.
+- Updated parseindexfile_wld to correctly skip extra checkpoint values (BlockOffset and Value).
+- Implemented block-boundary resync in dblookup_wld_internal to maintain alignment with index file.
+- Increased cache capacity to 4096 blocks (4MB) to handle smaller 1024-byte units efficiently.
+- Fixed MTC decoding to return 1 ply for thresholded results, distinguishing them from unknown values.
+- Updated egdb_identify to correctly recognize dbN.cpr filenames and set appropriate types.
+- Fixed MTC lookup indexing mismatch by switching from position_to_index_slice to get_board_index_mtc.
+- Resolved MTC lookup failure for multi-block slices by fixing num_idx_blocks initialization in parseindexfile_mtc.
+- Corrected SYMMETRY RETRY bug in dblookup_wld_internal to properly update piece counts and ranks.
+- Enforced minimum 4MB cache size in DBManager to prevent out-of-bounds access with 4096-block capacity.
+- Unified WLD driver initialization to handle RUNLEN, TUN_V1, and TUN_V2 types via egdb_open_wld_runlen.
+
+2025-12-25: Achieved 100% successful EGDB lookups for 7-piece test.
+- Resolved 'Decompression FAILED' errors by implementing brute-force decompression from slice start.
+- Fixed absolute file offset calculation by correctly interpreting BASE block_id as 4096-byte units.
+- Updated cache system to use 4096-byte blocks and 64-bit unique IDs to prevent collisions in large files.
+- Optimized initialization by removing excessive logging and fixing an infinite loop in parseindexfile_mtc.
+- Capped max pieces to 7 for testing to ensure stable memory usage during driver verification.
+
+2025-12-25: Expanded EGDB driver to 10 pieces and improved AI move selection.
+- Removed hardcoded 7-piece piece limit in WLD and MTC drivers to enable loading of 8, 9, and 10-piece database files.
+- Verified successful loading of 54 MTC files and 90 WLD files (including split files).
+- Improved AI move selection in EGDB winning positions: when MTC is missing, it now evaluates all winning moves and picks the one with the best heuristic evaluation.
+- Confirmed 100% successful WLD lookups for 9-piece test positions.
+- Fixed MTC lookup misses for king endgames by restoring correct absolute offset calculation from slice start.
+- Verified MTC distance-to-win accuracy (10-16 plies) for 3-king endgames.

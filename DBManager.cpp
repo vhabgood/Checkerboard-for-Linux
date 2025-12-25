@@ -52,6 +52,8 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
     std::string finalPath = normalizedPath.toStdString();
     log_c(LOG_LEVEL_INFO, "DBManager::db_init: Initializing EGDB from directory: %s", finalPath.c_str());
 
+    if (suggestedMB < 4) suggestedMB = 4;
+
     // Placeholder for actual Kingsrow EGDB driver initialization
     // For WLD database
     EGDB_ERR wld_err = EGDB_ERR_NORMAL;
@@ -191,10 +193,10 @@ int DBManager::dblookup_mtc(const EGDB_POSITION *pos, EGDB_ERR *err_code)
 
     if (*err_code == EGDB_ERR_NORMAL) {
         updateProgramStatusWord(STATUS_EGDB_LOOKUP_HIT);
-        // MTC results are different from WLD. Need to map.
-        // For now, just indicate a hit.
+        log_c(LOG_LEVEL_DEBUG, "DBManager::dblookup_mtc: HIT! Result=%d plies", result);
     } else {
         updateProgramStatusWord(STATUS_EGDB_LOOKUP_MISS);
+        log_c(LOG_LEVEL_DEBUG, "DBManager::dblookup_mtc: MISS! Error=%d", (int)*err_code);
         if (*err_code == EGDB_NUM_PIECES_OUT_OF_BOUNDS) updateProgramStatusWord(STATUS_EGDB_LOOKUP_OUT_OF_BOUNDS);
         // Add other error flag updates as needed
     }

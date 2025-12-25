@@ -72,27 +72,33 @@ namespace egdb_interface {
 		{ EGDB_MTC_RUNLEN, "mtc-5.bin", 5, false, true, 0xc75f3a0a },
 
 		// 8-piece wld databases
-		{ EGDB_WLD_TUN_V2, "wld-8-w.bin", 8, true, true, 0xb81e6490 },
-		{ EGDB_WLD_TUN_V2, "wld-8-b.bin", 8, true, true, 0x3d0b25e7 },
-
-		// 7-piece wld databases
-		{ EGDB_WLD_TUN_V2, "wld-7-w.bin", 7, true, true, 0x88c30869 },
-		{ EGDB_WLD_TUN_V2, "wld-7-b.bin", 7, true, true, 0xed601c40 },
+		{ EGDB_WLD_TUN_V2, "db8.cpr", 8, true, true, 0 },
+		{ EGDB_WLD_TUN_V2, "db7.cpr", 7, true, true, 0 },
 
 		// 6-piece wld databases
-		{ EGDB_WLD_TUN_V1, "wld-6.bin", 6, false, true, 0x45f05335 },
+		{ EGDB_WLD_TUN_V1, "db6.cpr", 6, false, true, 0 },
 
 		// 5-piece wld databases
-		{ EGDB_WLD_TUN_V1, "wld-5.bin", 5, false, true, 0xac6334d2 },
+		{ EGDB_WLD_TUN_V1, "db5.cpr", 5, false, true, 0 },
 
 		// 4-piece wld databases
-		{ EGDB_WLD_TUN_V1, "wld-4.bin", 4, false, true, 0x76b2e3f5 },
+		{ EGDB_WLD_TUN_V1, "db4.cpr", 4, false, true, 0 },
 
 		// 3-piece wld databases
-		{ EGDB_WLD_RUNLEN, "wld-3.bin", 3, false, true, 0xde33b1e7 },
+		{ EGDB_WLD_RUNLEN, "db3.cpr", 3, false, true, 0 },
 
 		// 2-piece wld databases
-		{ EGDB_WLD_RUNLEN, "wld-2.bin", 2, false, true, 0xa5133b3a },
+		{ EGDB_WLD_RUNLEN, "db2.cpr", 2, false, true, 0 },
+
+		// 8-piece mtc databases
+		{ EGDB_MTC_RUNLEN, "db8.mtc", 8, true, true, 0 },
+		{ EGDB_MTC_RUNLEN, "db7.mtc", 7, true, true, 0 },
+		{ EGDB_MTC_RUNLEN, "db6.mtc", 6, true, true, 0 },
+		{ EGDB_MTC_RUNLEN, "db5.mtc", 5, true, true, 0 },
+		{ EGDB_MTC_RUNLEN, "db4.mtc", 4, true, true, 0 },
+
+		// Standard names fallback
+		{ EGDB_MTC_RUNLEN, "mtc-8-w.bin", 8, true, true, 0x5357878d },
 
 		// end of list
 		{ EGDB_NONE, "", 0, false, false, 0 }
@@ -114,18 +120,6 @@ namespace egdb_interface {
 		int i, j;
 		const EGDB_FIND_INFO *db_info;
 		std::string s;
-		unsigned int crc;
-
-        // Special case: check for our db2.cpr file to identify our database
-        s = db_path;
-        s += "/db2.cpr";
-        FILE *f = fopen(s.c_str(), "rb");
-        if (f) {
-            fclose(f);
-            *egdb_type = EGDB_WLD_RUNLEN;
-            *max_pieces = MAXPIECE;
-            return 0;
-        }
 
 		// find the highest piece count db that exists in the directory.
 		for (i = MAXPIECE; i > 1; --i) {
@@ -133,16 +127,17 @@ namespace egdb_interface {
 				if (db_info->num_pieces != i)
 					continue;
 
-				// see if this file exists and has the correct crc.
+				// see if this file exists.
 				s = db_path;
 				s += "/";
 				s += db_info->filename;
-				if (fname_crc_calc(s.c_str(), &crc) == 0) {
-					if ((db_info->crc == 0) || (crc == db_info->crc)) {
-						*egdb_type = db_info->type;
-						*max_pieces = i;
-						return(0);
-					}
+				
+				FILE *f = fopen(s.c_str(), "rb");
+				if (f) {
+					fclose(f);
+					*egdb_type = db_info->type;
+					*max_pieces = i;
+					return(0);
 				}
 			}
 		}

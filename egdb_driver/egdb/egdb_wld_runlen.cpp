@@ -27,6 +27,7 @@
 #include "engine/reverse.h"
 #include "engine/bool.h"
 #include "builddb/compression_tables.h"
+#include "builddb/tunstall_decompress.h"
 #include "builddb/indexing.h"
 #include "egdb/db_io.h"
 #include "log.h"
@@ -49,14 +50,35 @@ namespace egdb_interface {
          return MAX_PIECES_IN_DB - 2 + 1;
     }
 
-    EGDB_ERR egdb_close_wld(EGDB_DRIVER *driver)
+    int egdb_close_wld(EGDB_DRIVER *driver)
     {
         if (!driver)
             return(EGDB_INVALID_HANDLE);
 
         exitdblookup((DBHANDLE)driver->internal_data);
         free(driver);
-        return(EGDB_ERR_NORMAL);
+        return(0);
+    }
+
+    static int dblookup_wld_wrapper(EGDB_DRIVER *driver, EGDB_BITBOARD *position, int color, int cl)
+    {
+        DBHANDLE h = (DBHANDLE)driver->internal_data;
+        EGDB_POSITION pos;
+        pos.black_pieces = position->normal.black;
+        pos.white_pieces = position->normal.white;
+        pos.king = position->normal.king;
+        pos.stm = color;
+        EGDB_ERR err;
+        return dblookup_wld_internal(h, &pos, &err);
+    }
+
+    int egdb_wld_lookup(EGDB_DRIVER *driver, const EGDB_POSITION *pos, EGDB_ERR *err_code)
+    {
+        EGDB_BITBOARD bitboard;
+        bitboard.normal.black = pos->black_pieces;
+        bitboard.normal.white = pos->white_pieces;
+        bitboard.normal.king = pos->king;
+        return driver->lookup(driver, &bitboard, pos->stm, 0);
     }
 
     unsigned int egdb_get_max_pieces_wld(EGDB_DRIVER *driver)
@@ -70,69 +92,16 @@ namespace egdb_interface {
         EGDB_INFO *info,
         unsigned int max_info)
     {
-        DBHANDLE h;
-
-        if (num_pieces == 0 || num_pieces > driver->max_pieces)
-            return(0);
-        if (max_info == 0)
-            return(0);
-
-        h = (DBHANDLE)driver->internal_data;
-
-        if (!h->cprsubdb[num_pieces - 1].ispresent)
-            return(0);
+        DBHANDLE h = (DBHANDLE)driver->internal_data;
+        if (num_pieces < 2 || num_pieces > driver->max_pieces) return 0;
+        if (!h->cprsubdb[num_pieces - 2].ispresent) return 0;
 
         info->type = driver->db_type;
         info->num_pieces = num_pieces;
-        info->compression = h->cprsubdb[num_pieces - 1].compression;
+        info->compression = h->cprsubdb[num_pieces - 2].compression;
         info->dtw_w_only = false;
-        info->contains_le_pieces = h->cprsubdb[num_pieces - 1].contains_le_pieces;
-        return(1);
-    }
-
-    static uint64_t convert_cake_to_kingsrow(uint64_t x) {
-        // Reverses the order of bits in each 4-bit nibble.
-        // Cake: Sq1=Bit3, Sq2=Bit2, Sq3=Bit1, Sq4=Bit0 (in first nibble)
-        // Kingsrow: Sq1=Bit0, Sq2=Bit1, Sq3=Bit2, Sq4=Bit3
-        uint32_t lo = (uint32_t)x;
-        uint32_t hi = (uint32_t)(x >> 32);
-        
-        auto convert32 = [](uint32_t v) -> uint32_t {
-            return ((v & 0x88888888) >> 3) | 
-                   ((v & 0x44444444) >> 1) | 
-                   ((v & 0x22222222) << 1) | 
-                   ((v & 0x11111111) << 3);
-        };
-        
-        return ((uint64_t)convert32(hi) << 32) | convert32(lo);
-    }
-
-    int egdb_wld_lookup(EGDB_DRIVER *driver, const EGDB_POSITION *pos, EGDB_ERR *err_code)
-    {
-        // printf("DEBUG: Entering egdb_wld_lookup\n"); fflush(stdout);
-        DBHANDLE h;
-        int value;
-
-        h = (DBHANDLE)driver->internal_data;
-
-        // check if num_pieces is too large for this db.
-        if (bit_pop_count64(pos->black_pieces | pos->white_pieces) > h->max_pieces) {
-            *err_code = EGDB_NUM_PIECES_TOO_LARGE;
-            return(EGDB_UNKNOWN);
-        }
-
-        EGDB_POSITION local_pos = *pos;
-        if (driver->bitboard_type == EGDB_ROW_REVERSED) {
-            local_pos.black_pieces = convert_cake_to_kingsrow(pos->black_pieces);
-            local_pos.white_pieces = convert_cake_to_kingsrow(pos->white_pieces);
-            local_pos.king = convert_cake_to_kingsrow(pos->king);
-        }
-
-        value = dblookup_wld_internal(h, &local_pos, err_code);
-        if (*err_code != EGDB_ERR_NORMAL)
-            return(EGDB_UNKNOWN);
-
-        return(value);
+        info->contains_le_pieces = true;
+        return 1;
     }
 
     EGDB_ERR egdb_open_wld_runlen(EGDB_DRIVER *driver)
@@ -146,6 +115,9 @@ namespace egdb_interface {
             return(EGDB_DB_NOT_LOADED);
 
         driver->internal_data = h;
+        driver->lookup = dblookup_wld_wrapper;
+        driver->close = egdb_close_wld;
+        driver->max_pieces = h->max_pieces;
         return(EGDB_ERR_NORMAL);
     }
 
@@ -185,6 +157,7 @@ namespace egdb_interface {
         h->max_pieces = 0;
         h->compression_type = EGDB_COMPRESSION_RUNLEN;
 
+        if (cache_size_bytes < MAXCACHEDBLOCKS * 4096) cache_size_bytes = MAXCACHEDBLOCKS * 4096;
         h->cache_base = (uint8_t *)calloc(cache_size_bytes, 1);
         if (!h->cache_base) {
             free(h);
@@ -201,7 +174,7 @@ namespace egdb_interface {
         for (i = 0; i < MAXCACHEDBLOCKS; ++i) {
             h->cache_block_info[i].prev = i - 1;
             h->cache_block_info[i].next = i + 1;
-            h->cache_block_info[i].unique_id = -1;
+            h->cache_block_info[i].unique_id_64 = 0xFFFFFFFFFFFFFFFFULL;
         }
         h->cache_block_info[0].prev = -1;
         h->cache_block_info[MAXCACHEDBLOCKS - 1].next = -1;
@@ -216,9 +189,10 @@ namespace egdb_interface {
         }
 
         file_num = 0;
-        for (i = 0; i < (int)max_num_dbs; ++i) {
-            int n_pieces = i + 2;
-            csdb = &h->cprsubdb[i];
+        		for (i = 0; i < (int)max_num_dbs; ++i) {
+        			int n_pieces = i + 2;
+        			csdb = &h->cprsubdb[i];
+        
             csdb->db_type = EGDB_WLD_RUNLEN;
             csdb->compression = EGDB_COMPRESSION_RUNLEN;
             csdb->num_pieces = n_pieces;
@@ -268,17 +242,14 @@ namespace egdb_interface {
     static unsigned int parseindexfile_wld(DBHANDLE h, char const *idx_fname, int file_num)
     {
         FILE *fp;
-        char buffer[1024];
+        char buffer[4096];
         char fullpath[512];
         std::string s;
         char *p;
         int current_rank = 0;
-        int last_bm = 0, last_bk = 0, last_wm = 0, last_wk = 0;
-        int last_color = 0;
-        CPRSUBDB *csdb;
-        INDEX_REC *idx_rec;
-        unsigned int n_read;
-        unsigned int next_block_id = 0;
+        int last_bm = -1, last_bk = -1, last_wm = -1, last_wk = -1;
+        int last_color = -1;
+        INDEX_REC *idx_rec = nullptr;
 
         s = egtb_dir_path(h); 
         s += "/";
@@ -325,7 +296,6 @@ namespace egdb_interface {
                          idx_rec->side_to_move = last_color;
                          idx_rec->file_num = file_num;
                          if (bm > 0) idx_rec->bmrank = current_rank; else idx_rec->wmrank = current_rank;
-                         idx_rec->idx_size = 0;
                          idx_rec->initial_value = (*p == '+') ? EGDB_WIN : ((*p == '-') ? EGDB_LOSS : EGDB_DRAW);
                          
                          int pieces = bm + bk + wm + wk;
@@ -339,92 +309,87 @@ namespace egdb_interface {
                     unsigned int block_id, start_byte;
                     if (sscanf(p, "%u/%u%n", &block_id, &start_byte, &n_read) == 2) {
                         p += n_read;
+                        // log_c(LOG_LEVEL_DEBUG, "parseindexfile_wld: BASE %d,%d,%d,%d,%d STM %d. Start: %u/%u", bm, bk, wm, wk, rank, last_color, block_id, start_byte);
                         idx_rec = (INDEX_REC *)calloc(1, sizeof(INDEX_REC));
+                        if (!idx_rec) {
+                            fclose(fp);
+                            return 1;
+                        }
                         idx_rec->file_num = file_num;
                         idx_rec->num_bmen = bm; idx_rec->num_bkings = bk;
                         idx_rec->num_wmen = wm; idx_rec->num_wkings = wk;
                         idx_rec->side_to_move = last_color;
                         if (bm > 0) idx_rec->bmrank = current_rank; else idx_rec->wmrank = current_rank;
                         
-                        // Normalize offsets: If start_byte >= 1024, shift it into block_id
-                        idx_rec->first_block_id = block_id + (start_byte / 1024);
-                        idx_rec->startbyte = start_byte % 1024;
+                        // Absolute starting position: block_id is in 4096-byte units
+                        uint64_t absolute_slice_start = (uint64_t)block_id * 4096 + start_byte;
+                        idx_rec->first_block_id = 0; // We'll use absolute offsets in blocknumber
                         
-                        std::vector<uint64_t> offsets;
-                        offsets.push_back(0); // Block 0 starts at relative index 0
-                        
-                        auto parse_block_start = [&](char *ptr) {
-                            char *endptr;
-                            uint64_t val = strtoull(ptr, &endptr, 10);
-                            if (endptr != ptr) return (uint64_t)val;
-                            return (uint64_t)0ULL;
+                        std::vector<Checkpoint> checkpoints;
+                        uint64_t current_file_offset = absolute_slice_start;
+
+                        // Helper to parse numbers from current line and subsequent lines
+                        auto get_next_num = [&](char **ptr_ref) -> int64_t {
+                            char *ptr = *ptr_ref;
+                            while (true) {
+                                while (*ptr && !isdigit(*ptr) && *ptr != '-' && *ptr != '+' && *ptr != '#' && *ptr != 'B') ptr++;
+                                if (!*ptr || *ptr == '#' || strncmp(ptr, "BASE", 4) == 0) return -1;
+                                char *endptr;
+                                int64_t val = strtoll(ptr, &endptr, 10);
+                                if (endptr != ptr) {
+                                    *ptr_ref = endptr;
+                                    return val;
+                                }
+                                ptr++;
+                            }
                         };
 
-                        // Parse rest of the BASE line
-                        while (*p) {
-                            while (*p && (isspace(*p) || *p == ',')) p++;
-                            if (!isdigit(*p)) break;
-                            offsets.push_back(parse_block_start(p));
-                            while (*p && isdigit(*p)) p++; // Skip digits
-                            while (*p && (isspace(*p) || *p == ',')) p++;
-                            while (*p && isdigit(*p)) p++; // Skip start_byte
-                            while (*p && (isspace(*p) || *p == ',')) p++;
-                            while (*p && isdigit(*p)) p++; // Skip checkpoint
+                        // The first two numbers after colon are BlockOffset and InitialByte for Index 0
+                        int64_t skip0 = get_next_num(&p);
+                        int64_t val0 = get_next_num(&p);
+                        if (skip0 != -1 && val0 != -1) {
+                            current_file_offset += (uint64_t)skip0;
+                            checkpoints.push_back({0, current_file_offset, (uint8_t)val0});
                         }
 
-                        // Continue reading continuation lines
-                        long file_pos;
-                        while ((file_pos = ftell(fp)) != -1 && fgets(buffer, sizeof(buffer), fp)) {
-                            char *p2 = buffer;
-                            while (isspace(*p2)) p2++;
-                            if (*p2 == 0 || *p2 == '#') continue;
-                            if (strncmp(p2, "BASE", 4) == 0) {
-                                fseek(fp, file_pos, SEEK_SET);
-                                break;
+                        // Collect all remaining numbers as triplets (Index, SkipBlocks, InitialByte)
+                        while (true) {
+                            int64_t idx = get_next_num(&p);
+                            if (idx == -1) {
+                                // Try next line
+                                long fpos = ftell(fp);
+                                if (fgets(buffer, sizeof(buffer), fp)) {
+                                    p = buffer;
+                                    idx = get_next_num(&p);
+                                    if (idx == -1 || (!checkpoints.empty() && idx < (int64_t)checkpoints.back().index)) {
+                                        fseek(fp, fpos, SEEK_SET);
+                                        break;
+                                    }
+                                } else break;
                             }
-                            
-                            // Check if this is a new rank (non-monotonic index)
-                            uint64_t first_val = parse_block_start(p2);
-                            if (!offsets.empty() && first_val < offsets.back()) {
-                                 // Likely a rank change.
-                                 fseek(fp, file_pos, SEEK_SET);
-                                 break;
-                            }
-                            
-                            while (*p2) {
-                                while (*p2 && (isspace(*p2) || *p2 == ',')) p2++;
-                                if (!isdigit(*p2)) break;
-                                offsets.push_back(parse_block_start(p2));
-                                while (*p2 && isdigit(*p2)) p2++;
-                                while (*p2 && (isspace(*p2) || *p2 == ',')) p2++;
-                                while (*p2 && isdigit(*p2)) p2++;
-                                while (*p2 && (isspace(*p2) || *p2 == ',')) p2++;
-                                while (*p2 && isdigit(*p2)) p2++;
+                            int64_t skip = get_next_num(&p);
+                            int64_t val = get_next_num(&p);
+                            if (skip == -1 || val == -1) break;
+
+                            current_file_offset += (uint64_t)skip;
+                            checkpoints.push_back({(uint64_t)idx, current_file_offset, (uint8_t)val});
+                        }
+
+                        idx_rec->num_checkpoints = (int)checkpoints.size();
+                        if (idx_rec->num_checkpoints > 0) {
+                            idx_rec->checkpoints = (Checkpoint *)malloc(checkpoints.size() * sizeof(Checkpoint));
+                            if (idx_rec->checkpoints) {
+                                for(size_t i=0; i<checkpoints.size(); ++i) idx_rec->checkpoints[i] = checkpoints[i];
                             }
                         }
-                        
-                        idx_rec->idx_size = (int)offsets.size();
-                        idx_rec->num_idx_blocks = (int)offsets.size();
-                        idx_rec->idx = (uint64_t *)malloc(offsets.size() * sizeof(uint64_t));
-                        for(size_t i=0; i<offsets.size(); ++i) idx_rec->idx[i] = offsets[i];
                         
                         int pieces = bm + bk + wm + wk;
                         CPRSUBDB *csdb = &h->cprsubdb[pieces - 2];
                         idx_rec->file = cpr_fp;
                         idx_rec->next = csdb->index_list;
                         csdb->index_list = idx_rec;
-                        next_block_id = block_id + (unsigned int)offsets.size();
                     }
                 }
-            } else if (last_bm != -1 && isdigit(*p)) {
-                 // Implicit next rank
-                 current_rank++;
-                 // We'll recurse or loop to create a new INDEX_REC? 
-                 // Actually, if we hit this, we should rewind and let the main loop handle it?
-                 // No, the main loop expects "BASE". 
-                 // Let's implement the same BASE-less logic as MTC.
-                 // Actually, for WLD, BASE-less lines seem rare. 
-                 // If we hit one, let's just skip for now or treat as BASE.
             }
         }
         fclose(fp);
@@ -436,13 +401,10 @@ namespace egdb_interface {
         // printf("DEBUG: Entering dblookup_wld_internal\n"); fflush(stdout);
         CPRSUBDB *csdb;
         int num_pieces;
-        int value;
         INDEX_REC *idx_rec;
-        uint64_t current_index, current_n;
         uint8_t *diskblock;
-        unsigned int db_len_bytes;
-        int blocknumber = 0;
         unsigned int num_bmen, num_bkings, num_wmen, num_wkings;
+        uint64_t current_index;
 
         *err = EGDB_ERR_NORMAL;
 
@@ -522,8 +484,7 @@ namespace egdb_interface {
 
         idx_rec = find_record(&lookup_pos, (int)num_bmen, (int)num_bkings, (int)num_wmen, (int)num_wkings, bm_rank, wm_rank);
 
-        // SYMMETRY RETRY: If no match found, try flipping pieces and colors.
-        // Many database slices are only stored from one perspective (canonicalization).
+        // SYMMETRY RETRY
         if (!idx_rec) {
             EGDB_POSITION flipped = lookup_pos;
             flipped.black_pieces = lookup_pos.white_pieces;
@@ -545,85 +506,52 @@ namespace egdb_interface {
             idx_rec = find_record(&flipped, f_bmen, f_bkings, f_wmen, f_wkings, f_bm_rank, f_wm_rank);
             if (idx_rec) {
                 lookup_pos = flipped;
+                num_bmen = f_bmen; num_bkings = f_bkings; num_wmen = f_wmen; num_wkings = f_wkings;
+                bm_rank = f_bm_rank; wm_rank = f_wm_rank;
             }
         }
 
         if (!idx_rec) {
-            // Trivial case check: If one side has no pieces, it's a loss for them.
-            if (num_bmen + num_bkings == 0) {
-                return (pos->stm == EGDB_BLACK) ? EGDB_LOSS : EGDB_WIN;
-            }
-            if (num_wmen + num_wkings == 0) {
-                return (pos->stm == EGDB_WHITE) ? EGDB_LOSS : EGDB_WIN;
-            }
-
-            if (num_pieces <= 7) {
-                log_c(LOG_LEVEL_WARNING, "dblookup_wld_internal: NO MATCH FOUND for piece counts and stm.");
-            }
+            if (num_bmen + num_bkings == 0) return (pos->stm == EGDB_BLACK) ? EGDB_LOSS : EGDB_WIN;
+            if (num_wmen + num_wkings == 0) return (pos->stm == EGDB_WHITE) ? EGDB_LOSS : EGDB_WIN;
             *err = EGDB_DB_NOT_LOADED;
             return(EGDB_UNKNOWN);
         }
         
-        // Handle single-value hits
-        if (idx_rec->num_idx_blocks == 0) {
-             int res = idx_rec->initial_value;
-             if (lookup_pos.stm != pos->stm) {
-                 if (res == EGDB_WIN) res = EGDB_LOSS;
-                 else if (res == EGDB_LOSS) res = EGDB_WIN;
-             }
-             return res;
-        }
-        
         current_index = (uint64_t)position_to_index_slice(&lookup_pos, (int)num_bmen, (int)num_bkings, (int)num_wmen, (int)num_wkings);
-        current_n = current_index;
 
-        // Find block
-        // idx_rec->idx is array of start_indices.
-        // We need k where idx[k] <= current_index < idx[k+1]
-        // Binary search or linear.
-        int best_block = -1;
-        
-        for (int k = 0; k < idx_rec->num_idx_blocks; ++k) {
-             if (idx_rec->idx[k] <= current_index) {
-                 best_block = k;
-             } else {
-                 break;
-             }
-        }
-        
-        // Sanity Check: If current_index is wildly beyond the start of the last block,
-        // it means we are using a catch-all index for a position that resides in a missing slice.
-        // A single 4KB block can hold at most ~262k positions (assuming extremely high compression).
-        // We use a safe margin of 1,000,000.
-        if (best_block == idx_rec->num_idx_blocks - 1) {
-            uint64_t last_start = idx_rec->idx[best_block];
-            if (current_index > last_start + 1000000) {
-                 // log_c(LOG_LEVEL_DEBUG, "dblookup_wld_internal: Index %llu too far past last block start %llu", (unsigned long long)current_index, (unsigned long long)last_start);
-                 *err = EGDB_INDEX_OUT_OF_BOUNDS;
-                 return EGDB_UNKNOWN;
+        if (csdb->compression == EGDB_COMPRESSION_TUNSTALL_V1 || csdb->compression == EGDB_COMPRESSION_TUNSTALL_V2) {
+            uint64_t absolute_file_offset = (uint64_t)idx_rec->first_block_id * 4096 + idx_rec->startbyte;
+            int blocknumber = (int)(absolute_file_offset / 4096);
+            int cache_idx;
+            if (get_db_data_block(h, idx_rec, blocknumber, &diskblock, &cache_idx)) {
+                *err = EGDB_FILE_READ_ERROR;
+                return(EGDB_UNKNOWN);
             }
+            
+            int value;
+            if (csdb->compression == EGDB_COMPRESSION_TUNSTALL_V1) {
+                decompress_wld_tunstall_v1(diskblock, h->cache_block_info[cache_idx].bytes_in_block, current_index, 0, &value);
+            } else {
+                decompress_wld_tunstall_v2(diskblock, h->cache_block_info[cache_idx].bytes_in_block, lsb64_(current_index), msb64_(current_index), &value);
+            }
+            
+            if (value == 0) return EGDB_WIN;
+            if (value == 1) return EGDB_LOSS;
+            if (value == 2) return EGDB_DRAW;
+            return EGDB_UNKNOWN;
         }
-        
-        if (best_block == -1) {
-             *err = EGDB_INDEX_OUT_OF_BOUNDS;
-             return EGDB_UNKNOWN;
-        }
-        
-        blocknumber = best_block;
-        current_n = idx_rec->idx[blocknumber]; // Start index of this block
 
-        // Handle Small File Packing: If the file is smaller than 1024 bytes,
-        // it only has block 0. All index checkpoints must be in block 0.
-        if (idx_rec->file) {
-            long current_fpos = ftell(idx_rec->file);
-            fseek(idx_rec->file, 0, SEEK_END);
-            long file_size = ftell(idx_rec->file);
-            fseek(idx_rec->file, current_fpos, SEEK_SET);
-            if (file_size < 1024) {
-                blocknumber = 0;
-                current_n = idx_rec->idx[0];
-            }
-        }
+        // Brute force RLE logic for RUNLEN compression types
+        if (idx_rec->num_checkpoints == 0) return idx_rec->initial_value;
+
+        // Use the first checkpoint (index 0)
+        Checkpoint& cp = idx_rec->checkpoints[0];
+        uint64_t absolute_file_offset = cp.file_offset;
+        uint64_t decompressed_index = 0;
+
+        int blocknumber = (int)(absolute_file_offset / 4096);
+        int offset = (int)(absolute_file_offset % 4096);
 
         int cache_idx;
         if (get_db_data_block(h, idx_rec, blocknumber, &diskblock, &cache_idx)) {
@@ -631,83 +559,59 @@ namespace egdb_interface {
             return(EGDB_UNKNOWN);
         }
 
-        // Decompress
-        int offset = (blocknumber == 0) ? idx_rec->startbyte : 0;
-        uint64_t decompressed_index = current_n;
         int current_block_size = h->cache_block_info[cache_idx].bytes_in_block;
-        
-        // log_c(LOG_LEVEL_DEBUG, "dblookup_wld_internal: Decompressing. Target: %llu, Start: %llu, Block: %d, Offset: %d", (unsigned long long)current_index, (unsigned long long)decompressed_index, blocknumber, offset);
-        
-        int loop_safety = 0;
-        // log_c(LOG_LEVEL_DEBUG, "dblookup_wld_internal: Starting decompression loop. Target: %llu, Start: %llu, Block: %d, Offset: %d", (unsigned long long)current_index, (unsigned long long)decompressed_index, blocknumber, offset);
-        while (decompressed_index <= current_index) {
-             if (loop_safety++ > 5000000) {
-                 log_c(LOG_LEVEL_DEBUG, "dblookup_wld_internal: Loop safety break at Idx: %llu", (unsigned long long)decompressed_index);
-                 break; 
-             }
-             
-             uint8_t byte = diskblock[offset];
-             int run = compression_tables.runlength_table[byte];
-             int val_base = compression_tables.value_table[byte];
-             
-             /*
-             if (loop_safety < 10) {
-                 log_c(LOG_LEVEL_DEBUG, "dblookup_wld_internal: Loop %d: Byte=%d Run=%d ValBase=%d Idx=%llu", loop_safety, byte, run, val_base, (unsigned long long)decompressed_index);
-             }
-             */
+        int final_val = EGDB_UNKNOWN;
+        bool found = false;
 
-             // Check if we found it
+        while (decompressed_index <= current_index) {
+             if (offset >= current_block_size) {
+                 if (current_block_size < 4096) break;
+                 blocknumber++;
+                 if (get_db_data_block(h, idx_rec, blocknumber, &diskblock, &cache_idx)) break;
+                 current_block_size = h->cache_block_info[cache_idx].bytes_in_block;
+                 offset = 0;
+             }
+
+             uint8_t byte = diskblock[offset];
+             int run;
+             int val_base = 0;
+             bool is_block = false;
+
+             if (byte < 81) {
+                  run = 4;
+                  is_block = true;
+             } else {
+                  run = compression_tables.runlength_table[byte];
+                  val_base = compression_tables.value_table[byte];
+             }
+
              if (decompressed_index + run > current_index) {
-                  // Found!
-                  int final_val;
-                  if (byte < 81) {
+                  if (is_block) {
                        int run_offset = (int)(current_index - decompressed_index);
                        final_val = compression_tables.decode_table[byte][run_offset];
                   } else {
                        final_val = val_base;
                   }
-                  
-                  // log_c(LOG_LEVEL_DEBUG, "dblookup_wld_internal: Hit! Val=%d at Idx=%llu", final_val, (unsigned long long)current_index);
-
-                  // Standard Kingsrow Mapping (0=LOSS, 1=DRAW, 2=WIN)
-                  int res = EGDB_UNKNOWN;
-                  if (final_val == 0) res = EGDB_LOSS; 
-                  else if (final_val == 1) res = EGDB_DRAW; 
-                  else if (final_val == 2) res = EGDB_WIN;  
-                  
-                  return res;
+                  found = true;
+                  break;
              }
-             
              decompressed_index += run;
              offset++;
-             if (offset >= current_block_size) {
-                 // If we have reached the target index exactly at the block boundary, we're done.
-                 if (decompressed_index > current_index) break;
-
-                 if (current_block_size < 1024) {
-                      // log_c(LOG_LEVEL_DEBUG, "dblookup_wld_internal: EOF reached in short block %d at Idx: %llu", blocknumber, (unsigned long long)decompressed_index);
-                      break;
-                 }
-                 blocknumber++;
-                 if (get_db_data_block(h, idx_rec, blocknumber, &diskblock, &cache_idx)) {
-                     log_c(LOG_LEVEL_DEBUG, "dblookup_wld_internal: Failed to get next block %d", blocknumber);
-                     *err = EGDB_FILE_READ_ERROR;
-                     return EGDB_UNKNOWN;
-                 }
-                 current_block_size = h->cache_block_info[cache_idx].bytes_in_block;
-                 offset = 0;
-             }
         }
         
-        if (decompressed_index < current_index) {
-            log_c(LOG_LEVEL_DEBUG, "dblookup_wld_internal: Decompression FAILED for piece counts %d,%d,%d,%d stm %d. Final Idx: %llu, Target: %llu", 
-                  idx_rec->num_bmen, idx_rec->num_bkings, idx_rec->num_wmen, idx_rec->num_wkings, idx_rec->side_to_move,
-                  (unsigned long long)decompressed_index, (unsigned long long)current_index);
-            *err = EGDB_DECOMPRESSION_FAILED;
-            return(EGDB_UNKNOWN);
+        if (found) {
+            if (final_val == 0) return EGDB_LOSS;
+            if (final_val == 1) return EGDB_DRAW;
+            if (final_val == 2) return EGDB_WIN;
+            return EGDB_UNKNOWN;
         }
-        return EGDB_UNKNOWN;
+
+        // log_c(LOG_LEVEL_DEBUG, "dblookup_wld_internal: Brute force FAILED for %d,%d,%d,%d STM %d. Final Idx: %llu, Target: %llu", 
+        //      num_bmen, num_bkings, num_wmen, num_wkings, lookup_pos.stm, (unsigned long long)decompressed_index, (unsigned long long)current_index);
+        *err = EGDB_DECOMPRESSION_FAILED;
+        return(EGDB_UNKNOWN);
     }
+
 
     static void exitdblookup(DBHANDLE h)
     {
@@ -739,7 +643,7 @@ namespace egdb_interface {
                                 last_closed = idx_rec->file;
                             }
                         }
-                        if (idx_rec->idx) free(idx_rec->idx);
+                        if (idx_rec->checkpoints) free(idx_rec->checkpoints);
                         free(idx_rec);
                         idx_rec = idx_rec_next;
                     }

@@ -42,14 +42,14 @@ static void move_cache_block_to_head(DBHANDLE h, int block_index)
 
 int get_db_data_block(DBHANDLE h, struct INDEX_REC *idx_rec, int blocknumber, uint8_t **db_data_block, int *cache_index)
 {
-    // Use file_num + first_block_id + blocknumber as a unique ID.
-    // file_num is shifted to ensure no collision between files.
-    int unique_id = (idx_rec->file_num << 20) | (idx_rec->first_block_id + blocknumber);
+    // blocknumber is absolute 4096-byte block number in the file.
+    // Use a 64-bit unique ID to prevent overflow and collisions.
+    uint64_t unique_id = ((uint64_t)idx_rec->file_num << 32) | (uint32_t)blocknumber;
     
     // Search in cache
     for (int i = 0; i < MAXCACHEDBLOCKS; ++i) {
-        if (h->cache_block_info[i].unique_id == unique_id) {
-            *db_data_block = h->cache_base + (i * 1024);
+        if (h->cache_block_info[i].unique_id_64 == unique_id) {
+            *db_data_block = h->cache_base + (i * 4096);
             if (cache_index) *cache_index = i;
             move_cache_block_to_head(h, i);
             return 0; // Cache hit
@@ -63,26 +63,25 @@ int get_db_data_block(DBHANDLE h, struct INDEX_REC *idx_rec, int blocknumber, ui
         return 1;
     }
 
-    uint8_t *diskblock = h->cache_base + (victim_index * 1024);
+    uint8_t *diskblock = h->cache_base + (victim_index * 4096);
     
     if (!idx_rec->file) {
         return 1;
     }
 
-    // Seek and read 1024 bytes (one block)
-    // Offset is (first_block_id + blocknumber) * 1024
-    if (fseek(idx_rec->file, (long long)(idx_rec->first_block_id + blocknumber) * 1024, SEEK_SET) != 0) {
+    // Seek and read 4096 bytes
+    if (fseek(idx_rec->file, (long long)blocknumber * 4096, SEEK_SET) != 0) {
         log_c(LOG_LEVEL_ERROR, "get_db_data_block: fseek failed.");
         return 1;
     }
 
-    size_t bytes_read = fread(diskblock, 1, 1024, idx_rec->file);
+    size_t bytes_read = fread(diskblock, 1, 4096, idx_rec->file);
     if (bytes_read == 0) {
-        log_c(LOG_LEVEL_ERROR, "get_db_data_block: fread read 0 bytes (EOF?).");
+        // log_c(LOG_LEVEL_ERROR, "get_db_data_block: fread read 0 bytes (EOF?).");
         return 1;
     }
     
-    h->cache_block_info[victim_index].unique_id = unique_id;
+    h->cache_block_info[victim_index].unique_id_64 = unique_id;
     h->cache_block_info[victim_index].bytes_in_block = (int)bytes_read;
     *db_data_block = diskblock;
     if (cache_index) *cache_index = victim_index;
