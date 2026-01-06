@@ -38,3 +38,10 @@
 - Confirmed 100% successful WLD lookups for 9-piece test positions.
 - Fixed MTC lookup misses for king endgames by restoring correct absolute offset calculation from slice start.
 - Verified MTC distance-to-win accuracy (10-16 plies) for 3-king endgames.
+
+2026-01-05: Fixed EGDB MTC driver stability.
+- Resolved segmentation fault in `dblookup_mtc_internal` caused by missing checkpoints for small database slices.
+- Root cause: `parseindexfile_mtc` failed to read multi-line index entries, resulting in `num_checkpoints=0` and a NULL pointer dereference.
+- Fix: Ported `get_n_multiline` from `egdb_wld_runlen.cpp` to correctly parse continuation lines in `egdb_mtc_runlen.cpp`.
+- Implemented safety checks in `dblookup_mtc_internal` to return `MTC_UNKNOWN_VAL` instead of crashing if checkpoints are missing or invalid.
+- Verified 100% stability with `test4pc.txt` (4-piece endgame), confirming valid MTC lookups and no crashes.

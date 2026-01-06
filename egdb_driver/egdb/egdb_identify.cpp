@@ -81,15 +81,17 @@ namespace egdb_interface {
 		// 5-piece wld databases
 		{ EGDB_WLD_TUN_V1, "db5.cpr", 5, false, true, 0 },
 
-		// 4-piece wld databases
-		{ EGDB_WLD_TUN_V1, "db4.cpr", 4, false, true, 0 },
-
-		// 3-piece wld databases
-		{ EGDB_WLD_RUNLEN, "db3.cpr", 3, false, true, 0 },
-
-		// 2-piece wld databases
-		{ EGDB_WLD_RUNLEN, "db2.cpr", 2, false, true, 0 },
-
+		                // 4-piece wld databases
+		                { EGDB_WLD_TUN_V2, "db4.cpr1", 4, false, true, 0 },
+		                { EGDB_WLD_TUN_V1, "db4.cpr", 4, false, true, 0 },
+		
+		                // 3-piece wld databases
+		                { EGDB_WLD_TUN_V2, "db3.cpr1", 3, false, true, 0 },
+		                { EGDB_WLD_RUNLEN, "db3.cpr", 3, false, true, 0 },
+		
+		                // 2-piece wld databases
+		                { EGDB_WLD_TUN_V2, "db2.cpr1", 2, false, true, 0 },
+		                { EGDB_WLD_RUNLEN, "db2.cpr", 2, false, true, 0 },
 		// 8-piece mtc databases
 		{ EGDB_MTC_RUNLEN, "db8.mtc", 8, true, true, 0 },
 		{ EGDB_MTC_RUNLEN, "db7.mtc", 7, true, true, 0 },

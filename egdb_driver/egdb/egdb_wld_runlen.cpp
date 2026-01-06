@@ -204,12 +204,15 @@ namespace egdb_interface {
                 std::string prefix = "db" + std::to_string(n_pieces);
                 while ((ent = readdir(dir)) != nullptr) {
                     std::string fname = ent->d_name;
-                    if (fname.size() >= prefix.size() + 4 &&
+                    bool is_idx = (fname.size() >= 4 && fname.compare(fname.size() - 4, 4, ".idx") == 0);
+                    bool is_idx1 = (fname.size() >= 5 && fname.compare(fname.size() - 5, 5, ".idx1") == 0);
+
+                    if (fname.size() >= prefix.size() &&
                         fname.compare(0, prefix.size(), prefix) == 0 &&
-                        fname.compare(fname.size() - 4, 4, ".idx") == 0) {
+                        (is_idx || is_idx1)) {
                         
                         // Ensure it's not a different piece count (e.g. db10 doesn't match db1 prefix)
-                        if (fname.size() > prefix.size() && isdigit(fname[prefix.size()])) continue;
+                        if (fname.size() > prefix.size() && isdigit(fname[prefix.size()]) && fname[prefix.size()] != '-') continue;
 
                         idx_files.push_back(fname);
                     }
@@ -224,6 +227,11 @@ namespace egdb_interface {
                     continue;
                 }
                 csdb->ispresent = true;
+                if (idx_fname_str.find(".idx1") != std::string::npos) {
+                    csdb->compression = EGDB_COMPRESSION_TUNSTALL_V2;
+                } else {
+                    csdb->compression = EGDB_COMPRESSION_TUNSTALL_V1;
+                }
                 num_dbs_loaded++;
                 file_num++;
             }
@@ -262,8 +270,13 @@ namespace egdb_interface {
         // Determine corresponding CPR filename
         char cpr_fname[256];
         strcpy(cpr_fname, idx_fname);
-        char *dot = strrchr(cpr_fname, '.');
-        if (dot) strcpy(dot, ".cpr");
+        char *ext = strstr(cpr_fname, ".idx1");
+        if (ext) memcpy(ext, ".cpr1", 5);
+        else {
+            ext = strstr(cpr_fname, ".idx");
+            if (ext) memcpy(ext, ".cpr", 4);
+        }
+        
         std::string cpr_path = base_path + cpr_fname;
         FILE *cpr_fp = fopen(cpr_path.c_str(), "rb");
         if (!cpr_fp) {

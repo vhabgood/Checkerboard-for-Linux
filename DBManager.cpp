@@ -60,9 +60,12 @@ int DBManager::db_init(int suggestedMB, char out[256], const char* EGTBdirectory
     // We assume an 8x8 board (32 squares)
     // The Kingsrow EGDB driver takes a 'pieces' argument, which refers to the max number of pieces for the DB
     // The egdb_open function also takes bitboard_type and a message function.
-    m_wld_handle = egdb_open(EGDB_NORMAL, MAXPIECE, suggestedMB, finalPath.c_str(), [](char* msg){ log_c(LOG_LEVEL_DEBUG, "EGDB WLD: %s", msg); });
+    // m_wld_handle = egdb_open(EGDB_NORMAL, MAXPIECE, suggestedMB, finalPath.c_str(), [](char* msg){ log_c(LOG_LEVEL_DEBUG, "EGDB WLD: %s", msg); });
     
-    if (m_wld_handle == nullptr) {
+    // Use Internal API (4 args) to bypass egdb_identify and force WLD driver
+    m_wld_handle = egdb_open(finalPath.c_str(), (unsigned int)suggestedMB, EGDB_WLD_RUNLEN, &wld_err);
+
+    if (wld_err != EGDB_ERR_NORMAL) {
         log_c(LOG_LEVEL_ERROR, "DBManager::db_init: Failed to open WLD EGDB.");
         updateProgramStatusWord(STATUS_EGDB_INIT_FAIL);
         // Attempt to open MTC anyway, as it might be a separate issue
@@ -251,4 +254,3 @@ int64_t DBManager::getDatabaseSize(int bm, int bk, int wm, int wk, int bmrank, i
 	        return status.trimmed(); // Remove trailing space if any
 	    }
 	}
-	

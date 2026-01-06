@@ -64,6 +64,8 @@ private:
     int m_lastEvaluationScore;
     int m_lastSearchDepth;
     QString m_egdbLookupResult;
+    std::vector<bitboard_pos> m_searchPath;
+    int m_rootWLD;
 
     // Piece-Square Tables (PSTs) for evaluation
     static const int whiteManPST[32];

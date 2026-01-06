@@ -69,5 +69,6 @@ void unmake_move_c(const CBmove *move, bitboard_pos* board);
 void find_captures_recursive(const bitboard_pos& board, CBmove* movelist, CBmove* m, int x, int y, int d, int& n, int color, int is_king, const int* visited_parent);
 void makemovelist(const bitboard_pos& board, int color, CBmove* movelist, int& isjump, int& n);
 int get_legal_moves_c(const bitboard_pos& board, int color, CBmove* movelist, int& nmoves, int& isjump, const CBmove *last_move, bool *can_continue_multijump);
+bool is_capture_available(const bitboard_pos& board, int color);
 
 void start3move_c(bitboard_pos* board, int opening_index);

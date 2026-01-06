@@ -13,31 +13,29 @@ namespace egdb_interface {
 
 static void move_cache_block_to_head(DBHANDLE h, int block_index)
 {
-    if (block_index == h->cache_head) {
-        return;
-    }
+    if (block_index == h->cache_head) return;
 
+    // Unlink
     int prev = h->cache_block_info[block_index].prev;
     int next = h->cache_block_info[block_index].next;
 
-    if (next != -1) {
-        h->cache_block_info[next].prev = prev;
-    } else { // It was the tail
-        h->cache_tail = prev;
+    if (block_index == h->cache_tail) {
+        h->cache_tail = next;
+        if (h->cache_tail != -1) h->cache_block_info[h->cache_tail].prev = -1;
+    } else {
+        if (prev != -1) h->cache_block_info[prev].next = next;
+        if (next != -1) h->cache_block_info[next].prev = prev;
     }
 
-    if (prev != -1) {
-        h->cache_block_info[prev].next = next;
-    }
-
-    h->cache_block_info[block_index].next = h->cache_head;
-    h->cache_block_info[block_index].prev = -1;
+    // Link at Head
+    h->cache_block_info[block_index].next = -1;
+    h->cache_block_info[block_index].prev = h->cache_head;
     
-    if (h->cache_head != -1) {
-        h->cache_block_info[h->cache_head].prev = block_index;
-    }
-
+    if (h->cache_head != -1) h->cache_block_info[h->cache_head].next = block_index;
     h->cache_head = block_index;
+    
+    // Handle empty list case (though strictly shouldn't happen here if initialized)
+    if (h->cache_tail == -1) h->cache_tail = block_index;
 }
 
 int get_db_data_block(DBHANDLE h, struct INDEX_REC *idx_rec, int blocknumber, uint8_t **db_data_block, int *cache_index)

@@ -420,6 +420,33 @@ int get_legal_moves_c(const bitboard_pos& board, int color, CBmove* movelist, in
 }
 
 
+bool is_capture_available(const bitboard_pos& board, int color)
+{
+    for (int r = 0; r < 8; ++r) {
+        for (int c = 0; c < 8; ++c) {
+            int sq = coorstonumber(c, r, GT_ENGLISH);
+            if (sq == 0) continue;
+            int p = get_piece(board, sq - 1);
+            if (p != CB_EMPTY && (p & color)) {
+                int is_king = (p & CB_KING) ? 1 : 0;
+                int fwd = (color == CB_WHITE) ? -1 : 1;
+                int dx[] = {-1, 1, -1, 1}, dy[] = {fwd, fwd, -fwd, -fwd};
+                int dirs = is_king ? 4 : 2;
+                for (int i = 0; i < dirs; ++i) {
+                    int jx = c + dx[i], jy = r + dy[i], lx = c + 2*dx[i], ly = r + 2*dy[i];
+                    int lsq = coorstonumber(lx, ly, GT_ENGLISH);
+                    if (lsq != 0) {
+                        int op = get_piece(board, coorstonumber(jx, jy, GT_ENGLISH) - 1);
+                        int lp = get_piece(board, lsq - 1);
+                        if (lp == CB_EMPTY && op != CB_EMPTY && !(op & color)) return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
 void makemovelist(const bitboard_pos& board, int color, CBmove* movelist, int& isjump, int& n)
 {
     int i;

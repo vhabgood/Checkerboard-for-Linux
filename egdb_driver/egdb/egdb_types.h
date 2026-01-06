@@ -2,10 +2,11 @@
 
 #include <cstdint>  // uint64_t
 #include <cstdio>   // FILE
+#include <mutex>    // std::mutex
 #include "core_types.h"
 
 #include "egdb.h" // For EGDB_TYPE
-#include "egdb_structures.h" // Added this include
+#include "egdb_structures.h" 
 
 namespace egdb_interface {
 
@@ -30,14 +31,14 @@ namespace egdb_interface {
         char path[256]; // For the path to the EGDB files
         FILE* files[MAXFP]; // Array of open file pointers
         int num_files;      // Number of open files
+        std::mutex *cache_mutex;
     } DB_HANDLE_T;
 
     typedef struct DB_HANDLE_T* DBHANDLE;
 
-    // Missing defines
     #define MAXCACHEDBLOCKS 1024
     #define SPLIT_POINT_RUNLEN 11
-    #define SPLIT_POINT_TUNSTALL_V1 6 // Added this line
+    #define SPLIT_POINT_TUNSTALL_V1 6
 
     #define TAIL 0
     #define HEAD (MAXCACHEDBLOCKS - 1)
